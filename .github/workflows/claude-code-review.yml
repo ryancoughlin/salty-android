@@ -1,0 +1,92 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    paths:
+      - "**/*.kt"
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*)"
+          prompt: |
+            You are reviewing Kotlin code for Salty, a safety-critical Android app used by offshore fishermen who depend on accurate ocean data for navigation in remote, dangerous conditions.
+
+            **Goal:** tutorial-101 level logic. Simple. Performant. Operational. Surgical. No over-engineering.
+
+            ## How to Comment
+
+            **For each HIGH or MED issue:** Use `mcp__github_inline_comment__create_inline_comment` to post an inline comment directly on the affected line(s). Be specific about the problem and fix.
+
+            **At the end:** Use `gh pr comment` to post a summary with:
+            1. **Most Critical Issue** — causes bugs/data corruption if not fixed
+            2. **Biggest Simplification** — what to delete, merge, or restructure
+            3. **State Ownership Check** — unclear or duplicate ownership
+
+            If the PR is clean, post a single summary comment saying so.
+
+            ## Review Focus
+
+            **ARCHITECTURE**
+            - Is each type doing one clear job?
+            - Are feature boundaries obvious?
+            - Can this be reduced to a simpler primitive?
+
+            **DATA FLOW**
+            - Is data flowing one direction?
+            - Is UI separated from fetching and storage?
+
+            **COROUTINES**
+            - Is shared mutable state properly protected?
+            - Are coroutines scoped to ViewModel lifecycle?
+            - Are suspend functions used correctly?
+
+            **STATE**
+            - Is state minimal and mostly derived?
+            - Are we triggering unnecessary recompositions?
+
+            **TYPE ROLES**
+            - ViewModel: State holder + business logic, scoped to feature
+            - Service/Repository: I/O only, stateless
+            - Composable: Rendering only, no business logic
+            - data class: Pure data, no behavior
+
+            **PERFORMANCE & SIMPLICITY**
+            - What's running on main thread that shouldn't?
+            - Is this the simplest version that still delivers premium experience?
+
+            ## Severity Guide
+
+            **HIGH (always flag inline):**
+            - Data accuracy corruption (no fallbacks, no smoothing, no invented values)
+            - Crash/hang risk, coroutine bugs
+            - Duplicate state ownership
+            - Swallowed errors (runCatching without logging, empty catch blocks)
+            - Wrong scope (Service with state, blocking calls in Composables)
+            - Composable calling service directly (bypassing ViewModel)
+
+            **MED (flag inline if significant):**
+            - Wrong layer doing work (ViewModel doing I/O, Composable with business logic)
+            - Performance killers (expensive computations in recomposition)
+            - Unnecessary abstraction (single-use interfaces)
+
+            Do NOT flag LOW severity issues (naming nitpicks, style, cosmetic).
