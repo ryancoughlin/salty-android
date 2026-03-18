@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(which *)",
+      "Bash(ls *)",
+      "Bash(gh *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📍 Branch:' && git branch --show-current && echo '' && echo '📝 Recent commits:' && git log --oneline -5 && echo '' && echo '📂 Uncommitted changes:' && git status --short | head -10 || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then echo '⚠️  WARNING: You have uncommitted changes!' && git status --short; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(echo \"$TOOL_INPUT\" | jq -r '.file_path // empty'); if [[ \"$file_path\" == *local.properties* ]] || [[ \"$file_path\" == *google-services.json* ]] || [[ \"$file_path\" == *.keystore* ]]; then echo 'BLOCKED: Cannot edit secrets/credentials file' && exit 1; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

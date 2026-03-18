@@ -4,19 +4,35 @@
 
 ---
 
-## iOS Migration Context
+## iOS-First Workflow (MANDATORY)
 
-**This project is a 1:1 port of the iOS app.**
+**Every conversation starts with iOS.** This is not optional.
 
-- **Source of truth**: `/Users/ryan/Developer/salty-ios`
-- **Goal**: Same types, same names, same behavior
-- **Migration plan**: See `MIGRATION.md` for detailed task breakdown
+**Source of truth**: `/Users/ryan/Developer/salty-ios`
 
-When implementing any feature:
-1. Find the iOS implementation first
-2. Port it verbatim (adjusted for Kotlin/Android idioms)
-3. Use the same type names, property names, and API contracts
-4. Match the iOS behavior exactly
+Before writing ANY Android code:
+1. **Read the iOS implementation** — Find the exact Swift file(s) that implement this feature
+2. **Understand the types** — What structs, enums, classes exist? What are their properties?
+3. **Understand the behavior** — What does the code do? What's the user experience?
+4. **Port verbatim** — Same type names, same property names, same API contracts, same behavior
+
+**DO NOT:**
+- Invent new patterns that don't exist in iOS
+- Add "improvements" or "enhancements" beyond what iOS does
+- Skip reading iOS because "I think I know what it should do"
+- Create types/views that don't have iOS equivalents
+
+**When in doubt:** Open the iOS file and read it.
+
+### Quick Reference
+
+| iOS Location | Contains |
+|--------------|----------|
+| `SaltyOffshore/` | Main app code (Views, Stores, Services, Models) |
+| `SaltyOffshore/Map/` | Map views, layers, controls |
+| `SaltyOffshore/Models/` | Data types, enums, API contracts |
+| `SaltyOffshore/Services/` | Network, caching, data processing |
+| `docs/DATA_STRUCTURES.md` | Zarr format specifications |
 
 ### iOS → Android Translation
 
