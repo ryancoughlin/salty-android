@@ -69,6 +69,13 @@ data class Colorscale(
             category = ColorscaleCategory.SINGLE_COLOR
         )
 
+        val BLOOM = Colorscale(
+            id = "bloom",
+            name = "Bloom",
+            hexColors = ColorScales.bloom,
+            category = ColorscaleCategory.COLORFUL
+        )
+
         // =============================================
         // CURRENTS / SEA SURFACE HEIGHT SCALES
         // =============================================
@@ -228,7 +235,7 @@ data class Colorscale(
             // Temperature
             SST, SALTY_VIBES, THERMAL,
             // Chlorophyll/Productivity
-            CHLOROPHYLL, GREENS,
+            CHLOROPHYLL, BLOOM, GREENS,
             // Currents & Sea Surface Height
             CURRENTS, SPECTRAL, RDBU,
             // Mixed Layer Depth

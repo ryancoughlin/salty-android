@@ -8,34 +8,36 @@ enum class DatasetType(val rawValue: String) {
     SST("sst"),
     CURRENTS("currents"),
     CHLOROPHYLL("chlorophyll"),
-    EDDYS("eddys"),
+    SEA_SURFACE_HEIGHT("sea_surface_height"),
     WATER_CLARITY("water_clarity"),
     SALINITY("salinity"),
     WATER_TYPE("water_type"),
     MLD("mld"),
     FSLE("fsle"),
-    DISSOLVED_OXYGEN("dissolved_oxygen");
+    DISSOLVED_OXYGEN("dissolved_oxygen"),
+    PHYTOPLANKTON("phytoplankton");
 
     val shortName: String
         get() = when (this) {
             SST -> "SST"
             CURRENTS -> "CUR"
             CHLOROPHYLL -> "CHL"
-            EDDYS -> "SSH"
+            SEA_SURFACE_HEIGHT -> "SSH"
             WATER_CLARITY -> "KD"
             SALINITY -> "SAL"
             WATER_TYPE -> "TYPE"
             MLD -> "MLD"
             FSLE -> "FSLE"
-            DISSOLVED_OXYGEN -> "O₂"
+            DISSOLVED_OXYGEN -> "O\u2082"
+            PHYTOPLANKTON -> "PHY"
         }
 
     val numberDecimalPlaces: Int
         get() = when (this) {
             WATER_CLARITY -> 3
-            CHLOROPHYLL, DISSOLVED_OXYGEN, FSLE, CURRENTS -> 2
+            CHLOROPHYLL, DISSOLVED_OXYGEN, FSLE, CURRENTS, PHYTOPLANKTON -> 2
             SALINITY, SST -> 1
-            EDDYS, MLD, WATER_TYPE -> 0
+            SEA_SURFACE_HEIGHT, MLD, WATER_TYPE -> 0
         }
 
     /**
@@ -47,13 +49,14 @@ enum class DatasetType(val rawValue: String) {
             SST -> "temperature"
             CURRENTS -> "speed"
             CHLOROPHYLL -> "concentration"
-            EDDYS -> "sea_surface_height"
+            SEA_SURFACE_HEIGHT -> "sea_surface_height"
             WATER_CLARITY -> "Kd_490"
             SALINITY -> "salinity"
             WATER_TYPE -> "label"
             MLD -> "mixed_layer_depth"
             FSLE -> "fsle"
             DISSOLVED_OXYGEN -> "dissolved_oxygen"
+            PHYTOPLANKTON -> "phyc"
         }
 
     val contourFieldName: String
@@ -61,13 +64,14 @@ enum class DatasetType(val rawValue: String) {
             SST -> "temperature"
             CURRENTS -> "speed"
             CHLOROPHYLL -> "concentration"
-            EDDYS -> "ssh"
+            SEA_SURFACE_HEIGHT -> "ssh"
             WATER_CLARITY -> "Kd_490"
             SALINITY -> "salinity"
             MLD -> "depth"
             FSLE -> "fsle"
             DISSOLVED_OXYGEN -> "dissolved_oxygen"
             WATER_TYPE -> "salinity"
+            PHYTOPLANKTON -> "phyc"
         }
 
     val contourLabel: String
@@ -75,17 +79,18 @@ enum class DatasetType(val rawValue: String) {
             SST -> "temp_label"
             CURRENTS -> "speed"
             CHLOROPHYLL -> "concentration"
-            EDDYS -> "ssh"
+            SEA_SURFACE_HEIGHT -> "ssh"
             WATER_CLARITY -> "m^-1"
             SALINITY -> "salinity_label"
             MLD -> "depth_label"
             FSLE -> "fsle_label"
             DISSOLVED_OXYGEN -> "oxygen_label"
             WATER_TYPE -> "salinity_label"
+            PHYTOPLANKTON -> "phyc_label"
         }
 
     val supportsFronts: Boolean
-        get() = this in listOf(SST, EDDYS, SALINITY, MLD)
+        get() = this in listOf(SST, SEA_SURFACE_HEIGHT, SALINITY, MLD)
 
     /**
      * Default contour line color (Android Color int).
@@ -95,13 +100,14 @@ enum class DatasetType(val rawValue: String) {
             SST -> 0xFF000000.toInt()          // Black
             CURRENTS -> 0xFF1E90FF.toInt()     // Dodger blue
             CHLOROPHYLL -> 0xFF228B22.toInt()  // Forest green
-            EDDYS -> 0xFF000000.toInt()        // Black
+            SEA_SURFACE_HEIGHT -> 0xFF000000.toInt() // Black
             WATER_CLARITY -> 0xFF4169E1.toInt()// Royal blue
             SALINITY -> 0xFF800080.toInt()     // Purple
             WATER_TYPE -> 0xFF808080.toInt()   // Gray
             MLD -> 0xFF000080.toInt()          // Navy
             FSLE -> 0xFFFF4500.toInt()         // Orange red
             DISSOLVED_OXYGEN -> 0xFF008B8B.toInt() // Dark cyan
+            PHYTOPLANKTON -> 0xFF228B22.toInt() // Forest green (similar to chlorophyll)
         }
 
     /**
@@ -113,13 +119,14 @@ enum class DatasetType(val rawValue: String) {
             SST -> Colorscale.SST
             CURRENTS -> Colorscale.CURRENTS
             CHLOROPHYLL -> Colorscale.CHLOROPHYLL
-            EDDYS -> Colorscale.RDBU
+            SEA_SURFACE_HEIGHT -> Colorscale.RDBU
             WATER_CLARITY -> Colorscale.VIRIDIS
             SALINITY -> Colorscale.FLOW
             WATER_TYPE -> Colorscale.VIRIDIS
             MLD -> Colorscale.CASCADE
             FSLE -> Colorscale.SALTY_VIBES
             DISSOLVED_OXYGEN -> Colorscale.BOUNDARY_FIRE
+            PHYTOPLANKTON -> Colorscale.BLOOM
         }
 
     /**
@@ -133,19 +140,96 @@ enum class DatasetType(val rawValue: String) {
             SST -> "sea_surface_temperature"
             CURRENTS -> "speed"
             CHLOROPHYLL -> "chlor_a"
-            EDDYS -> "sea_surface_height"
+            SEA_SURFACE_HEIGHT -> "sea_surface_height"
             WATER_CLARITY -> "Kd_490"
             SALINITY -> "sss"
-            WATER_TYPE -> "water_type"
+            WATER_TYPE -> "label"
             MLD -> "mlotst"
             FSLE -> "fsle"
             DISSOLVED_OXYGEN -> "o2"
+            PHYTOPLANKTON -> "phyc"
         }
 
     companion object {
+        val default: DatasetType = SST
+
         fun fromRawValue(value: String): DatasetType? {
-            val mapped = if (value == "ssh") "eddys" else value
+            // Legacy aliases: "ssh" and "eddys" both map to sea_surface_height
+            val mapped = when (value) {
+                "ssh", "eddys" -> "sea_surface_height"
+                else -> value
+            }
             return entries.find { it.rawValue == mapped }
         }
     }
 }
+
+/**
+ * Layer capabilities for this dataset type (single source of truth).
+ * Matches iOS LayerCapabilities exactly.
+ */
+val DatasetType.capabilities: LayerCapabilities
+    get() = when (this) {
+        DatasetType.SST -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasContours = true,
+            hasNumbers = true,
+            hasEntrySelection = true
+        )
+        DatasetType.CURRENTS -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasArrows = true,
+            hasParticles = true,
+            hasNumbers = true
+        )
+        DatasetType.SEA_SURFACE_HEIGHT -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasContours = true,
+            hasSshFeatures = true,
+            hasNumbers = true
+        )
+        DatasetType.SALINITY, DatasetType.MLD, DatasetType.FSLE -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasContours = true,
+            hasNumbers = true
+        )
+        DatasetType.DISSOLVED_OXYGEN -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasContours = true,
+            hasNumbers = true,
+            hasDepthSelection = true
+        )
+        DatasetType.CHLOROPHYLL, DatasetType.WATER_CLARITY, DatasetType.WATER_TYPE, DatasetType.PHYTOPLANKTON -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasNumbers = true
+        )
+    }
+
+/**
+ * Rendering defaults for this dataset type (layer toggles, not visual config).
+ * Matches iOS DatasetType.defaults exactly.
+ */
+val DatasetType.defaults: DatasetDefaults
+    get() = when (this) {
+        DatasetType.SEA_SURFACE_HEIGHT -> DatasetDefaults(
+            contourEnabled = true,
+            contourOpacity = 1.0,
+            visualOpacity = 1.0,
+            arrowsEnabled = false,
+            arrowsOpacity = 1.0,
+            particlesEnabled = false,
+            numbersEnabled = false,
+            numbersOpacity = 1.0
+        )
+        DatasetType.CURRENTS -> DatasetDefaults(
+            contourEnabled = false,
+            contourOpacity = 1.0,
+            visualOpacity = 1.0,
+            arrowsEnabled = false,
+            arrowsOpacity = 1.0,
+            particlesEnabled = true,
+            numbersEnabled = false,
+            numbersOpacity = 1.0
+        )
+        else -> DatasetDefaults.standard
+    }

@@ -15,12 +15,17 @@ enum class DatasetUnit(val symbol: String) {
     PER_DAY("day⁻¹"),
     PSU("PSU"),
     MMOL_PER_CUBIC_METER("mmol/m³"),
-    PER_METER("m⁻¹"),
-    UNITLESS("");
+    INVERSE_METERS("m⁻¹"),
+    DIMENSIONLESS(""),
+    INVERSE_SECONDS("s⁻¹"),
+    MG_PER_LITER("mg/L"),
+    CELSIUS_PER_KM("°C/km"),
+    PSU_PER_KM("PSU/km"),
+    CM_PER_KM("cm/km");
 
     companion object {
         fun fromString(value: String): DatasetUnit {
-            return entries.find { it.symbol == value } ?: UNITLESS
+            return entries.find { it.symbol == value } ?: DIMENSIONLESS
         }
     }
 }

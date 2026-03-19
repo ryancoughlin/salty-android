@@ -66,6 +66,27 @@ object ColorScales {
     )
 
     /**
+     * Bloom - Phytoplankton bloom visualization (TiTiler colormap_name: "bloom")
+     * Ultra-clear oligotrophic (purple/magenta) to intense blooms (red-brown)
+     */
+    val bloom = listOf(
+        // Ultra-clear oligotrophic (deep purple/magenta - Gulf Stream type)
+        "#4a0040", "#5c1a5c", "#6b2d6b",
+        // Low productivity (deep blue)
+        "#1a237e", "#283593", "#3949ab",
+        // Clear to transitional (bright blue to cyan)
+        "#1e88e5", "#039be5", "#00acc1", "#00bcd4",
+        // Productive waters (cyan to teal to green)
+        "#009688", "#00897b", "#26a69a", "#4caf50", "#66bb6a",
+        // Dense productivity (yellow-green to yellow)
+        "#8bc34a", "#9ccc65", "#c0ca33", "#cddc39", "#fdd835",
+        // Bloom conditions (yellow to orange)
+        "#ffb300", "#ffa000", "#ff8f00", "#ff6f00",
+        // Intense blooms (deep orange to red-brown)
+        "#e65100", "#d84315", "#bf360c", "#8d4004"
+    )
+
+    /**
      * Cascade - Mixed Layer Depth colorscale
      */
     val cascade = listOf(
