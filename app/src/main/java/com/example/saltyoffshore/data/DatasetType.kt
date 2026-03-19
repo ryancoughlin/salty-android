@@ -257,3 +257,35 @@ val DatasetType.group: DatasetGroup
         DatasetType.SEA_SURFACE_HEIGHT, DatasetType.WATER_CLARITY, DatasetType.SALINITY,
         DatasetType.WATER_TYPE, DatasetType.MLD, DatasetType.FSLE, DatasetType.DISSOLVED_OXYGEN -> DatasetGroup.OTHER
     }
+
+/**
+ * Scale mode for Zarr shader colormap mapping.
+ * Matches iOS RenderingConfig.scaleMode.
+ */
+val DatasetType.scaleMode: ScaleMode
+    get() = when (this) {
+        DatasetType.SST, DatasetType.MLD, DatasetType.SALINITY, DatasetType.DISSOLVED_OXYGEN,
+        DatasetType.FSLE, DatasetType.WATER_CLARITY, DatasetType.WATER_TYPE -> ScaleMode.LINEAR
+        DatasetType.CHLOROPHYLL, DatasetType.PHYTOPLANKTON -> ScaleMode.LOGARITHMIC
+        DatasetType.CURRENTS -> ScaleMode.SQRT
+        DatasetType.SEA_SURFACE_HEIGHT -> ScaleMode.DIVERGING
+    }
+
+/**
+ * Zarr variable name for this dataset type.
+ * Used when loading Zarr data slices.
+ */
+val DatasetType.zarrVariable: String
+    get() = when (this) {
+        DatasetType.SST -> "sea_surface_temperature"
+        DatasetType.CURRENTS -> "speed"
+        DatasetType.CHLOROPHYLL -> "chlor_a"
+        DatasetType.SEA_SURFACE_HEIGHT -> "sea_surface_height"
+        DatasetType.WATER_CLARITY -> "Kd_490"
+        DatasetType.SALINITY -> "sss"
+        DatasetType.WATER_TYPE -> "label"
+        DatasetType.MLD -> "mlotst"
+        DatasetType.FSLE -> "fsle"
+        DatasetType.DISSOLVED_OXYGEN -> "o2"
+        DatasetType.PHYTOPLANKTON -> "phyc"
+    }

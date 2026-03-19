@@ -42,6 +42,7 @@ import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.Station
 import com.example.saltyoffshore.data.TimeEntry
 import com.example.saltyoffshore.data.Tournament
+import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.config.CrosshairConstants
 import com.example.saltyoffshore.managers.CrosshairFeatureQueryManager
 import android.util.Log
@@ -123,15 +124,19 @@ fun MapScreen(
             mapViewportState = mapViewportState,
             style = { MapStyle(style = AppConstants.lightMapStyleURI) }
         ) {
+            // Wire up repaint callback for Zarr frame updates
+            ZarrRepaintEffect(viewModel = viewModel)
+
             // Region bounds outline
             RegionBoundsEffect(region = viewModel.selectedRegion)
 
-            // Dataset visualization layers (COG, Contours, Currents, etc.)
+            // Dataset visualization layers (Zarr GPU, Contours, Currents, etc.)
             DatasetLayersEffect(
                 dataset = viewModel.selectedDataset,
                 entry = viewModel.selectedEntry,
                 region = viewModel.selectedRegion,
-                snapshot = viewModel.renderingSnapshot
+                snapshot = viewModel.renderingSnapshot,
+                visualSource = viewModel.visualSource
             )
 
             // Global overlay layers (bathymetry, shipping lanes, etc.)
@@ -323,7 +328,8 @@ private fun DatasetLayersEffect(
     dataset: Dataset?,
     entry: TimeEntry?,
     region: RegionMetadata?,
-    snapshot: DatasetRenderingSnapshot
+    snapshot: DatasetRenderingSnapshot,
+    visualSource: VisualLayerSource
 ) {
     // Remember layer manager - recreate only when region changes
     val regionId = region?.id
@@ -338,7 +344,7 @@ private fun DatasetLayersEffect(
     }
 
     // Render layers when any input changes
-    MapEffect(key1 = regionId, key2 = entry?.id, key3 = snapshot) { mapView ->
+    MapEffect(key1 = regionId, key2 = entry?.id, key3 = snapshot, key4 = visualSource) { mapView ->
         val mapboxMap = mapView.mapboxMap
 
         // Create layer manager if needed (first render or region changed)
@@ -351,8 +357,22 @@ private fun DatasetLayersEffect(
             dataset = dataset,
             entry = entry,
             region = region,
-            snapshot = snapshot
+            snapshot = snapshot,
+            visualSource = visualSource
         )
+    }
+}
+
+/**
+ * Effect that wires up the repaint callback for Zarr frame updates.
+ * Must be called once when map is ready.
+ */
+@Composable
+private fun ZarrRepaintEffect(viewModel: AppViewModel) {
+    MapEffect(Unit) { mapView ->
+        viewModel.repaint = {
+            mapView.mapboxMap.triggerRepaint()
+        }
     }
 }
 

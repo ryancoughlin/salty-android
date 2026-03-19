@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.AppStatus
+import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
@@ -20,6 +21,7 @@ import com.example.saltyoffshore.data.DistanceUnits
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.SaltyApi
+import com.example.saltyoffshore.data.ScaleMode
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.TimeEntry
@@ -27,8 +29,14 @@ import com.example.saltyoffshore.data.GlobalLayerType
 import com.example.saltyoffshore.data.LoranRegionConfig
 import com.example.saltyoffshore.data.Tournament
 import com.example.saltyoffshore.data.UserPreferences
+import com.example.saltyoffshore.data.VisualLayerSource
+import com.example.saltyoffshore.data.scaleMode
+import com.example.saltyoffshore.data.zarrVariable
 import com.example.saltyoffshore.preferences.AppPreferencesDataStore
 import com.example.saltyoffshore.repository.UserPreferencesRepository
+import com.example.saltyoffshore.zarr.TimeEntry as ZarrTimeEntry
+import com.example.saltyoffshore.zarr.ZarrManager
+import com.example.saltyoffshore.zarr.ZarrVisualLayer
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -41,6 +49,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Global layer manager
     val globalLayerManager = GlobalLayerManager(context, viewModelScope)
+
+    // Zarr manager for GPU rendering
+    private val zarrManager = ZarrManager(coroutineScope = viewModelScope)
+
+    // Visual layer source (Zarr GPU or None)
+    var visualSource by mutableStateOf<VisualLayerSource>(VisualLayerSource.None)
+        private set
+
+    // Repaint callback — set by map when loaded
+    var repaint: (() -> Unit)? = null
+        set(value) {
+            field = value
+            zarrManager.repaint = value
+        }
 
     // User preferences
     var userPreferences by mutableStateOf<UserPreferences?>(null)
@@ -168,6 +190,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             updateRenderingSnapshotForEntry(entry, firstDataset)
         }
 
+        // Load Zarr data if available
+        loadZarrForDataset(firstDataset)
+
         appStatus = AppStatus.Idle
     }
 
@@ -177,6 +202,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         selectedDataset?.let { dataset ->
             updateRenderingSnapshotForEntry(entry, dataset)
         }
+
+        // Show frame in Zarr renderer
+        zarrManager.showFrame(entry.id)
     }
 
     fun selectDataset(dataset: Dataset) {
@@ -190,6 +218,81 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         selectedEntry?.let { entry ->
             updateRenderingSnapshotForEntry(entry, dataset)
         }
+
+        // Load Zarr data if available
+        loadZarrForDataset(dataset)
+    }
+
+    // MARK: - Zarr Loading
+
+    private fun loadZarrForDataset(dataset: Dataset) {
+        val zarrUrl = dataset.zarrUrl
+        if (zarrUrl == null) {
+            Log.d(TAG, "Dataset ${dataset.name} has no zarrUrl, using COG fallback")
+            visualSource = VisualLayerSource.None
+            return
+        }
+
+        // Get shader host from manager
+        val shaderHost = zarrManager.shaderHost
+        if (shaderHost == null) {
+            // Create and set shader host on first load
+            val newHost = ZarrVisualLayer()
+            zarrManager.setShaderHost(newHost)
+            visualSource = VisualLayerSource.Zarr(newHost)
+        } else {
+            visualSource = VisualLayerSource.Zarr(shaderHost)
+        }
+
+        val datasetType = DatasetType.fromRawValue(dataset.type)
+
+        // Build TimeEntry list for Zarr loading
+        val entries = dataset.entries.map { entry ->
+            ZarrTimeEntry(
+                id = entry.id,
+                timestamp = parseTimestamp(entry.timestamp),
+                depth = entry.depth
+            )
+        }
+
+        val colorscale = datasetType?.defaultColorscale ?: Colorscale.VIRIDIS
+        val scaleMode = datasetType?.scaleMode ?: ScaleMode.LINEAR
+        val variableName = datasetType?.zarrVariable ?: "sea_surface_temperature"
+
+        // Get data range from first entry or use defaults
+        val rangeKey = datasetType?.rangeKey ?: "value"
+        val rangeData = selectedEntry?.ranges?.get(rangeKey)
+        val dataRange = if (rangeData?.min != null && rangeData.max != null) {
+            rangeData.min.toFloat()..rangeData.max.toFloat()
+        } else {
+            0f..100f
+        }
+
+        // Load Zarr data
+        zarrManager.load(
+            zarrUrl = zarrUrl,
+            variableName = variableName,
+            entries = entries,
+            depths = dataset.availableDepths ?: listOf(0),
+            dataRange = dataRange,
+            initialEntryId = selectedEntry?.id,
+            colorscale = colorscale,
+            scaleMode = scaleMode
+        )
+
+        Log.d(TAG, "Started Zarr load for ${dataset.name} with variable: $variableName")
+    }
+
+    /**
+     * Parse ISO8601 timestamp string to Unix seconds.
+     */
+    private fun parseTimestamp(timestamp: String): Long {
+        return try {
+            java.time.Instant.parse(timestamp).epochSecond
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse timestamp: $timestamp", e)
+            0L
+        }
     }
 
     fun clearSelection() {
@@ -199,6 +302,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         renderingSnapshot = DatasetRenderingSnapshot.default()
         depthFilterState = DepthFilterState()
         appStatus = AppStatus.Idle
+        visualSource = VisualLayerSource.None
+        zarrManager.removeAll()
 
         viewModelScope.launch {
             AppPreferencesDataStore.saveSelectedRegionId(context, null)

@@ -7,8 +7,11 @@ import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.TimeEntry
-import com.example.saltyoffshore.services.COGService
+import com.example.saltyoffshore.data.VisualLayerSource
+import com.example.saltyoffshore.zarr.ZarrVisualLayer
+import com.mapbox.maps.CustomLayer
 import com.mapbox.maps.MapboxMap
+import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.vectorSource
 
@@ -16,13 +19,14 @@ private const val TAG = "DatasetLayers"
 
 /**
  * Orchestrates all dataset visualization layers.
- * Entry point for rendering COG rasters, PMTiles vectors, contours, currents.
+ * Zarr GPU rendering only — no fallbacks.
  */
 class DatasetLayers(
     private val mapboxMap: MapboxMap
 ) {
     private var currentRegionId: String? = null
-    private var cogLayer: COGVisualLayer? = null
+    private var zarrLayerId: String? = null
+    private var currentZarrRenderer: ZarrVisualLayer? = null
     private var dataQueryLayer: DataQueryLayer? = null
     private var currentsLayer: CurrentsLayer? = null
     private var contourLayer: ContourLayer? = null
@@ -36,7 +40,8 @@ class DatasetLayers(
         dataset: Dataset?,
         entry: TimeEntry?,
         region: RegionMetadata?,
-        snapshot: DatasetRenderingSnapshot
+        snapshot: DatasetRenderingSnapshot,
+        visualSource: VisualLayerSource = VisualLayerSource.None
     ) {
         if (dataset == null || entry == null || region == null) {
             Log.d(TAG, "Missing data - clearing layers")
@@ -55,12 +60,9 @@ class DatasetLayers(
         currentRegionId = regionId
 
         Log.d(TAG, "Rendering layers for ${dataset.name} in ${region.name}")
-        Log.d(TAG, "  COG: ${entry.layers.cog}")
-        Log.d(TAG, "  PMTiles: ${entry.layers.pmtiles?.url}")
-        Log.d(TAG, "  Visual enabled: ${snapshot.visualEnabled}")
 
-        // 1. COG Visual Layer (raster heat map)
-        renderCOGLayer(regionId, dataset, datasetType, entry, snapshot)
+        // 1. Visual Layer (Zarr GPU shader)
+        renderVisualLayer(regionId, snapshot, visualSource)
 
         // 2. Data Query Layer (invisible, for crosshair queries)
         renderDataQueryLayer(regionId, entry)
@@ -74,7 +76,7 @@ class DatasetLayers(
         }
 
         // 4. Contour Layer
-        renderContourLayer(regionId, dataset, datasetType, entry, snapshot)
+        renderContourLayer(regionId, datasetType, entry, snapshot)
 
         // 5. Breaks Layer (thermal fronts - only for datasets that support it)
         if (datasetType?.supportsFronts == true) {
@@ -88,58 +90,73 @@ class DatasetLayers(
         renderNumbersLayer(regionId, datasetType, entry, snapshot)
     }
 
-    // MARK: - COG Visual Layer
+    // MARK: - Visual Layer (Zarr only)
 
-    private fun renderCOGLayer(
+    private fun renderVisualLayer(
         regionId: String,
-        dataset: Dataset,
-        datasetType: DatasetType?,
-        entry: TimeEntry,
+        snapshot: DatasetRenderingSnapshot,
+        visualSource: VisualLayerSource
+    ) {
+        if (!snapshot.visualEnabled) {
+            removeZarrLayer()
+            return
+        }
+
+        when (visualSource) {
+            is VisualLayerSource.Zarr -> {
+                renderZarrLayer(regionId, visualSource.renderer, snapshot)
+            }
+            is VisualLayerSource.None -> {
+                // No visual layer yet (Zarr not loaded)
+                removeZarrLayer()
+            }
+        }
+    }
+
+    private fun renderZarrLayer(
+        regionId: String,
+        renderer: ZarrVisualLayer,
         snapshot: DatasetRenderingSnapshot
     ) {
-        val cogUrl = entry.layers.cog
-        if (cogUrl == null || !snapshot.visualEnabled) {
-            cogLayer?.removeFromMap()
-            cogLayer = null
+        val layerId = "zarr-visual-$regionId"
+
+        // Update visibility based on snapshot
+        renderer.setVisible(snapshot.visualEnabled)
+
+        // If layer already added with same renderer, just update
+        if (zarrLayerId == layerId && currentZarrRenderer === renderer) {
             return
         }
 
-        val type = datasetType ?: DatasetType.SST
-        val rangeKey = type.rangeKey
-        val rangeData = entry.ranges?.get(rangeKey)
-        val dataRange = if (rangeData?.min != null && rangeData.max != null) {
-            rangeData.min..rangeData.max
-        } else {
-            snapshot.dataMin..snapshot.dataMax
+        // Remove old Zarr layer if different
+        removeZarrLayer()
+
+        // Add new Zarr layer to map
+        mapboxMap.style?.let { style ->
+            if (!style.styleLayerExists(layerId)) {
+                style.addLayer(
+                    CustomLayer(layerId, renderer)
+                        .slot("middle")
+                )
+                Log.d(TAG, "Added Zarr CustomLayer: $layerId")
+            }
         }
 
-        val tileUrl = COGService.generateTileURL(
-            cogUrl = cogUrl,
-            datasetType = type,
-            snapshot = snapshot,
-            dataRange = dataRange
-        )
+        zarrLayerId = layerId
+        currentZarrRenderer = renderer
+    }
 
-        if (tileUrl == null) {
-            Log.w(TAG, "Failed to generate COG tile URL")
-            return
+    private fun removeZarrLayer() {
+        zarrLayerId?.let { layerId ->
+            mapboxMap.style?.let { style ->
+                if (style.styleLayerExists(layerId)) {
+                    style.removeStyleLayer(layerId)
+                    Log.d(TAG, "Removed Zarr layer: $layerId")
+                }
+            }
         }
-
-        Log.d(TAG, "COG tile URL: ${tileUrl.take(100)}...")
-
-        if (cogLayer == null) {
-            cogLayer = COGVisualLayer(
-                mapboxMap = mapboxMap,
-                sourceId = COGVisualLayer.sourceId(regionId),
-                layerId = COGVisualLayer.layerId(regionId),
-                cogURL = tileUrl,
-                opacity = snapshot.visualOpacity
-            )
-            cogLayer?.addToMap()
-        } else {
-            cogLayer?.updateTileURL(tileUrl)
-            cogLayer?.updateOpacity(snapshot.visualOpacity)
-        }
+        zarrLayerId = null
+        currentZarrRenderer = null
     }
 
     // MARK: - Data Query Layer
@@ -202,7 +219,6 @@ class DatasetLayers(
 
     private fun renderContourLayer(
         regionId: String,
-        dataset: Dataset,
         datasetType: DatasetType?,
         entry: TimeEntry,
         snapshot: DatasetRenderingSnapshot
@@ -322,8 +338,6 @@ class DatasetLayers(
     // MARK: - Helpers
 
     private fun buildPMTilesTileURL(baseUrl: String): String {
-        // Martin tile server format: {url}/{z}/{x}/{y}
-        // No extension needed - Martin returns application/x-protobuf
         return "$baseUrl/{z}/{x}/{y}"
     }
 
@@ -331,8 +345,8 @@ class DatasetLayers(
 
     fun removeAllLayers() {
         Log.d(TAG, "Removing all layers")
-        cogLayer?.removeFromMap()
-        cogLayer = null
+
+        removeZarrLayer()
 
         dataQueryLayer?.removeFromMap()
         dataQueryLayer = null
@@ -350,13 +364,6 @@ class DatasetLayers(
         numbersLayer = null
 
         currentRegionId = null
-    }
-
-    /**
-     * Update just the visual layer opacity (for slider changes)
-     */
-    fun updateVisualOpacity(opacity: Double) {
-        cogLayer?.updateOpacity(opacity)
     }
 
     /**

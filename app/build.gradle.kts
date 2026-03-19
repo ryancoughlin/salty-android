@@ -22,6 +22,25 @@ android {
 
         // Inject Mapbox access token from local.properties
         resValue("string", "mapbox_access_token", project.findProperty("MAPBOX_ACCESS_TOKEN") as String)
+
+        // NDK configuration for Zarr GPU rendering
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {
