@@ -233,3 +233,27 @@ val DatasetType.defaults: DatasetDefaults
         )
         else -> DatasetDefaults.standard
     }
+
+/**
+ * Dataset grouping for UI organization.
+ * Matches iOS DatasetType.Group exactly.
+ */
+enum class DatasetGroup(val title: String, val displayOrder: Int) {
+    TEMPERATURE("TEMPERATURE", 0),
+    CHLOROPHYLL("CHLOROPHYLL", 1),
+    CURRENTS("CURRENTS", 2),
+    OTHER("OTHER", 3);
+}
+
+/**
+ * Group assignment for each dataset type.
+ * Matches iOS DatasetType.group exactly.
+ */
+val DatasetType.group: DatasetGroup
+    get() = when (this) {
+        DatasetType.SST -> DatasetGroup.TEMPERATURE
+        DatasetType.CHLOROPHYLL, DatasetType.PHYTOPLANKTON -> DatasetGroup.CHLOROPHYLL
+        DatasetType.CURRENTS -> DatasetGroup.CURRENTS
+        DatasetType.SEA_SURFACE_HEIGHT, DatasetType.WATER_CLARITY, DatasetType.SALINITY,
+        DatasetType.WATER_TYPE, DatasetType.MLD, DatasetType.FSLE, DatasetType.DISSOLVED_OXYGEN -> DatasetGroup.OTHER
+    }

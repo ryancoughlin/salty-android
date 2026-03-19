@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -38,6 +39,7 @@ fun SaltyDatasetControl(
     viewModel: AppViewModel,
     onExpand: () -> Unit = {},
     onChange: () -> Unit = {},
+    onFilter: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val dataset = viewModel.selectedDataset
@@ -74,6 +76,11 @@ fun SaltyDatasetControl(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                ControlButton(
+                    icon = Icons.Default.Tune,
+                    label = "Filter",
+                    onClick = onFilter
+                )
                 ControlButton(
                     icon = Icons.Default.SwapVert,
                     label = "Change",

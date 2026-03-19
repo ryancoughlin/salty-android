@@ -29,7 +29,9 @@ import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.RegionStatus
 import com.example.saltyoffshore.ui.components.CrosshairOverlay
+import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
+import com.example.saltyoffshore.ui.components.FilterRangeSheet
 import com.example.saltyoffshore.ui.components.RegionAnnotationView
 import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
@@ -76,6 +78,14 @@ fun MapScreen(
     // Sheet state for layers control
     var showLayersSheet by remember { mutableStateOf(false) }
     val layersSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Sheet state for dataset selector
+    var showDatasetSheet by remember { mutableStateOf(false) }
+    val datasetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Sheet state for filter range
+    var showFilterSheet by remember { mutableStateOf(false) }
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val mapViewportState = rememberMapViewportState {
         setCameraOptions {
@@ -206,6 +216,8 @@ fun MapScreen(
         if (viewModel.selectedDataset != null) {
             SaltyDatasetControl(
                 viewModel = viewModel,
+                onChange = { showDatasetSheet = true },
+                onFilter = { showFilterSheet = true },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 32.dp)
@@ -252,6 +264,48 @@ fun MapScreen(
                 // Sheet props
                 sheetState = layersSheetState,
                 onDismiss = { showLayersSheet = false }
+            )
+        }
+
+        // Dataset selector sheet
+        if (showDatasetSheet && viewModel.selectedRegion != null) {
+            DatasetSelectorSheet(
+                datasets = viewModel.selectedRegion!!.activeDatasets,
+                selectedDataset = viewModel.selectedDataset,
+                sheetState = datasetSheetState,
+                onDatasetSelected = { dataset ->
+                    viewModel.selectDataset(dataset)
+                },
+                onDismiss = { showDatasetSheet = false }
+            )
+        }
+
+        // Filter range sheet
+        if (showFilterSheet && viewModel.selectedDataset != null) {
+            val dataset = viewModel.selectedDataset!!
+            val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
+            val entry = viewModel.selectedEntry
+            val rangeKey = datasetType.rangeKey
+            val rangeData = entry?.ranges?.get(rangeKey)
+            val dataMin = rangeData?.min ?: viewModel.renderingSnapshot.dataMin
+            val dataMax = rangeData?.max ?: viewModel.renderingSnapshot.dataMax
+
+            FilterRangeSheet(
+                datasetType = datasetType,
+                colorscale = datasetType.defaultColorscale,
+                currentMin = viewModel.renderingSnapshot.dataMin,
+                currentMax = viewModel.renderingSnapshot.dataMax,
+                dataMin = dataMin,
+                dataMax = dataMax,
+                unit = rangeData?.unit ?: "°F",
+                sheetState = filterSheetState,
+                onRangeChanged = { min, max ->
+                    viewModel.updateDataRange(min, max)
+                },
+                onReset = {
+                    viewModel.updateDataRange(dataMin, dataMax)
+                },
+                onDismiss = { showFilterSheet = false }
             )
         }
     }

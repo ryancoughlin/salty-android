@@ -71,10 +71,14 @@
 - Data query layer (`DataQueryLayer`) — ✅ crosshair queries
 - Region bounds outline — ✅
 
-**Missing Layers:**
-- `BreaksLayer` — thermal front visualization (PMTiles)
-- `NumbersLayer` — grid value labels (PMTiles)
+**Layers Complete:**
+- `BreaksVectorLayer` — ✅ thermal front visualization
+- `NumbersLayer` — ✅ grid value labels
 - `ParticleLayer` — GPU flow animation (Later)
+
+**Missing UI:**
+- `DatasetSelectorSheet` — modal to change datasets
+- `FilterRangeSheet` — data range slider for filtering
 
 **Data Models (Aligned with iOS):**
 - `RegionMetadata` with `region_id` → `id`
@@ -84,111 +88,69 @@
 
 ---
 
-## Phase 1: Map Layers (Current Focus)
+## Phase 1: Dataset Selection UI (Current Focus)
 
-**Goal:** All dataset visualization layers working, matching iOS architecture.
+**Goal:** Users can change datasets and adjust filtering, matching iOS UI.
 
-### iOS Layer Architecture
+### iOS Dataset UI Architecture
 
 ```
-MapboxMapView_V2.swift (orchestrator)
-├── DatasetLayers.swift (primary dataset stack)
-│   ├── 1. Visual Layer (Zarr Metal shader)
-│   ├── 2. Particles Layer (GPU flow animation)
-│   ├── 3. Data Query Layer (crosshair sampling)
-│   ├── 4. Breaks Layer (thermal fronts)
-│   ├── 5. Contour Layer (isolines)
-│   ├── 6. Currents Arrows (velocity vectors)
-│   └── 7. Numbers Layer (grid values)
-├── OverlayLayers.swift (secondary datasets)
-└── GlobalLayers.swift (static reference layers)
+DatasetControl.swift (root)
+├── PrimaryDatasetPage.swift (shows dataset + timeline)
+│   └── "Change" button → DatasetSelectorView overlay
+├── DatasetSelectorView.swift (grouped dataset picker)
+│   └── DatasetListItem (preview + metadata chips)
+└── DatasetFilterSheet.swift (range slider modal)
+    └── FilterGradientBar (dual-handle slider)
 ```
 
 ### Android Target Architecture
 
 ```
 MapScreen.kt (orchestrator)
-├── DatasetLayerManager.kt (primary dataset stack)
-│   ├── ZarrVisualLayer.kt (Zarr → texture)
-│   ├── ParticleLayer.kt (GPU particles) — later
-│   ├── DataQueryLayer.kt (crosshair) ✅
-│   ├── BreaksLayer.kt (PMTiles)
-│   ├── ContourLayer.kt (PMTiles) ✅ partial
-│   ├── CurrentsLayer.kt (PMTiles) ✅ partial
-│   └── NumbersLayer.kt (PMTiles)
-└── GlobalLayerManager.kt (static layers) — later
+├── SaltyDatasetControl.kt (shows dataset + timeline) ✅
+│   └── "Change" button → DatasetSelectorSheet (modal)
+├── DatasetSelectorSheet.kt (grouped dataset picker)
+│   └── DatasetListItem (preview + metadata)
+└── FilterRangeSheet.kt (range slider modal)
+    └── RangeSlider (dual-handle slider)
 ```
 
-### Task 1.1: Zarr Visual Layer
+### Task 1.1: DatasetSelectorSheet ✅
+
+**iOS Source:** `SaltyOffshore/Views/DatasetControls/DatasetSelectorView.swift`
+
+| Step | iOS Reference | Android Target | Status |
+|------|---------------|----------------|--------|
+| 1.1.1 | `DatasetSelectorView` | `DatasetSelectorSheet.kt` | ✅ |
+| 1.1.2 | `CategorySection` | Inline in sheet | ✅ |
+| 1.1.3 | `DatasetListItem` | Inline in sheet | ✅ |
+| 1.1.4 | Wire to `onChange` | `SaltyDatasetControl.kt` | ✅ |
+
+### Task 1.2: FilterRangeSheet ✅
+
+**iOS Source:** `SaltyOffshore/Views/DatasetControls/Components/DatasetFilterSheet.swift`
+
+| Step | iOS Reference | Android Target | Status |
+|------|---------------|----------------|--------|
+| 1.2.1 | `DatasetFilterSheet` | `FilterRangeSheet.kt` | ✅ |
+| 1.2.2 | `FilterGradientBar` | RangeSlider + gradient | ✅ |
+| 1.2.3 | Min/Max inputs | Value labels | ✅ |
+| 1.2.4 | Wire to ViewModel | `updateDataRange()` | ✅ |
+
+### Task 1.3: Visual Layer Parity
 
 **iOS Source:** `SaltyOffshore/Map/CustomShaders/ZarrShaderHost.swift`
 
-Replace COG/TiTiler with Zarr-based rendering:
+Current Android uses TiTiler COG tiles (server-side rendering).
+iOS uses Zarr Metal shader (client-side GPU rendering).
 
-| Step | iOS Reference | Android Target | Status |
-|------|---------------|----------------|--------|
-| 1.1.1 | `ZarrManager` actor | `ZarrManager.kt` object | ❌ |
-| 1.1.2 | `.zmetadata` parsing | `ZarrMetadata.kt` | ❌ |
-| 1.1.3 | Chunk loading (HTTP range) | `ZarrChunkLoader.kt` | ❌ |
-| 1.1.4 | Float16/32 decompression | `ZarrDecompressor.kt` | ❌ |
-| 1.1.5 | Web Mercator transforms | `ProjectionUtils.kt` | ❌ |
-| 1.1.6 | Colorscale texture | `ColorscaleTexture.kt` | ❌ |
-| 1.1.7 | Mapbox custom layer | `ZarrVisualLayer.kt` | ❌ |
+Options:
+1. **Keep COG/TiTiler** — Works now, simpler, server-dependent
+2. **CustomRasterSource** — Kotlin-only, experimental Mapbox API
+3. **CustomLayerHost** — OpenGL ES, 1:1 parity with iOS Metal
 
-### Task 1.2: Complete PMTiles Layers
-
-**iOS Sources:**
-- `SaltyOffshore/Map/Primitives/NumbersLayer.swift`
-- `SaltyOffshore/Map/BreaksVectorLayer.swift`
-- `SaltyOffshore/Map/ContourLayerState.swift`
-
-| Step | iOS Reference | Android Target | Status |
-|------|---------------|----------------|--------|
-| 1.2.1 | `ContourRenderer` | `ContourLayer.kt` | ✅ Complete |
-| 1.2.2 | Line styling + labels | major/minor + labels | ✅ Complete |
-| 1.2.3 | Range filtering | Filter expressions | ✅ Complete |
-| 1.2.4 | `CurrentsLayer` arrows | `CurrentsLayer.kt` | ✅ Complete |
-| 1.2.5 | `BreaksVectorLayer` | `BreaksLayer.kt` | ❌ Missing |
-| 1.2.6 | `NumbersLayer` | `NumbersLayer.kt` | ❌ Missing |
-
-### Task 1.3: Layer State Management
-
-**iOS Source:** `SaltyOffshore/Types/DatasetRenderingSnapshot.swift`
-
-| Step | iOS Reference | Android Target | Status |
-|------|---------------|----------------|--------|
-| 1.3.1 | `DatasetRenderingSnapshot` | `DatasetRenderingSnapshot.kt` | ✅ Complete |
-| 1.3.2 | Visual/contour/arrows toggles | Layer enable flags | ✅ Complete |
-| 1.3.3 | Opacity sliders | Per-layer opacity | ✅ Complete |
-| 1.3.4 | Range filtering | `dataMin`/`dataMax` | ✅ Complete |
-| 1.3.5 | Breaks/Numbers toggles | Layer enable flags | ❌ Missing |
-| 1.3.6 | Colorscale selection | `colorscaleId` field | ❌ Later |
-
----
-
-## Next Priority: BreaksLayer + NumbersLayer
-
-These are the simplest remaining gaps - pure PMTiles vector layers like ContourLayer/CurrentsLayer.
-
-### BreaksLayer (Thermal Fronts)
-
-**iOS Source:** `SaltyOffshore/Map/BreaksVectorLayer.swift`
-
-Features to implement:
-- Line glow + main line (strength-based width/color)
-- Temperature range labels (`"75°F → 82°F"`)
-- Selection highlight (optional)
-- Color ramp: weak → moderate → strong → very_strong
-
-### NumbersLayer (Grid Values)
-
-**iOS Source:** `SaltyOffshore/Map/Primitives/NumbersLayer.swift`
-
-Features to implement:
-- Symbol layer with numeric text
-- Number formatting (decimal places per dataset type)
-- Fixed spacing (200px), minZoom 7
-- Black text with white halo
+Decision: Evaluate after UI is complete
 
 ---
 
@@ -220,17 +182,10 @@ Features to implement:
 | Phase | Status | Details |
 |-------|--------|---------|
 | Foundation | ✅ Complete | Auth, preferences (26 keys), API, dataset types, rendering config, presets |
-| Map Layers | 🔄 ~70% | Missing: BreaksLayer, NumbersLayer |
+| Map Layers | ✅ Complete | All vector layers working (Contours, Currents, Breaks, Numbers) |
+| Dataset UI | ✅ Complete | DatasetSelectorSheet, FilterRangeSheet, Filter button |
+| Visual Layer | 🔄 Evaluate | Currently using COG/TiTiler, iOS uses Zarr Metal shader |
 | Core Features | ❌ Not Started | Waypoints, Crews, Saved Maps |
 | Polish | ❌ Not Started | Offline, Tracks, AI Reports |
 
-**Next Step:** Complete Phase 0 (Foundation Parity) before continuing with map layers.
-
-### Visual Layer Decision
-
-iOS uses a custom Metal shader (`ZarrShaderHost`) to render Zarr data directly on GPU. Android currently uses TiTiler-generated COG tiles via `COGVisualLayer`. Options:
-
-1. **Keep COG/TiTiler** — Works now, server-side rendering, simpler
-2. **Build Zarr shader** — Matches iOS exactly, complex OpenGL ES implementation
-
-Recommendation: Complete BreaksLayer + NumbersLayer first, then evaluate Zarr based on performance requirements.
+**Current Focus:** Evaluate visual layer approach (COG vs Zarr).
