@@ -219,7 +219,7 @@ Features to implement:
 
 | Phase | Status | Details |
 |-------|--------|---------|
-| Foundation | 🔄 ~40% | Auth ✅, basic prefs ✅, API ✅ — **Missing: 90% of preferences, dataset variables, rendering config** |
+| Foundation | ✅ Complete | Auth, preferences (26 keys), API, dataset types, rendering config, presets |
 | Map Layers | 🔄 ~70% | Missing: BreaksLayer, NumbersLayer |
 | Core Features | ❌ Not Started | Waypoints, Crews, Saved Maps |
 | Polish | ❌ Not Started | Offline, Tracks, AI Reports |

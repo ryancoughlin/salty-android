@@ -10,7 +10,7 @@
 
 | Phase | File | Status | Description |
 |-------|------|--------|-------------|
-| 0 | [00-foundation-parity.md](./00-foundation-parity.md) | Pending | Complete preferences, dataset types, rendering config |
+| 0 | [00-foundation-parity.md](./00-foundation-parity.md) | ✅ Complete | Preferences, dataset types, rendering config |
 | 1 | 01-map-layers.md | Pending | BreaksLayer, NumbersLayer, Zarr visual layer |
 | 2 | 02-core-features.md | Pending | Waypoints, Crews, Timeline, Saved Maps |
 | 3 | 03-polish.md | Pending | Offline, Tracks, AI Reports, Satellites |
@@ -28,14 +28,14 @@
 
 ## Progress Tracking
 
-### Phase 0: Foundation Parity
-- [ ] 0.1 Preferences System (AppPreferencesDataStore expansion)
-- [ ] 0.2 DatasetType Completion (phytoplankton, capabilities, defaults)
-- [ ] 0.3 Dataset Variable System
-- [ ] 0.4 Rendering Configuration (ScaleMode, DomainStrategy, RenderingConfig)
-- [ ] 0.5 Preset System
-- [ ] 0.6 Map Configuration (share links)
-- [ ] 0.7 Dataset Field Configuration
+### Phase 0: Foundation Parity ✅ COMPLETE
+- [x] 0.1 Preferences System (AppPreferencesDataStore expansion) — 26 keys
+- [x] 0.2 DatasetType Completion (phytoplankton, capabilities, defaults)
+- [x] 0.3 Dataset Variable System
+- [x] 0.4 Rendering Configuration (ScaleMode, DomainStrategy, RenderingConfig)
+- [x] 0.5 Preset System
+- [x] 0.6 Map Configuration (share links)
+- [x] 0.7 Dataset Field Configuration
 
 ### Phase 1: Map Layers
 - [ ] 1.1 BreaksLayer (thermal fronts)
