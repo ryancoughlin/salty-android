@@ -4,6 +4,19 @@
 
 ---
 
+## Detailed Plans
+
+**See `.claude/plans/` for comprehensive implementation plans:**
+
+| Phase | Plan File | Description |
+|-------|-----------|-------------|
+| 0 | [00-foundation-parity.md](.claude/plans/00-foundation-parity.md) | Preferences, dataset types, rendering config |
+| 1 | 01-map-layers.md | BreaksLayer, NumbersLayer, Zarr visual |
+| 2 | 02-core-features.md | Waypoints, Crews, Timeline |
+| 3 | 03-polish.md | Offline, Tracks, AI Reports |
+
+---
+
 ## Migration Principles
 
 1. **1:1 Parity** — Same types, same names, same behavior
@@ -206,10 +219,12 @@ Features to implement:
 
 | Phase | Status | Details |
 |-------|--------|---------|
-| Foundation | ✅ Complete | Auth, preferences, API, state |
+| Foundation | 🔄 ~40% | Auth ✅, basic prefs ✅, API ✅ — **Missing: 90% of preferences, dataset variables, rendering config** |
 | Map Layers | 🔄 ~70% | Missing: BreaksLayer, NumbersLayer |
 | Core Features | ❌ Not Started | Waypoints, Crews, Saved Maps |
 | Polish | ❌ Not Started | Offline, Tracks, AI Reports |
+
+**Next Step:** Complete Phase 0 (Foundation Parity) before continuing with map layers.
 
 ### Visual Layer Decision
 
