@@ -19,15 +19,15 @@ fun DatasetLayerControls(
     dataset: Dataset,
     snapshot: DatasetRenderingSnapshot,
     onVisualToggle: () -> Unit,
-    onVisualOpacity: (Double) -> Unit,
+    onVisualOpacity: (Float) -> Unit,
     onContoursToggle: () -> Unit,
-    onContoursOpacity: (Double) -> Unit,
+    onContoursOpacity: (Float) -> Unit,
     onArrowsToggle: () -> Unit,
-    onArrowsOpacity: (Double) -> Unit,
+    onArrowsOpacity: (Float) -> Unit,
     onBreaksToggle: () -> Unit,
-    onBreaksOpacity: (Double) -> Unit,
+    onBreaksOpacity: (Float) -> Unit,
     onNumbersToggle: () -> Unit,
-    onNumbersOpacity: (Double) -> Unit,
+    onNumbersOpacity: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val datasetType = DatasetType.fromRawValue(dataset.type)
@@ -40,8 +40,8 @@ fun DatasetLayerControls(
         if (dataset.hasVisualLayer) {
             VisualLayerControl(
                 enabled = snapshot.visualEnabled,
-                onToggle = { onVisualToggle() },
-                opacity = snapshot.visualOpacity,
+                onEnabledChanged = { onVisualToggle() },
+                opacity = snapshot.visualOpacity.toFloat(),
                 onOpacityChanged = onVisualOpacity
             )
         }
@@ -50,8 +50,8 @@ fun DatasetLayerControls(
         if (dataset.hasContours) {
             ContoursLayerControl(
                 enabled = snapshot.contourEnabled,
-                onToggle = { onContoursToggle() },
-                opacity = snapshot.contourOpacity,
+                onEnabledChanged = { onContoursToggle() },
+                opacity = snapshot.contourOpacity.toFloat(),
                 onOpacityChanged = onContoursOpacity
             )
         }
@@ -60,8 +60,8 @@ fun DatasetLayerControls(
         if (dataset.hasBreaks) {
             BreaksLayerControl(
                 enabled = snapshot.breaksEnabled,
-                onToggle = { onBreaksToggle() },
-                opacity = snapshot.breaksOpacity,
+                onEnabledChanged = { onBreaksToggle() },
+                opacity = snapshot.breaksOpacity.toFloat(),
                 onOpacityChanged = onBreaksOpacity
             )
         }
@@ -70,8 +70,8 @@ fun DatasetLayerControls(
         if (dataset.hasArrows) {
             ArrowsLayerControl(
                 enabled = snapshot.arrowsEnabled,
-                onToggle = { onArrowsToggle() },
-                opacity = snapshot.arrowsOpacity,
+                onEnabledChanged = { onArrowsToggle() },
+                opacity = snapshot.arrowsOpacity.toFloat(),
                 onOpacityChanged = onArrowsOpacity
             )
         }
@@ -80,8 +80,8 @@ fun DatasetLayerControls(
         if (dataset.hasNumbers) {
             NumbersLayerControl(
                 enabled = snapshot.numbersEnabled,
-                onToggle = { onNumbersToggle() },
-                opacity = snapshot.numbersOpacity,
+                onEnabledChanged = { onNumbersToggle() },
+                opacity = snapshot.numbersOpacity.toFloat(),
                 onOpacityChanged = onNumbersOpacity
             )
         }
