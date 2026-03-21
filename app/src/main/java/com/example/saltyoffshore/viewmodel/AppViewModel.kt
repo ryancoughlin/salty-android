@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.AppStatus
@@ -122,14 +123,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         updateState { copy(appStatus = AppStatus.Loading) }
         Log.d(TAG, "Region selected: $regionId")
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             AppPreferencesDataStore.setSelectedRegionId(context, regionId)
 
             try {
                 val region = SaltyApi.fetchRegion(regionId)
                 Log.d(TAG, "Loaded region: ${region.name} with ${region.datasets.size} datasets")
-                updateState { copy(selectedRegion = region) }
-                handleDatasetSetup(region)
+
+                // Prepare all state on IO thread
+                val firstDataset = if (region.status == "coming_soon") null else region.activeDatasets.firstOrNull()
+                val depths = firstDataset?.availableDepths ?: listOf(0)
+                val entry = firstDataset?.mostRecentEntry
+                val snapshot = buildSnapshotForEntry(entry, firstDataset, _state.value.renderingSnapshot)
+                val depthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
+                val status = when {
+                    region.status == "coming_soon" -> AppStatus.ComingSoon
+                    firstDataset == null -> AppStatus.Idle
+                    else -> AppStatus.Idle
+                }
+
+                Log.d(TAG, "Selected dataset: ${firstDataset?.name} (${firstDataset?.type})")
+                if (entry != null) Log.d(TAG, "Selected entry: ${entry.timestamp}")
+
+                // ONE atomic state update (MutableStateFlow.update is thread-safe)
+                updateState {
+                    copy(
+                        selectedRegion = region,
+                        selectedDataset = firstDataset,
+                        selectedEntry = entry,
+                        depthFilterState = depthFilter,
+                        renderingSnapshot = snapshot,
+                        appStatus = status,
+                    )
+                }
+
+                // Zarr loading is a side effect AFTER state is stable
+                firstDataset?.let { loadZarrForDataset(it) }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load region", e)
                 updateState { copy(appStatus = AppStatus.Error("Failed to load region: ${e.message}")) }
