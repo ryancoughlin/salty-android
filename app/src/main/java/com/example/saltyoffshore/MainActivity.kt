@@ -6,33 +6,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
-import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.screen.AccountHubSheet
-import com.example.saltyoffshore.ui.screen.FTUXRegionSelectionScreen
 import com.example.saltyoffshore.ui.screen.LoginScreen
 import com.example.saltyoffshore.ui.screen.MapScreen
 import com.example.saltyoffshore.ui.screen.SignUpScreen
@@ -81,7 +71,7 @@ private fun SaltyApp() {
                 is SessionStatus.NotAuthenticated -> {
                     if (isAuthenticated) {
                         // Was authenticated, now signed out -> clear state
-                        viewModel.handleSignOut()
+                        viewModel.signOut()
                     }
                     isAuthenticated = false
                 }
@@ -126,8 +116,6 @@ private fun SaltyApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthenticatedContent(viewModel: AppViewModel) {
-    val state by viewModel.state.collectAsState()
-
     var showingAccountSheet by remember { mutableStateOf(false) }
     var hasAppeared by remember { mutableStateOf(false) }
 
@@ -140,16 +128,9 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Map screen (full-screen)
-        MapScreen(viewModel = viewModel)
-
-        // TopBar overlay (floats at top)
-        TopBar(
-            isVisible = hasAppeared,
-            onAccountTap = { showingAccountSheet = true },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 8.dp)
+        MapScreen(
+            viewModel = viewModel,
+            onSettingsClick = { showingAccountSheet = true }
         )
     }
 
@@ -157,24 +138,13 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
     if (showingAccountSheet) {
         AccountHubSheet(
             sheetState = accountSheetState,
-            preferences = state.userPreferences,
+            preferences = viewModel.userPreferences,
             onDepthUnitsChanged = viewModel::updateDepthUnits,
             onDistanceUnitsChanged = viewModel::updateDistanceUnits,
             onSpeedUnitsChanged = viewModel::updateSpeedUnits,
             onTemperatureUnitsChanged = viewModel::updateTemperatureUnits,
             onSignOut = { viewModel.signOut() },
             onDismiss = { showingAccountSheet = false }
-        )
-    }
-
-    // FTUX: blocking full-screen dialog when preferredRegionId is null
-    if (state.preferredRegionId == null && state.hasCompletedInitialLoad) {
-        FTUXRegionSelectionScreen(
-            regionGroups = state.regionGroups,
-            loadingRegionId = state.ftuxLoadingRegionId,
-            onRegionSelected = { regionId ->
-                viewModel.selectRegionAsFTUX(regionId)
-            }
         )
     }
 }
@@ -195,9 +165,9 @@ private fun ForegroundRefreshEffect(viewModel: AppViewModel, isAuthenticated: Bo
                     isFirstResume = false
                     return@LifecycleEventObserver
                 }
-                if (isAuthenticated && viewModel.state.value.hasCompletedInitialLoad) {
-                    Log.d(TAG, "Foreground resume: refreshing data")
-                    viewModel.refreshData()
+                if (isAuthenticated && viewModel.selectedRegion != null) {
+                    Log.d(TAG, "Foreground resume: refreshing region")
+                    viewModel.selectedRegion?.id?.let { viewModel.onRegionSelected(it) }
                 }
             }
         }
