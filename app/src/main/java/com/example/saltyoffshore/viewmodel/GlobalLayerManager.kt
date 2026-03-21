@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "GlobalLayerManager"
 
@@ -64,7 +65,7 @@ class GlobalLayerManager(
         }
 
         // Load persisted preferences
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             loadPersistedState()
         }
     }
@@ -72,26 +73,28 @@ class GlobalLayerManager(
     private suspend fun loadPersistedState() {
         val prefs = dataStore.data.first()
 
-        _layers.forEachIndexed { index, state ->
-            val opacityKey = doublePreferencesKey("layer.${state.type.name}.opacity")
-            val enabledKey = booleanPreferencesKey("layer.${state.type.name}.enabled")
+        withContext(Dispatchers.Main) {
+            _layers.forEachIndexed { index, state ->
+                val opacityKey = doublePreferencesKey("layer.${state.type.name}.opacity")
+                val enabledKey = booleanPreferencesKey("layer.${state.type.name}.enabled")
 
-            val opacity = prefs[opacityKey] ?: state.type.defaultOpacity
-            val enabled = prefs[enabledKey] ?: state.type.defaultEnabled
+                val opacity = prefs[opacityKey] ?: state.type.defaultOpacity
+                val enabled = prefs[enabledKey] ?: state.type.defaultEnabled
 
-            _layers[index] = state.copy(opacity = opacity, isEnabled = enabled)
-        }
+                _layers[index] = state.copy(opacity = opacity, isEnabled = enabled)
+            }
 
-        // Load LORAN region
-        val loranKey = stringPreferencesKey("layer.loran.regionId")
-        prefs[loranKey]?.let { regionId ->
-            selectedLoranConfig = LoranRegionConfig.getRegion(regionId) ?: LoranRegionConfig.default
-        }
+            // Load LORAN region
+            val loranKey = stringPreferencesKey("layer.loran.regionId")
+            prefs[loranKey]?.let { regionId ->
+                selectedLoranConfig = LoranRegionConfig.getRegion(regionId) ?: LoranRegionConfig.default
+            }
 
-        // Load selected tournament
-        val tournamentKey = stringPreferencesKey("layer.tournament.selectedId")
-        prefs[tournamentKey]?.let { tournamentId ->
-            selectedTournament = _allTournaments.find { it.id == tournamentId }
+            // Load selected tournament
+            val tournamentKey = stringPreferencesKey("layer.tournament.selectedId")
+            prefs[tournamentKey]?.let { tournamentId ->
+                selectedTournament = _allTournaments.find { it.id == tournamentId }
+            }
         }
     }
 
@@ -124,7 +127,7 @@ class GlobalLayerManager(
         if (index >= 0) {
             _layers[index] = _layers[index].copy(isEnabled = enabled)
 
-            scope.launch {
+            scope.launch(Dispatchers.IO) {
                 dataStore.edit { prefs ->
                     prefs[booleanPreferencesKey("layer.${type.name}.enabled")] = enabled
                 }
@@ -137,7 +140,7 @@ class GlobalLayerManager(
         if (index >= 0) {
             _layers[index] = _layers[index].copy(opacity = opacity)
 
-            scope.launch {
+            scope.launch(Dispatchers.IO) {
                 dataStore.edit { prefs ->
                     prefs[doublePreferencesKey("layer.${type.name}.opacity")] = opacity
                 }
@@ -181,7 +184,7 @@ class GlobalLayerManager(
 
     fun setLoranRegion(config: LoranRegionConfig) {
         selectedLoranConfig = config
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             dataStore.edit { prefs ->
                 prefs[stringPreferencesKey("layer.loran.regionId")] = config.id
             }
@@ -195,18 +198,20 @@ class GlobalLayerManager(
         _allTournaments.addAll(tournaments)
 
         // Restore selection if previously selected
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             val prefs = dataStore.data.first()
             val tournamentKey = stringPreferencesKey("layer.tournament.selectedId")
             prefs[tournamentKey]?.let { tournamentId ->
-                selectedTournament = tournaments.find { it.id == tournamentId }
+                withContext(Dispatchers.Main) {
+                    selectedTournament = tournaments.find { it.id == tournamentId }
+                }
             }
         }
     }
 
     fun selectTournament(tournament: Tournament) {
         selectedTournament = tournament
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             dataStore.edit { prefs ->
                 prefs[stringPreferencesKey("layer.tournament.selectedId")] = tournament.id
             }
@@ -215,7 +220,7 @@ class GlobalLayerManager(
 
     fun deselectTournament() {
         selectedTournament = null
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             dataStore.edit { prefs ->
                 prefs.remove(stringPreferencesKey("layer.tournament.selectedId"))
             }

@@ -1,6 +1,7 @@
 package com.example.saltyoffshore.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,6 +78,7 @@ fun SignUpScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
+    val isAuthLoading by AuthManager.isLoading.collectAsState()
 
     val isFormValid = firstName.isNotEmpty() &&
             lastName.isNotEmpty() &&
@@ -149,7 +151,7 @@ fun SignUpScreen(
                 showEmailError = showEmailError,
                 showPasswordLengthError = showPasswordLengthError,
                 showPasswordMatchError = showPasswordMatchError,
-                isLoading = AuthManager.isLoading,
+                isLoading = isAuthLoading,
                 onCreateAccount = {
                     hasAttemptedSubmit = true
                     if (isFormValid) {

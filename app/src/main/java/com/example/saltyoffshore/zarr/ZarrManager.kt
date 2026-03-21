@@ -170,7 +170,7 @@ class ZarrManager(
         host.pendingColormap = colormapBytes
         host.pendingScaleMode = scaleModeOrdinal
 
-        loadTask = coroutineScope.launch {
+        loadTask = coroutineScope.launch(Dispatchers.IO) {
             try {
                 val loadStart = System.currentTimeMillis()
                 Log.d(TAG, "[Timing] Load start. variable=$variableName url=$zarrUrl")
@@ -292,7 +292,7 @@ class ZarrManager(
         val generation = showFrameGeneration
 
         onDemandTask?.cancel()
-        onDemandTask = coroutineScope.launch {
+        onDemandTask = coroutineScope.launch(Dispatchers.IO) {
             try {
                 val ctx = context ?: return@launch
                 val depth = currentDepth()

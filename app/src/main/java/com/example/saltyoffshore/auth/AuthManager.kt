@@ -1,11 +1,11 @@
 package com.example.saltyoffshore.auth
 
 import android.util.Log
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -19,9 +19,9 @@ object AuthManager {
 
     private val supabase get() = SupabaseClientProvider.client
 
-    /** Loading state for UI binding */
-    var isLoading by mutableStateOf(false)
-        private set
+    /** Loading state for UI binding — StateFlow is thread-safe (unlike mutableStateOf) */
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     /** Synchronous session check */
     val hasStoredSession: Boolean
@@ -47,7 +47,7 @@ object AuthManager {
             throw AuthError.WeakPassword
         }
 
-        isLoading = true
+        _isLoading.value = true
         try {
             supabase.auth.signUpWith(Email) {
                 this.email = email
@@ -65,14 +65,14 @@ object AuthManager {
                 else -> throw AuthError.Unknown(e)
             }
         } finally {
-            isLoading = false
+            _isLoading.value = false
         }
     }
 
     // MARK: - Sign In
 
     suspend fun signIn(email: String, password: String) {
-        isLoading = true
+        _isLoading.value = true
         try {
             supabase.auth.signInWith(Email) {
                 this.email = email
@@ -87,7 +87,7 @@ object AuthManager {
                 else -> throw AuthError.SignInFailed
             }
         } finally {
-            isLoading = false
+            _isLoading.value = false
         }
     }
 
@@ -98,7 +98,7 @@ object AuthManager {
             throw AuthError.InvalidEmail
         }
 
-        isLoading = true
+        _isLoading.value = true
         try {
             supabase.auth.resetPasswordForEmail(email)
             Log.d(TAG, "Password reset email sent to $email")
@@ -106,7 +106,7 @@ object AuthManager {
             Log.e(TAG, "Password reset failed: ${e.message}")
             throw AuthError.PasswordResetFailed
         } finally {
-            isLoading = false
+            _isLoading.value = false
         }
     }
 

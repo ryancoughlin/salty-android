@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -84,6 +85,7 @@ fun LoginScreen(
 
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val isAuthLoading by AuthManager.isLoading.collectAsState()
 
     val isFormValid = email.isNotEmpty() &&
             ValidationHelper.isValidEmail(email) &&
@@ -122,7 +124,7 @@ fun LoginScreen(
                 showEmailError = showEmailError,
                 showPasswordError = showPasswordError,
                 showEmailForm = showEmailForm,
-                isLoading = AuthManager.isLoading,
+                isLoading = isAuthLoading,
                 isFormValid = isFormValid,
                 onContinueWithEmail = { showEmailForm = true },
                 onForgotPassword = onNavigateToResetPassword,
