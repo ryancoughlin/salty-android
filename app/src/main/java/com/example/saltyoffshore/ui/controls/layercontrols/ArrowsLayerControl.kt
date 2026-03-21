@@ -2,6 +2,7 @@ package com.example.saltyoffshore.ui.controls.layercontrols
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.example.saltyoffshore.data.DatasetRenderConfig
 
 /**
  * Arrows layer control (currents).
@@ -10,22 +11,20 @@ import androidx.compose.ui.Modifier
  */
 @Composable
 fun ArrowsLayerControl(
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    opacity: Double,
-    onOpacityChanged: (Double) -> Unit,
+    config: DatasetRenderConfig,
+    onConfigChanged: (DatasetRenderConfig) -> Unit,
     title: String = "Arrows",
     modifier: Modifier = Modifier
 ) {
     LayerSection(
         title = title,
-        enabled = enabled,
-        onToggle = onToggle,
+        enabled = config.arrowsEnabled,
+        onToggle = { onConfigChanged(config.copy(arrowsEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = opacity,
-            onOpacityChanged = onOpacityChanged,
+            opacity = config.arrowsOpacity,
+            onOpacityChanged = { onConfigChanged(config.copy(arrowsOpacity = it)) },
             label = "Opacity"
         )
     }

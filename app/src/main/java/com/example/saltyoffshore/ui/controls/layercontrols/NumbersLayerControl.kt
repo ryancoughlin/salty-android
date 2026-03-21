@@ -2,6 +2,7 @@ package com.example.saltyoffshore.ui.controls.layercontrols
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.example.saltyoffshore.data.DatasetRenderConfig
 
 /**
  * Numbers layer control - displays dataset values as text on map.
@@ -10,21 +11,19 @@ import androidx.compose.ui.Modifier
  */
 @Composable
 fun NumbersLayerControl(
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    opacity: Double,
-    onOpacityChanged: (Double) -> Unit,
+    config: DatasetRenderConfig,
+    onConfigChanged: (DatasetRenderConfig) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LayerSection(
         title = "Numbers",
-        enabled = enabled,
-        onToggle = onToggle,
+        enabled = config.numbersEnabled,
+        onToggle = { onConfigChanged(config.copy(numbersEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = opacity,
-            onOpacityChanged = onOpacityChanged,
+            opacity = config.numbersOpacity,
+            onOpacityChanged = { onConfigChanged(config.copy(numbersOpacity = it)) },
             label = "Opacity"
         )
     }

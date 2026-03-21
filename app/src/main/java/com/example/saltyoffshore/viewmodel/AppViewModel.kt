@@ -13,6 +13,7 @@ import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
@@ -88,7 +89,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var selectedEntry by mutableStateOf<TimeEntry?>(null)
         private set
 
-    // Layer rendering state
+    // Layer rendering config (source of truth for layer toggles/opacity)
+    var primaryConfig by mutableStateOf<DatasetRenderConfig?>(null)
+        private set
+
+    // Layer rendering state (derived from config for map rendering)
     var renderingSnapshot by mutableStateOf(DatasetRenderingSnapshot.default())
         private set
 
@@ -180,6 +185,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         selectedDataset = firstDataset
         Log.d(TAG, "Selected dataset: ${firstDataset.name} (${firstDataset.type})")
 
+        // Initialize render config from dataset type defaults
+        val datasetType = DatasetType.fromRawValue(firstDataset.type) ?: DatasetType.SST
+        primaryConfig = DatasetRenderConfig.primaryDefaults(datasetType, firstDataset.id)
+
         // Update depth filter state from dataset
         updateDepthFilterForDataset(firstDataset)
 
@@ -211,6 +220,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         selectedDataset = dataset
         selectedEntry = dataset.mostRecentEntry
         Log.d(TAG, "Dataset selected: ${dataset.name}")
+
+        // Initialize render config from dataset type defaults
+        val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
+        primaryConfig = DatasetRenderConfig.primaryDefaults(datasetType, dataset.id)
 
         // Update depth filter state from dataset
         updateDepthFilterForDataset(dataset)
@@ -335,7 +348,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // MARK: - Rendering Snapshot Updates
+    // MARK: - Config-Based Rendering Updates
+
+    fun updatePrimaryConfig(config: DatasetRenderConfig) {
+        primaryConfig = config
+        // Derive snapshot from config for backward compatibility
+        val dataRange = renderingSnapshot.dataMin..renderingSnapshot.dataMax
+        renderingSnapshot = config.snapshot(dataRange)
+    }
+
+    // MARK: - Rendering Snapshot Updates (legacy — will be removed in Task 2.4)
 
     fun toggleVisualLayer() {
         renderingSnapshot = renderingSnapshot.copy(

@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.Dataset
-import com.example.saltyoffshore.data.DatasetRenderingSnapshot
+import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.GlobalLayerType
 import com.example.saltyoffshore.data.LayerState
 import com.example.saltyoffshore.data.LoranRegionConfig
@@ -45,17 +45,9 @@ import com.example.saltyoffshore.ui.controls.layercontrols.OverlayLayerControls
 fun LayersControlSheet(
     // Dataset layer props
     dataset: Dataset,
-    snapshot: DatasetRenderingSnapshot,
-    onVisualToggle: () -> Unit,
-    onVisualOpacity: (Double) -> Unit,
-    onContoursToggle: () -> Unit,
-    onContoursOpacity: (Double) -> Unit,
-    onArrowsToggle: () -> Unit,
-    onArrowsOpacity: (Double) -> Unit,
-    onBreaksToggle: () -> Unit,
-    onBreaksOpacity: (Double) -> Unit,
-    onNumbersToggle: () -> Unit,
-    onNumbersOpacity: (Double) -> Unit,
+    config: DatasetRenderConfig,
+    onConfigChanged: (DatasetRenderConfig) -> Unit,
+    isPrimary: Boolean = true,
     // Overlay layer props
     layersByCategory: List<Pair<OverlayCategory, List<LayerState>>>,
     onOverlayToggle: (GlobalLayerType) -> Unit,
@@ -127,17 +119,9 @@ fun LayersControlSheet(
                         // Data tab - existing dataset layer controls
                         DatasetLayerControls(
                             dataset = dataset,
-                            snapshot = snapshot,
-                            onVisualToggle = onVisualToggle,
-                            onVisualOpacity = onVisualOpacity,
-                            onContoursToggle = onContoursToggle,
-                            onContoursOpacity = onContoursOpacity,
-                            onArrowsToggle = onArrowsToggle,
-                            onArrowsOpacity = onArrowsOpacity,
-                            onBreaksToggle = onBreaksToggle,
-                            onBreaksOpacity = onBreaksOpacity,
-                            onNumbersToggle = onNumbersToggle,
-                            onNumbersOpacity = onNumbersOpacity
+                            config = config,
+                            onConfigChanged = onConfigChanged,
+                            isPrimary = isPrimary
                         )
                     }
                     1 -> {

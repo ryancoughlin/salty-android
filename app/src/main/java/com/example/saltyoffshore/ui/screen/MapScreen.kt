@@ -35,7 +35,6 @@ import com.example.saltyoffshore.ui.components.FilterRangeSheet
 import com.example.saltyoffshore.ui.components.RegionAnnotationView
 import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
-import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.GlobalLayerVisibility
 import com.example.saltyoffshore.data.LoranRegionConfig
 import com.example.saltyoffshore.data.RegionMetadata
@@ -241,21 +240,13 @@ fun MapScreen(
         }
 
         // Layers control sheet
-        if (showLayersSheet && viewModel.selectedDataset != null) {
+        if (showLayersSheet && viewModel.selectedDataset != null && viewModel.primaryConfig != null) {
             LayersControlSheet(
                 // Dataset layer props
                 dataset = viewModel.selectedDataset!!,
-                snapshot = viewModel.renderingSnapshot,
-                onVisualToggle = { viewModel.toggleVisualLayer() },
-                onVisualOpacity = { viewModel.updateVisualOpacity(it) },
-                onContoursToggle = { viewModel.toggleContourLayer() },
-                onContoursOpacity = { viewModel.updateContourOpacity(it) },
-                onArrowsToggle = { viewModel.toggleArrowsLayer() },
-                onArrowsOpacity = { viewModel.updateArrowsOpacity(it) },
-                onBreaksToggle = { viewModel.toggleBreaksLayer() },
-                onBreaksOpacity = { viewModel.updateBreaksOpacity(it) },
-                onNumbersToggle = { viewModel.toggleNumbersLayer() },
-                onNumbersOpacity = { viewModel.updateNumbersOpacity(it) },
+                config = viewModel.primaryConfig!!,
+                onConfigChanged = { viewModel.updatePrimaryConfig(it) },
+                isPrimary = true,
                 // Overlay layer props
                 layersByCategory = viewModel.globalLayerManager.layersByCategory,
                 onOverlayToggle = { viewModel.globalLayerManager.toggleEnabled(it) },
