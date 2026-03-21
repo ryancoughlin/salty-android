@@ -11,6 +11,7 @@ import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
@@ -134,13 +135,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val firstDataset = if (region.status == "coming_soon") null else region.activeDatasets.firstOrNull()
                 val depths = firstDataset?.availableDepths ?: listOf(0)
                 val entry = firstDataset?.mostRecentEntry
-                val snapshot = buildSnapshotForEntry(entry, firstDataset, _state.value.renderingSnapshot)
                 val depthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
                 val status = when {
                     region.status == "coming_soon" -> AppStatus.ComingSoon
                     firstDataset == null -> AppStatus.Idle
                     else -> AppStatus.Idle
                 }
+
+                // Create config for the new dataset
+                val datasetType = firstDataset?.let { DatasetType.fromRawValue(it.type) }
+                val config = if (datasetType != null && firstDataset != null)
+                    DatasetRenderConfig.primaryDefaults(datasetType, firstDataset.id)
+                else null
+
+                val snapshot = deriveSnapshot(config, entry, firstDataset)
 
                 Log.d(TAG, "Selected dataset: ${firstDataset?.name} (${firstDataset?.type})")
                 if (entry != null) Log.d(TAG, "Selected entry: ${entry.timestamp}")
@@ -152,6 +160,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         selectedDataset = firstDataset,
                         selectedEntry = entry,
                         depthFilterState = depthFilter,
+                        primaryConfig = config,
                         renderingSnapshot = snapshot,
                         appStatus = status,
                     )
@@ -192,7 +201,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val newDepthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
 
         val entry = firstDataset.mostRecentEntry
-        val newSnapshot = buildSnapshotForEntry(entry, firstDataset, _state.value.renderingSnapshot)
+        val datasetType = DatasetType.fromRawValue(firstDataset.type)
+        val config = if (datasetType != null)
+            DatasetRenderConfig.primaryDefaults(datasetType, firstDataset.id)
+        else null
+        val newSnapshot = deriveSnapshot(config, entry, firstDataset)
 
         // ONE atomic state update
         updateState {
@@ -200,6 +213,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 selectedDataset = firstDataset,
                 depthFilterState = newDepthFilter,
                 selectedEntry = entry,
+                primaryConfig = config,
                 renderingSnapshot = newSnapshot,
                 appStatus = AppStatus.Idle,
             )
@@ -219,7 +233,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun selectEntry(entry: TimeEntry) {
         Log.d(TAG, "Entry selected: ${entry.timestamp}")
         val dataset = _state.value.selectedDataset
-        val newSnapshot = buildSnapshotForEntry(entry, dataset, _state.value.renderingSnapshot)
+        val config = _state.value.primaryConfig
+        val newSnapshot = deriveSnapshot(config, entry, dataset)
 
         updateState {
             copy(
@@ -237,18 +252,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val depths = dataset.availableDepths ?: listOf(0)
         val newDepthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
         val entry = dataset.mostRecentEntry
-        val newSnapshot = buildSnapshotForEntry(entry, dataset, _state.value.renderingSnapshot)
+        val datasetType = DatasetType.fromRawValue(dataset.type)
+        val config = if (datasetType != null)
+            DatasetRenderConfig.primaryDefaults(datasetType, dataset.id)
+        else null
+        val newSnapshot = deriveSnapshot(config, entry, dataset)
 
         updateState {
             copy(
                 selectedDataset = dataset,
                 selectedEntry = entry,
                 depthFilterState = newDepthFilter,
+                primaryConfig = config,
                 renderingSnapshot = newSnapshot,
             )
         }
 
-        loadZarrForDataset(dataset)
+        viewModelScope.launch(Dispatchers.IO) {
+            loadZarrForDataset(dataset)
+        }
     }
 
     // =========================================================================
@@ -328,6 +350,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 selectedRegion = null,
                 selectedDataset = null,
                 selectedEntry = null,
+                primaryConfig = null,
                 renderingSnapshot = DatasetRenderingSnapshot.default(),
                 depthFilterState = DepthFilterState(),
                 appStatus = AppStatus.Idle,
@@ -351,7 +374,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val dataset = _state.value.selectedDataset ?: return
         val entriesAtDepth = dataset.entries.filter { it.depth == depth }
         val entry = entriesAtDepth.maxByOrNull { it.timestamp }
-        val newSnapshot = buildSnapshotForEntry(entry, dataset, _state.value.renderingSnapshot)
+        val config = _state.value.primaryConfig
+        val newSnapshot = deriveSnapshot(config, entry, dataset)
 
         updateState {
             copy(
@@ -363,51 +387,73 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // =========================================================================
-    // Rendering Snapshot Toggles
+    // Primary Config Updates (single entry point for all layer mutations)
     // =========================================================================
 
+    /**
+     * Update primaryConfig and derive a new renderingSnapshot in one atomic state update.
+     * Mirrors iOS DatasetStore.updatePrimaryConfig().
+     */
+    fun updatePrimaryConfig(transform: (DatasetRenderConfig) -> DatasetRenderConfig) {
+        updateState {
+            val config = primaryConfig ?: return@updateState this
+            val newConfig = transform(config)
+            val newSnapshot = deriveSnapshot(newConfig, selectedEntry, selectedDataset)
+            copy(
+                primaryConfig = newConfig,
+                renderingSnapshot = newSnapshot,
+            )
+        }
+    }
+
+    // --- Layer toggles (delegate to config) ---
+
     fun toggleVisualLayer() {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(visualEnabled = !renderingSnapshot.visualEnabled)) }
+        updatePrimaryConfig { it.copy(visualEnabled = !it.visualEnabled) }
     }
 
     fun toggleContourLayer() {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(contourEnabled = !renderingSnapshot.contourEnabled)) }
+        updatePrimaryConfig { it.copy(contourEnabled = !it.contourEnabled) }
     }
 
     fun toggleArrowsLayer() {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(arrowsEnabled = !renderingSnapshot.arrowsEnabled)) }
+        updatePrimaryConfig { it.copy(arrowsEnabled = !it.arrowsEnabled) }
     }
 
     fun toggleBreaksLayer() {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(breaksEnabled = !renderingSnapshot.breaksEnabled)) }
+        updatePrimaryConfig { it.copy(breaksEnabled = !it.breaksEnabled) }
     }
 
     fun toggleNumbersLayer() {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(numbersEnabled = !renderingSnapshot.numbersEnabled)) }
+        updatePrimaryConfig { it.copy(numbersEnabled = !it.numbersEnabled) }
     }
 
+    // --- Opacity updates (delegate to config) ---
+
     fun updateVisualOpacity(opacity: Double) {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(visualOpacity = opacity)) }
+        updatePrimaryConfig { it.copy(visualOpacity = opacity) }
     }
 
     fun updateContourOpacity(opacity: Double) {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(contourOpacity = opacity)) }
+        updatePrimaryConfig { it.copy(contourOpacity = opacity) }
     }
 
     fun updateArrowsOpacity(opacity: Double) {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(arrowsOpacity = opacity)) }
+        updatePrimaryConfig { it.copy(arrowsOpacity = opacity) }
     }
 
     fun updateBreaksOpacity(opacity: Double) {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(breaksOpacity = opacity)) }
+        updatePrimaryConfig { it.copy(breaksOpacity = opacity) }
     }
 
     fun updateNumbersOpacity(opacity: Double) {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(numbersOpacity = opacity)) }
+        updatePrimaryConfig { it.copy(numbersOpacity = opacity) }
     }
 
+    // --- Data range / filter ---
+
     fun updateDataRange(min: Double, max: Double) {
-        updateState { copy(renderingSnapshot = renderingSnapshot.copy(dataMin = min, dataMax = max)) }
+        updatePrimaryConfig { it.copy(customRange = min..max) }
     }
 
     // =========================================================================
@@ -485,7 +531,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // =========================================================================
 
     fun refreshData() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response = SaltyApi.getRegions()
                 val groups = response.groups
@@ -531,20 +577,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Helpers
     // =========================================================================
 
-    private fun buildSnapshotForEntry(
+    /**
+     * Derive a DatasetRenderingSnapshot from config + entry data range.
+     * When config exists, uses config.snapshot() (single source of truth).
+     * Falls back to updating dataMin/dataMax on existing snapshot when no config.
+     */
+    private fun deriveSnapshot(
+        config: DatasetRenderConfig?,
         entry: TimeEntry?,
-        dataset: Dataset?,
-        current: DatasetRenderingSnapshot
+        dataset: Dataset?
     ): DatasetRenderingSnapshot {
-        if (entry == null || dataset == null) return current
+        if (entry == null || dataset == null) return _state.value.renderingSnapshot
+
         val datasetType = DatasetType.fromRawValue(dataset.type)
         val rangeKey = datasetType?.rangeKey ?: "value"
         val rangeData = entry.ranges?.get(rangeKey)
-        return if (rangeData?.min != null && rangeData.max != null) {
-            Log.d(TAG, "Updated data range: ${rangeData.min} - ${rangeData.max}")
-            current.copy(dataMin = rangeData.min, dataMax = rangeData.max)
+        val dataRange = if (rangeData?.min != null && rangeData.max != null) {
+            Log.d(TAG, "Data range: ${rangeData.min} - ${rangeData.max}")
+            rangeData.min..rangeData.max
         } else {
-            current
+            0.0..100.0
         }
+
+        // Config is source of truth — derive snapshot from it
+        if (config != null) {
+            return config.snapshot(dataRange = dataRange)
+        }
+
+        // Fallback: no config yet, just update data range on existing snapshot
+        return _state.value.renderingSnapshot.copy(
+            dataMin = dataRange.start,
+            dataMax = dataRange.endInclusive
+        )
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Stable
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
@@ -31,6 +32,7 @@ data class MapScreenState(
     // Dataset data
     val selectedDataset: Dataset? = null,
     val selectedEntry: TimeEntry? = null,
+    val primaryConfig: DatasetRenderConfig? = null,
     val renderingSnapshot: DatasetRenderingSnapshot = DatasetRenderingSnapshot.default(),
     val depthFilterState: DepthFilterState = DepthFilterState(),
     val visualSource: VisualLayerSource = VisualLayerSource.None,
