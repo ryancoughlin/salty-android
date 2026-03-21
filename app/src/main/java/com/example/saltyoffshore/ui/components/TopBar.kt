@@ -1,0 +1,95 @@
+package com.example.saltyoffshore.ui.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+
+/**
+ * TopBar - Three-slot layout matching iOS TopBar.swift.
+ *
+ * Layout: left (weight 1, left-aligned) | center (fixed) | right (weight 1, right-aligned)
+ *
+ * Animate in on appear: fade + slide from -20dp, spring(response=0.4, damping=0.85).
+ * Hide when shouldHideTopUI is true (dataset control expanded or special mode active).
+ *
+ * Phase 1: left and center slots are empty. Right slot = AccountButton.
+ */
+@Composable
+fun TopBar(
+    isVisible: Boolean,
+    onAccountTap: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val offsetPx = with(density) { -20.dp.roundToPx() }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(
+            animationSpec = spring(
+                dampingRatio = 0.85f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        ) + slideInVertically(
+            animationSpec = spring(
+                dampingRatio = 0.85f,
+                stiffness = Spring.StiffnessMediumLow
+            ),
+            initialOffsetY = { offsetPx }
+        ),
+        exit = fadeOut(
+            animationSpec = spring(
+                dampingRatio = 0.85f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        ) + slideOutVertically(
+            animationSpec = spring(
+                dampingRatio = 0.85f,
+                stiffness = Spring.StiffnessMediumLow
+            ),
+            targetOffsetY = { offsetPx }
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // LEFT slot: Crew chips / recording pill (future phases)
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                // Empty for Phase 1
+            }
+
+            // CENTER slot: Notification center (future phases)
+            Box(contentAlignment = Alignment.Center) {
+                // Empty for Phase 1
+            }
+
+            // RIGHT slot: Account button
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                AccountButton(onClick = onAccountTap)
+            }
+        }
+    }
+}
