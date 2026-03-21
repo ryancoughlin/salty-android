@@ -87,6 +87,10 @@ private fun SaltyApp() {
                 is SessionStatus.Initializing -> {
                     // Loading from storage, keep current state
                 }
+                is SessionStatus.RefreshFailure -> {
+                    Log.w(TAG, "Auth session refresh failed: ${status.cause}")
+                    // Keep current state -- may recover on next attempt
+                }
             }
         }
     }

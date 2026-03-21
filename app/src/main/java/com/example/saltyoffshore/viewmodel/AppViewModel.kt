@@ -170,7 +170,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             // Persist selection
-            AppPreferencesDataStore.saveSelectedRegionId(context, regionId)
+            AppPreferencesDataStore.setSelectedRegionId(context, regionId)
 
             try {
                 val region = SaltyApi.fetchRegion(regionId)
@@ -332,7 +332,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         zarrManager.removeAll()
 
         viewModelScope.launch {
-            AppPreferencesDataStore.saveSelectedRegionId(context, null)
+            AppPreferencesDataStore.setSelectedRegionId(context, null)
         }
     }
 
