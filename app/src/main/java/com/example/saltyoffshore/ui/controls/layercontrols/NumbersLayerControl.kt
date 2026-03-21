@@ -11,21 +11,20 @@ import androidx.compose.ui.Modifier
 @Composable
 fun NumbersLayerControl(
     enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    opacity: Double,
-    onOpacityChanged: (Double) -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
+    opacity: Float,
+    onOpacityChanged: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LayerSection(
         title = "Numbers",
         enabled = enabled,
-        onToggle = onToggle,
+        onEnabledChanged = onEnabledChanged,
         modifier = modifier
     ) {
         LayerOpacityControl(
             opacity = opacity,
-            onOpacityChanged = onOpacityChanged,
-            label = "Opacity"
+            onOpacityChanged = onOpacityChanged
         )
     }
 }

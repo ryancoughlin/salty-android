@@ -1,29 +1,30 @@
 package com.example.saltyoffshore.ui.controls.layercontrols
 
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.saltyoffshore.ui.theme.SaltyColors
 
 /**
  * Reusable opacity slider control.
  * Used across all layer types (visual, contours, breaks, arrows).
  * Matches iOS LayerOpacityControl exactly.
+ *
+ * Layout: label (caption, 54dp) + Slider (0.0-1.0, step 0.05) + percentage text (caption, 36dp, trailing).
  */
 @Composable
 fun LayerOpacityControl(
-    opacity: Double,
-    onOpacityChanged: (Double) -> Unit,
-    label: String,
+    opacity: Float,
+    onOpacityChanged: (Float) -> Unit,
+    label: String = "Opacity",
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -32,29 +33,29 @@ fun LayerOpacityControl(
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = Color.Black
+            style = MaterialTheme.typography.labelSmall,
+            color = SaltyColors.textPrimary,
+            modifier = Modifier.width(54.dp)
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
-
         Slider(
-            value = opacity.toFloat(),
-            onValueChange = { onOpacityChanged(it.toDouble()) },
+            value = opacity,
+            onValueChange = onOpacityChanged,
             valueRange = 0f..1f,
-            steps = 19, // 5% increments
+            steps = 19, // 0.05 increments
             modifier = Modifier.weight(1f),
             colors = SliderDefaults.colors(
-                thumbColor = Color.Black,
-                activeTrackColor = Color.Black,
-                inactiveTrackColor = Color.LightGray
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.outline
             )
         )
 
         Text(
             text = "${(opacity * 100).toInt()}%",
-            fontSize = 12.sp,
-            color = Color.Black,
+            style = MaterialTheme.typography.labelSmall,
+            color = SaltyColors.textPrimary,
+            textAlign = TextAlign.End,
             modifier = Modifier.width(36.dp)
         )
     }

@@ -11,22 +11,21 @@ import androidx.compose.ui.Modifier
 @Composable
 fun ArrowsLayerControl(
     enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    opacity: Double,
-    onOpacityChanged: (Double) -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
+    opacity: Float,
+    onOpacityChanged: (Float) -> Unit,
     title: String = "Arrows",
     modifier: Modifier = Modifier
 ) {
     LayerSection(
         title = title,
         enabled = enabled,
-        onToggle = onToggle,
+        onEnabledChanged = onEnabledChanged,
         modifier = modifier
     ) {
         LayerOpacityControl(
             opacity = opacity,
-            onOpacityChanged = onOpacityChanged,
-            label = "Opacity"
+            onOpacityChanged = onOpacityChanged
         )
     }
 }
