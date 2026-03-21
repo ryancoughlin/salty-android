@@ -228,6 +228,42 @@ data class Colorscale(
         )
 
         // =============================================
+        // WIND & WAVE SCALES
+        // =============================================
+
+        val WIND = Colorscale(
+            id = "wind",
+            name = "Wind",
+            hexColors = ColorScales.wind,
+            category = ColorscaleCategory.COLORFUL
+        )
+
+        val WAVE_HEIGHT = Colorscale(
+            id = "wave_height",
+            name = "Wave Height",
+            hexColors = ColorScales.waveHeight,
+            category = ColorscaleCategory.COLORFUL
+        )
+
+        val WAVE_PERIOD = Colorscale(
+            id = "wave_period",
+            name = "Wave Period",
+            hexColors = ColorScales.wavePeriod,
+            category = ColorscaleCategory.COLORFUL
+        )
+
+        // =============================================
+        // WATER CLARITY
+        // =============================================
+
+        val WATER_CLARITY = Colorscale(
+            id = "water_clarity",
+            name = "Water Clarity",
+            hexColors = ColorScales.waterClarity,
+            category = ColorscaleCategory.COLORFUL
+        )
+
+        // =============================================
         // ALL COLORSCALES LIST
         // =============================================
 
@@ -248,6 +284,10 @@ data class Colorscale(
             GREYS, BONE,
             // Overlays (Single Color)
             PURPLE, MAGENTA, CYAN, YELLOW, LIME,
+            // Wind & Wave
+            WIND, WAVE_HEIGHT, WAVE_PERIOD,
+            // Water Clarity
+            WATER_CLARITY,
             // TiTiler Custom
             BOUNDARY_FIRE, MAGNITUDE, ICE,
             // Universal

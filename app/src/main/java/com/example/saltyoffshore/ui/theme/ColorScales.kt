@@ -165,6 +165,35 @@ object ColorScales {
         "#66ff66", "#4fff4f", "#38ff38", "#21ff21", "#0aff0a"
     )
 
+    /**
+     * Wind - Beaufort-style, 20 color stops, linear 0-30 m/s (0-58 kt)
+     * Grey (calm) → blue → cyan → green → yellow → orange → red → purple (hurricane)
+     */
+    val wind = listOf(
+        "#8395a7", "#6a89a7", "#5b9bd5", "#4a90d9", "#41b6c4",
+        "#2c9f8f", "#37a132", "#6abf30", "#a2c523", "#d4c318",
+        "#e8a910", "#ee8208", "#e85d0c", "#dc3912", "#cc2020",
+        "#b01030", "#8b0a3a", "#9b30ff", "#7b20d0", "#5a108a"
+    )
+
+    /**
+     * Wave Height - 10 color stops, linear 0-10 m
+     * Cyan (calm) → teal → purple → magenta → red → dark red (phenomenal)
+     */
+    val waveHeight = listOf(
+        "#80DEEA", "#26C6DA", "#00ACC1", "#0097A7", "#00838F",
+        "#673AB7", "#9C27B0", "#E91E63", "#F44336", "#B71C1C"
+    )
+
+    /**
+     * Wave Period - 10 color stops, linear 0-20 s
+     * Cyan (short chop) → green (swell) → yellow → amber → orange (long period)
+     */
+    val wavePeriod = listOf(
+        "#4DD0E1", "#26C6DA", "#00BCD4", "#00ACC1", "#009688",
+        "#4CAF50", "#8BC34A", "#CDDC39", "#FFC107", "#FF9800"
+    )
+
     // Single Color Overlay Scales
     val purpleOverlay = listOf("#f0e0ff", "#e0c0ff", "#c8a2c8", "#9d4edd", "#6a00cc")
     val magentaOverlay = listOf("#ffe0ff", "#ffc0ff", "#ff80ff", "#e600e6", "#990099")
