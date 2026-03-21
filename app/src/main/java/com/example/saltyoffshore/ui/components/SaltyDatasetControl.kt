@@ -28,8 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
-import com.example.saltyoffshore.viewmodel.AppViewModel
+import com.example.saltyoffshore.data.TimeEntry
 
 /**
  * Matches iOS PrimaryDatasetPage layout exactly:
@@ -41,17 +43,15 @@ import com.example.saltyoffshore.viewmodel.AppViewModel
  */
 @Composable
 fun SaltyDatasetControl(
-    viewModel: AppViewModel,
+    dataset: Dataset,
+    entry: TimeEntry?,
+    snapshot: DatasetRenderingSnapshot,
+    onEntrySelected: (TimeEntry) -> Unit,
     onExpand: () -> Unit = {},
     onChange: () -> Unit = {},
     onFilter: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val dataset = viewModel.selectedDataset
-    val entry = viewModel.selectedEntry
-
-    if (dataset == null) return
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -106,8 +106,8 @@ fun SaltyDatasetControl(
 
             if (colorscale != null) {
                 GradientScaleBar(
-                    min = range?.min ?: viewModel.renderingSnapshot.dataMin,
-                    max = range?.max ?: viewModel.renderingSnapshot.dataMax,
+                    min = range?.min ?: snapshot.dataMin,
+                    max = range?.max ?: snapshot.dataMax,
                     unit = range?.unit ?: "°F",
                     colorscale = colorscale
                 )
@@ -118,7 +118,7 @@ fun SaltyDatasetControl(
         TimelineControl(
             entries = dataset.entries,
             selectedEntry = entry,
-            onEntrySelected = { viewModel.selectEntry(it) }
+            onEntrySelected = onEntrySelected
         )
     }
 }

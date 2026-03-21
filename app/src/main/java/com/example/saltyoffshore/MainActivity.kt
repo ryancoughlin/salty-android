@@ -16,6 +16,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -125,6 +126,8 @@ private fun SaltyApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthenticatedContent(viewModel: AppViewModel) {
+    val state by viewModel.state.collectAsState()
+
     var showingAccountSheet by remember { mutableStateOf(false) }
     var hasAppeared by remember { mutableStateOf(false) }
 
@@ -154,7 +157,7 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
     if (showingAccountSheet) {
         AccountHubSheet(
             sheetState = accountSheetState,
-            preferences = viewModel.userPreferences,
+            preferences = state.userPreferences,
             onDepthUnitsChanged = viewModel::updateDepthUnits,
             onDistanceUnitsChanged = viewModel::updateDistanceUnits,
             onSpeedUnitsChanged = viewModel::updateSpeedUnits,
@@ -165,10 +168,10 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
     }
 
     // FTUX: blocking full-screen dialog when preferredRegionId is null
-    if (viewModel.preferredRegionId == null && viewModel.hasCompletedInitialLoad) {
+    if (state.preferredRegionId == null && state.hasCompletedInitialLoad) {
         FTUXRegionSelectionScreen(
-            regionGroups = viewModel.regionGroups,
-            loadingRegionId = viewModel.ftuxLoadingRegionId,
+            regionGroups = state.regionGroups,
+            loadingRegionId = state.ftuxLoadingRegionId,
             onRegionSelected = { regionId ->
                 viewModel.selectRegionAsFTUX(regionId)
             }
@@ -192,7 +195,7 @@ private fun ForegroundRefreshEffect(viewModel: AppViewModel, isAuthenticated: Bo
                     isFirstResume = false
                     return@LifecycleEventObserver
                 }
-                if (isAuthenticated && viewModel.hasCompletedInitialLoad) {
+                if (isAuthenticated && viewModel.state.value.hasCompletedInitialLoad) {
                     Log.d(TAG, "Foreground resume: refreshing data")
                     viewModel.refreshData()
                 }
