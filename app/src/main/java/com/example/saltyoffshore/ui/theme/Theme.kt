@@ -1,54 +1,91 @@
 package com.example.saltyoffshore.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+
+// ── Spacing ──────────────────────────────────────────────────────────────────
+// Mirrors iOS Spacing enum: small/medium/large/extraLarge
+object Spacing {
+    val small = 4.dp
+    val medium = 12.dp
+    val large = 16.dp
+    val extraLarge = 24.dp
+}
+
+// ── Layout Constants ─────────────────────────────────────────────────────────
+// Mirrors iOS Theme.Layout
+object SaltyLayout {
+    val padding = 16.dp
+    val layerControlHeight = 64.dp
+    val topBarElementHeight = 44.dp
+    val controlCornerRadius = 6.dp
+    val cardCornerRadius = 12.dp
+}
+
+// ── Control Sizes ────────────────────────────────────────────────────────────
+// Mirrors iOS ControlSize enum
+enum class SaltyControlSize(
+    val iconSize: Int,
+    val horizontalPadding: Int,
+    val height: Int,
+    val previewWidth: Int,
+    val previewHeight: Int
+) {
+    Regular(iconSize = 13, horizontalPadding = 10, height = 28, previewWidth = 20, previewHeight = 12),
+    Compact(iconSize = 10, horizontalPadding = 6, height = 22, previewWidth = 16, previewHeight = 10)
+}
+
+// ── Material 3 Color Schemes ─────────────────────────────────────────────────
+// Mapped from iOS surface hierarchy to Material 3 semantic slots.
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = SaltyAccent,
+    onPrimary = ButtonTextDark,
+    secondary = TextSecondaryDark,
+    onSecondary = TextPrimaryDark,
+    background = BaseDark,
+    onBackground = TextPrimaryDark,
+    surface = RaisedDark,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = SunkenDark,
+    onSurfaceVariant = TextSecondaryDark,
+    surfaceContainer = BaseDark,
+    surfaceContainerHigh = RaisedDark,
+    surfaceContainerHighest = OverlayDark,
+    surfaceContainerLow = SunkenDark,
+    outline = BorderSubtleDark,
+    outlineVariant = BorderSubtleDark
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = SaltyAccent,
+    onPrimary = ButtonTextLight,
+    secondary = TextSecondaryLight,
+    onSecondary = TextPrimaryLight,
+    background = BaseLight,
+    onBackground = TextPrimaryLight,
+    surface = RaisedLight,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = SunkenLight,
+    onSurfaceVariant = TextSecondaryLight,
+    surfaceContainer = BaseLight,
+    surfaceContainerHigh = RaisedLight,
+    surfaceContainerHighest = OverlayLight,
+    surfaceContainerLow = SunkenLight,
+    outline = BorderSubtleLight,
+    outlineVariant = BorderSubtleLight
 )
 
 @Composable
 fun SaltyOffshoreTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
