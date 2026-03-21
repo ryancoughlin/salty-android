@@ -61,11 +61,6 @@ class GlobalLayers(
         Log.d(TAG, "update() called with ${visibility.enabledLayers.size} enabled layers")
         Log.d(TAG, "  Enabled: ${visibility.enabledLayers.map { it.name }}")
 
-        lastVisibility = visibility
-        lastLoranConfig = loranConfig
-        lastTournament = selectedTournament
-        lastStations = stations
-
         // Shaded Relief (read-only, always included in visibility)
         updateShadedRelief(visibility)
 

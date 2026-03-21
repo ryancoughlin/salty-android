@@ -2,6 +2,7 @@ package com.example.saltyoffshore.viewmodel
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -150,23 +151,22 @@ class GlobalLayerManager(
 
     // MARK: - Convenience
 
-    /** Get render-ready visibility snapshot for map layers */
-    val visibility: GlobalLayerVisibility
-        get() {
-            val enabled = _layers.filter { it.isEnabled }.map { it.type }.toMutableSet()
-            // Always include shaded relief (read-only, always rendered)
-            enabled.add(GlobalLayerType.SHADED_RELIEF)
+    /** Cached render-ready visibility snapshot — only recomputes when _layers changes */
+    val visibility: GlobalLayerVisibility by derivedStateOf {
+        val enabled = _layers.filter { it.isEnabled }.map { it.type }.toMutableSet()
+        // Always include shaded relief (read-only, always rendered)
+        enabled.add(GlobalLayerType.SHADED_RELIEF)
 
-            val opacities = _layers.associate { it.type to it.opacity }.toMutableMap()
-            // Include hidden layers with their default opacities
-            GlobalLayerType.entries.forEach { type ->
-                if (!opacities.containsKey(type)) {
-                    opacities[type] = type.defaultOpacity
-                }
+        val opacities = _layers.associate { it.type to it.opacity }.toMutableMap()
+        // Include hidden layers with their default opacities
+        GlobalLayerType.entries.forEach { type ->
+            if (!opacities.containsKey(type)) {
+                opacities[type] = type.defaultOpacity
             }
-
-            return GlobalLayerVisibility(enabled, opacities)
         }
+
+        GlobalLayerVisibility(enabled, opacities)
+    }
 
     /** Get layers grouped by category for UI */
     val layersByCategory: List<Pair<OverlayCategory, List<LayerState>>>

@@ -275,6 +275,18 @@ void ZarrShaderHost::render(const double* projectionMatrix, double zoom) {
 
     if (!initialized_) return;
 
+    // Process deferred clear on GL thread (where textures can be deleted)
+    if (pendingClear_) {
+        for (auto& pair : frames_) {
+            if (pair.second.texture != 0) {
+                glDeleteTextures(1, &pair.second.texture);
+            }
+        }
+        frames_.clear();
+        pendingClear_ = false;
+        LOGI("Cleared GL textures on render thread");
+    }
+
     // Process any queued uploads on the GL thread (where GL context lives)
     processPendingColormap();
     processPendingFrames();
@@ -493,19 +505,16 @@ bool ZarrShaderHost::showFrame(const std::string& entryId) {
 void ZarrShaderHost::clearFrames() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    for (auto& pair : frames_) {
-        if (pair.second.texture != 0) {
-            glDeleteTextures(1, &pair.second.texture);
-        }
-    }
-    frames_.clear();
+    // Don't call glDeleteTextures here — we may not be on the GL thread.
+    // Set flag so render() drains it on the correct thread.
+    pendingClear_ = true;
     pendingFrames_.clear();
     pendingShowFrameKey_.clear();
     currentTexture_ = 0;
     prevTexture_ = 0;
     currentFrameKey_.clear();
 
-    LOGI("Cleared all frames");
+    LOGI("Queued clear all frames (GL delete deferred to render thread)");
 }
 
 bool ZarrShaderHost::isLoaded(const std::string& entryId) {

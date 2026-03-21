@@ -20,7 +20,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
@@ -54,6 +53,9 @@ import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
+import com.example.saltyoffshore.ui.theme.SaltyColors
+import com.example.saltyoffshore.ui.theme.SaltyLayout
+import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.ScreenCoordinate
@@ -98,8 +100,8 @@ fun MapScreen(
         }
     }
 
-    // Fly to region when selected
-    LaunchedEffect(viewModel.selectedRegion) {
+    // Fly to region when selected — key on ID only, not full object
+    LaunchedEffect(viewModel.selectedRegion?.id) {
         viewModel.selectedRegion?.let { region ->
             val bounds = region.bounds
             val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
@@ -186,14 +188,14 @@ fun MapScreen(
             onClick = onSettingsClick,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = 16.dp)
-                .size(44.dp)
-                .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                .padding(top = 48.dp, end = Spacing.large)
+                .size(SaltyLayout.topBarElementHeight)
+                .background(SaltyColors.raised.copy(alpha = 0.9f), CircleShape)
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "Settings",
-                tint = Color.DarkGray
+                tint = SaltyColors.iconButton
             )
         }
 
@@ -203,7 +205,7 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color.White)
+                CircularProgressIndicator(color = SaltyColors.accent)
             }
         }
 
@@ -214,7 +216,7 @@ fun MapScreen(
                 onDepthSelected = { viewModel.onDepthSelected(it) },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp)
+                    .padding(end = Spacing.large)
             )
         }
 
@@ -239,7 +241,7 @@ fun MapScreen(
                 onLayersClick = { showLayersSheet = true },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp)
+                    .padding(end = Spacing.large)
                     .padding(top = 100.dp) // Below depth selector area
             )
         }
@@ -409,6 +411,13 @@ private fun CrosshairQueryEffect(
                 val screenPoint = ScreenCoordinate(screenCenterX, screenCenterY)
                 queryManager.queryAtPoint(screenPoint, zoom, datasetType, onValueChanged)
             }
+        }
+
+        // Suspend until cancelled (keeps MapEffect alive), then cleanup
+        try {
+            kotlinx.coroutines.awaitCancellation()
+        } finally {
+            cancelable.cancel()
         }
     }
 }

@@ -141,6 +141,7 @@ private:
     // State
     bool initialized_ = false;
     bool visible_ = true;
+    bool pendingClear_ = false;
 
     // Thread safety
     mutable std::mutex mutex_;

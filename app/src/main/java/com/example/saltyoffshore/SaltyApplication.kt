@@ -20,6 +20,9 @@ class SaltyApplication : Application() {
 
         // Eagerly initialize Supabase client so session restore happens before UI
         SupabaseClientProvider.client
+
+        // Preload native library on startup (avoids lazy load during render path)
+        System.loadLibrary("zarr-shader")
     }
 
     companion object {
