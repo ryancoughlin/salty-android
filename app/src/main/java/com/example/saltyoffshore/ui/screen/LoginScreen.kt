@@ -1,5 +1,9 @@
 package com.example.saltyoffshore.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,14 +17,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -39,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,12 +60,23 @@ import kotlinx.coroutines.launch
 private val SaltyBase = Color(0xFF0A0A0F)
 private val SaltyAccent = Color(0xFF00D4AA)
 private val SaltyBorder = Color(0xFF1A1A24)
+private val SaltySunken = Color(0xFF141419)
 private val SaltyTextPrimary = Color(0xFFFFFFFF)
 private val SaltyTextSecondary = Color(0xFF8A8A9A)
 
+/**
+ * LoginScreen matching iOS LoginView.swift.
+ *
+ * Three-section layout:
+ * - HeaderSection: logo (72x72) + heading
+ * - AuthSection: "Continue with email" collapsed -> expand animation -> email/password form
+ * - FooterSection: "Don't have an account? Sign Up"
+ *
+ * Auth state machine in MainActivity handles routing -- no onSignInSuccess callback needed.
+ * Supabase sessionStatus flow will automatically route to authenticated content.
+ */
 @Composable
 fun LoginScreen(
-    onSignInSuccess: () -> Unit,
     onNavigateToSignUp: () -> Unit,
     onNavigateToResetPassword: () -> Unit
 ) {
@@ -64,8 +84,10 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var hasAttemptedSubmit by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showEmailForm by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     val isFormValid = email.isNotEmpty() &&
             ValidationHelper.isValidEmail(email) &&
@@ -81,23 +103,25 @@ fun LoginScreen(
             .fillMaxSize()
             .background(SaltyBase)
     ) {
-        // Subtle grid background
         SubtleGridBackground()
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.weight(1f))
+            // Matches iOS: .padding(.top, 120)
+            Spacer(modifier = Modifier.height(120.dp))
 
-            // Header
+            // Header Section
             HeaderSection()
 
-            Spacer(modifier = Modifier.weight(1f))
+            // Matches iOS: Spacer().frame(height: 80)
+            Spacer(modifier = Modifier.height(80.dp))
 
-            // Auth section
+            // Auth Section
             AuthSection(
                 email = email,
                 onEmailChange = { email = it },
@@ -105,8 +129,10 @@ fun LoginScreen(
                 onPasswordChange = { password = it },
                 showEmailError = showEmailError,
                 showPasswordError = showPasswordError,
+                showEmailForm = showEmailForm,
                 isLoading = AuthManager.isLoading,
                 isFormValid = isFormValid,
+                onContinueWithEmail = { showEmailForm = true },
                 onForgotPassword = onNavigateToResetPassword,
                 onSignIn = {
                     hasAttemptedSubmit = true
@@ -114,7 +140,7 @@ fun LoginScreen(
                         scope.launch {
                             try {
                                 AuthManager.signIn(email, password)
-                                onSignInSuccess()
+                                // Auth state machine will handle navigation
                             } catch (e: AuthError) {
                                 errorMessage = e.message
                                 hasAttemptedSubmit = false
@@ -135,10 +161,10 @@ fun LoginScreen(
                 )
             }
 
-            // Footer
+            // Footer Section
             FooterSection(onSignUp = onNavigateToSignUp)
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
@@ -171,10 +197,10 @@ private fun HeaderSection() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Salty logo placeholder (48x48)
+        // Salty logo placeholder (72x72, matching iOS)
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(72.dp)
                 .clip(CircleShape)
                 .background(SaltyAccent),
             contentAlignment = Alignment.Center
@@ -182,17 +208,14 @@ private fun HeaderSection() {
             Text(
                 text = "S",
                 color = SaltyBase,
-                fontSize = 24.sp,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        // Tech badge
-        TechBadge(text = "OCEAN INTELLIGENCE")
-
-        // Tagline
+        // Heading matching iOS: "Built for pros.\nDesigned for everyone."
         Text(
-            text = "BUILT FOR PROS.\nDESIGNED FOR EVERYONE.",
+            text = "Built for pros.\nDesigned for everyone.",
             color = SaltyTextPrimary,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
@@ -202,31 +225,12 @@ private fun HeaderSection() {
     }
 }
 
-@Composable
-private fun TechBadge(text: String) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(SaltyAccent.copy(alpha = 0.1f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(SaltyAccent)
-        )
-        Text(
-            text = text,
-            color = SaltyTextSecondary,
-            fontSize = 10.sp,
-            letterSpacing = 1.5.sp
-        )
-    }
-}
-
+/**
+ * Auth section matching iOS AuthSection.
+ *
+ * Initially shows "Continue with email" secondary button.
+ * On tap, animates open (0.2s ease-in-out) the email/password form + Sign In button.
+ */
 @Composable
 private fun AuthSection(
     email: String,
@@ -235,8 +239,10 @@ private fun AuthSection(
     onPasswordChange: (String) -> Unit,
     showEmailError: Boolean,
     showPasswordError: Boolean,
+    showEmailForm: Boolean,
     isLoading: Boolean,
     isFormValid: Boolean,
+    onContinueWithEmail: () -> Unit,
     onForgotPassword: () -> Unit,
     onSignIn: () -> Unit
 ) {
@@ -244,71 +250,89 @@ private fun AuthSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Divider with "or" (skipping Apple Sign In for now)
-        DividerWithText(text = "Sign in with email")
+        // "or" divider (Apple Sign-In would go above this on iOS)
+        DividerWithText(text = "or")
 
-        // Email field
-        Column {
-            SaltyTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                placeholder = "Email",
-                keyboardType = KeyboardType.Email,
-                isError = showEmailError
-            )
-            if (showEmailError) {
-                Text(
-                    text = if (email.isEmpty()) "Email is required" else "Please enter a valid email",
-                    color = Color.Red,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 4.dp)
+        // Collapsed state: "Continue with email" button
+        // Expanded state: email/password form + Sign In button
+        AnimatedVisibility(
+            visible = showEmailForm,
+            enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(200))
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Email field
+                Column {
+                    SaltyTextField(
+                        value = email,
+                        onValueChange = onEmailChange,
+                        placeholder = "Email",
+                        keyboardType = KeyboardType.Email,
+                        isError = showEmailError
+                    )
+                    if (showEmailError) {
+                        Text(
+                            text = if (email.isEmpty()) "Email is required" else "Please enter a valid email",
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+
+                // Password field
+                Column {
+                    SaltyTextField(
+                        value = password,
+                        onValueChange = onPasswordChange,
+                        placeholder = "Password",
+                        keyboardType = KeyboardType.Password,
+                        isPassword = true,
+                        isError = showPasswordError,
+                        imeAction = ImeAction.Done
+                    )
+                    if (showPasswordError) {
+                        Text(
+                            text = "Password is required",
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    // Forgot password
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = "Forgot Password?",
+                            color = SaltyTextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable { onForgotPassword() }
+                        )
+                    }
+                }
+
+                // Sign In button (primary)
+                SaltyPrimaryButton(
+                    text = "Sign In",
+                    isLoading = isLoading,
+                    isEnabled = !isLoading && isFormValid,
+                    onClick = onSignIn
                 )
             }
         }
 
-        // Password field
-        Column {
-            SaltyTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                placeholder = "Password",
-                keyboardType = KeyboardType.Password,
-                isPassword = true,
-                isError = showPasswordError,
-                imeAction = ImeAction.Done
+        // "Continue with email" button (shown when form is collapsed)
+        if (!showEmailForm) {
+            SaltySecondaryButton(
+                text = "Continue with email",
+                icon = Icons.Default.Email,
+                onClick = onContinueWithEmail
             )
-            if (showPasswordError) {
-                Text(
-                    text = "Password is required",
-                    color = Color.Red,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-
-            // Forgot password
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Text(
-                    text = "Forgot Password?",
-                    color = SaltyTextSecondary,
-                    fontSize = 12.sp,
-                    modifier = Modifier.clickable { onForgotPassword() }
-                )
-            }
         }
-
-        // Sign in button
-        SaltyButton(
-            text = "Sign In",
-            isLoading = isLoading,
-            isEnabled = !isLoading && isFormValid,
-            onClick = onSignIn
-        )
     }
 }
 
@@ -355,7 +379,7 @@ private fun SaltyTextField(
         },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
             imeAction = imeAction
@@ -373,8 +397,9 @@ private fun SaltyTextField(
     )
 }
 
+/** Primary button -- accent background, dark text */
 @Composable
-private fun SaltyButton(
+private fun SaltyPrimaryButton(
     text: String,
     isLoading: Boolean,
     isEnabled: Boolean,
@@ -407,6 +432,41 @@ private fun SaltyButton(
                 fontSize = 16.sp
             )
         }
+    }
+}
+
+/** Secondary button -- sunken background, primary text, optional leading icon */
+@Composable
+private fun SaltySecondaryButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SaltySunken,
+            contentColor = SaltyTextPrimary
+        )
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = SaltyTextPrimary
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+        }
+        Text(
+            text = text,
+            fontWeight = FontWeight.Medium,
+            fontSize = 16.sp
+        )
     }
 }
 
