@@ -18,6 +18,7 @@ import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.SaltyApi
@@ -106,6 +107,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var currentLatitude by mutableStateOf(30.0)
         private set
 
+    // MARK: - FTUX State
+
+    /** Region groups for FTUX region selection (grouped by geography) */
+    var regionGroups by mutableStateOf<List<RegionGroup>>(emptyList())
+        private set
+
+    /** Loading indicator for FTUX region row */
+    var ftuxLoadingRegionId by mutableStateOf<String?>(null)
+        private set
+
+    /** Preferred region ID from DataStore (null triggers FTUX) */
+    var preferredRegionId by mutableStateOf<String?>(null)
+        private set
+
+    /** Whether initial data load has completed */
+    var hasCompletedInitialLoad by mutableStateOf(false)
+        private set
+
     init {
         loadRegionsAndRestoreSelection()
         loadUserPreferences()
@@ -123,8 +142,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val response = SaltyApi.getRegions()
+                regionGroups = response.groups
                 regions = response.groups.flatMap { it.regions }
                 Log.d(TAG, "Loaded ${regions.size} regions")
+
+                // Load preferred region ID for FTUX check
+                preferredRegionId = AppPreferencesDataStore.getPreferredRegionId(context).first()
 
                 // Restore persisted region selection
                 val savedRegionId = AppPreferencesDataStore.getSelectedRegionId(context).first()
@@ -132,8 +155,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     Log.d(TAG, "Restoring saved region: $savedRegionId")
                     onRegionSelected(savedRegionId)
                 }
+
+                hasCompletedInitialLoad = true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load regions", e)
+                hasCompletedInitialLoad = true
             }
         }
     }
@@ -467,14 +493,68 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // MARK: - FTUX Region Selection
+
+    /**
+     * Select a region during FTUX. Sets as preferred and browses to it.
+     * Matches iOS: regionStore.browseToRegion(id, setAsPreferred: true)
+     */
+    fun selectRegionAsFTUX(regionId: String) {
+        ftuxLoadingRegionId = regionId
+        viewModelScope.launch {
+            // Set as preferred region
+            AppPreferencesDataStore.setPreferredRegionId(context, regionId)
+            preferredRegionId = regionId
+
+            // Browse to the region
+            onRegionSelected(regionId)
+
+            ftuxLoadingRegionId = null
+        }
+    }
+
+    // MARK: - Foreground Refresh
+
+    /**
+     * Refresh data when app returns to foreground.
+     * Matches iOS: onChange(of: scenePhase) { _, newPhase in guard newPhase == .active }
+     */
+    fun refreshData() {
+        viewModelScope.launch {
+            try {
+                val response = SaltyApi.getRegions()
+                regionGroups = response.groups
+                regions = response.groups.flatMap { it.regions }
+                Log.d(TAG, "Refreshed ${regions.size} regions")
+
+                // Refresh current region data if selected
+                selectedRegion?.let { region ->
+                    val refreshedRegion = SaltyApi.fetchRegion(region.id)
+                    selectedRegion = refreshedRegion
+                    handleDatasetSetup(refreshedRegion)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh data", e)
+            }
+        }
+    }
+
     // MARK: - Sign Out
+
+    /**
+     * Handle sign out: clear all user-specific state.
+     * Matches iOS handleSignOut() in SaltyOffshoreApp.swift.
+     */
+    fun handleSignOut() {
+        userPreferences = null
+        clearSelection()
+        Log.d(TAG, "Sign out: app state cleared")
+    }
 
     fun signOut() {
         viewModelScope.launch {
             AuthManager.signOut()
-            userPreferences = null
-            clearSelection()
-            Log.d(TAG, "User signed out")
+            handleSignOut()
         }
     }
 }
