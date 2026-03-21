@@ -1,14 +1,6 @@
 package com.example.saltyoffshore.data
 
 /**
- * Filter mode for data visualization.
- */
-enum class FilterMode {
-    SQUASH,    // Remap colors to filter range (values outside still visible)
-    HIDE_SHOW  // Mask values outside filter range (transparent)
-}
-
-/**
  * Snapshot of all layer visibility/opacity states for a dataset.
  * Mirrors iOS DatasetRenderingSnapshot exactly.
  */
@@ -30,6 +22,9 @@ data class DatasetRenderingSnapshot(
     val arrowsEnabled: Boolean = true,
     val arrowsOpacity: Double = 1.0,
 
+    // Particles Layer (Currents only)
+    val particlesEnabled: Boolean = false,
+
     // Numbers Layer
     val numbersEnabled: Boolean = false,
     val numbersOpacity: Double = 1.0,
@@ -45,7 +40,8 @@ data class DatasetRenderingSnapshot(
     val dataMax: Double = 100.0,
 
     // Colormap
-    val selectedColorscaleId: String? = null,
+    val selectedColorscale: Colorscale? = null,
+    val selectedPreset: DatasetPreset? = null,
     val resamplingMethod: String = "bilinear"
 ) {
     val renderRange: ClosedFloatingPointRange<Double>
@@ -53,6 +49,9 @@ data class DatasetRenderingSnapshot(
 
     val contourRange: ClosedFloatingPointRange<Double>
         get() = dataMin..dataMax
+
+    val contourFilterRange: ClosedFloatingPointRange<Double>?
+        get() = if (isFilterActive) filterMin..filterMax else null
 
     companion object {
         fun default() = DatasetRenderingSnapshot()
