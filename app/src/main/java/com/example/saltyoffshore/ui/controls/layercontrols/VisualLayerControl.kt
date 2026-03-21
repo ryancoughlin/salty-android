@@ -18,12 +18,12 @@ fun VisualLayerControl(
     LayerSection(
         title = "Visual",
         enabled = config.visualEnabled,
-        onToggle = { onConfigChanged(config.copy(visualEnabled = it)) },
+        onEnabledChanged = { onConfigChanged(config.copy(visualEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = config.visualOpacity,
-            onOpacityChanged = { onConfigChanged(config.copy(visualOpacity = it)) },
+            opacity = config.visualOpacity.toFloat(),
+            onOpacityChanged = { onConfigChanged(config.copy(visualOpacity = it.toDouble())) },
             label = "Opacity"
         )
     }

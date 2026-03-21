@@ -19,7 +19,7 @@ fun ParticlesLayerControl(
     LayerSection(
         title = title,
         enabled = config.particlesEnabled,
-        onToggle = { onConfigChanged(config.copy(particlesEnabled = it)) },
+        onEnabledChanged = { onConfigChanged(config.copy(particlesEnabled = it)) },
         modifier = modifier
     ) {
         // No content — toggle only

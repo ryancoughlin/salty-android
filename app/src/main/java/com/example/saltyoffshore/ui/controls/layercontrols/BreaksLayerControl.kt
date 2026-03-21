@@ -18,12 +18,12 @@ fun BreaksLayerControl(
     LayerSection(
         title = "Breaks",
         enabled = config.breaksEnabled,
-        onToggle = { onConfigChanged(config.copy(breaksEnabled = it)) },
+        onEnabledChanged = { onConfigChanged(config.copy(breaksEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = config.breaksOpacity,
-            onOpacityChanged = { onConfigChanged(config.copy(breaksOpacity = it)) },
+            opacity = config.breaksOpacity.toFloat(),
+            onOpacityChanged = { onConfigChanged(config.copy(breaksOpacity = it.toDouble())) },
             label = "Opacity"
         )
     }

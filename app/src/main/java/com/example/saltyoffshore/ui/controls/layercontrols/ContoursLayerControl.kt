@@ -40,13 +40,13 @@ fun ContoursLayerControl(
     LayerSection(
         title = "Contours",
         enabled = config.contourEnabled,
-        onToggle = { onConfigChanged(config.copy(contourEnabled = it)) },
+        onEnabledChanged = { onConfigChanged(config.copy(contourEnabled = it)) },
         modifier = modifier
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LayerOpacityControl(
-                opacity = config.contourOpacity,
-                onOpacityChanged = { onConfigChanged(config.copy(contourOpacity = it)) },
+                opacity = config.contourOpacity.toFloat(),
+                onOpacityChanged = { onConfigChanged(config.copy(contourOpacity = it.toDouble())) },
                 label = "Opacity"
             )
 

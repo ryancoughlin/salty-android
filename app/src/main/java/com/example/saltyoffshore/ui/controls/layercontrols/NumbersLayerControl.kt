@@ -18,12 +18,12 @@ fun NumbersLayerControl(
     LayerSection(
         title = "Numbers",
         enabled = config.numbersEnabled,
-        onToggle = { onConfigChanged(config.copy(numbersEnabled = it)) },
+        onEnabledChanged = { onConfigChanged(config.copy(numbersEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = config.numbersOpacity,
-            onOpacityChanged = { onConfigChanged(config.copy(numbersOpacity = it)) },
+            opacity = config.numbersOpacity.toFloat(),
+            onOpacityChanged = { onConfigChanged(config.copy(numbersOpacity = it.toDouble())) },
             label = "Opacity"
         )
     }

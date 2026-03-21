@@ -38,8 +38,10 @@ import com.example.saltyoffshore.repository.UserPreferencesRepository
 import com.example.saltyoffshore.zarr.TimeEntry as ZarrTimeEntry
 import com.example.saltyoffshore.zarr.ZarrManager
 import com.example.saltyoffshore.zarr.ZarrVisualLayer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "AppViewModel"
 
@@ -118,24 +120,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadUserPreferences() {
         val userId = AuthManager.currentUserId ?: return
-        viewModelScope.launch {
-            userPreferences = preferencesRepository.fetchPreferences(userId)
-            Log.d(TAG, "Loaded user preferences: ${userPreferences != null}")
+        viewModelScope.launch(Dispatchers.IO) {
+            val prefs = preferencesRepository.fetchPreferences(userId)
+            withContext(Dispatchers.Main) {
+                userPreferences = prefs
+            }
+            Log.d(TAG, "Loaded user preferences: ${prefs != null}")
         }
     }
 
     private fun loadRegionsAndRestoreSelection() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response = SaltyApi.getRegions()
-                regions = response.groups.flatMap { it.regions }
-                Log.d(TAG, "Loaded ${regions.size} regions")
+                val regionList = response.groups.flatMap { it.regions }
+                withContext(Dispatchers.Main) {
+                    regions = regionList
+                }
+                Log.d(TAG, "Loaded ${regionList.size} regions")
 
                 // Restore persisted region selection
                 val savedRegionId = AppPreferencesDataStore.getSelectedRegionId(context).first()
-                if (savedRegionId != null && regions.any { it.id == savedRegionId }) {
+                if (savedRegionId != null && regionList.any { it.id == savedRegionId }) {
                     Log.d(TAG, "Restoring saved region: $savedRegionId")
-                    onRegionSelected(savedRegionId)
+                    withContext(Dispatchers.Main) {
+                        onRegionSelected(savedRegionId)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load regions", e)
@@ -147,19 +157,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         appStatus = AppStatus.Loading
         Log.d(TAG, "Region selected: $regionId")
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             // Persist selection
-            AppPreferencesDataStore.saveSelectedRegionId(context, regionId)
+            AppPreferencesDataStore.setSelectedRegionId(context, regionId)
 
             try {
                 val region = SaltyApi.fetchRegion(regionId)
-                selectedRegion = region
-                Log.d(TAG, "Loaded region: ${region.name} with ${region.datasets.size} datasets")
+                withContext(Dispatchers.Main) {
+                    selectedRegion = region
+                    Log.d(TAG, "Loaded region: ${region.name} with ${region.datasets.size} datasets")
 
-                handleDatasetSetup(region)
+                    handleDatasetSetup(region)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load region", e)
-                appStatus = AppStatus.Error("Failed to load region: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    appStatus = AppStatus.Error("Failed to load region: ${e.message}")
+                }
             }
         }
     }
@@ -318,8 +332,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         visualSource = VisualLayerSource.None
         zarrManager.removeAll()
 
-        viewModelScope.launch {
-            AppPreferencesDataStore.saveSelectedRegionId(context, null)
+        viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setSelectedRegionId(context, null)
         }
     }
 
@@ -451,9 +465,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateDepthUnits(units: DepthUnits) {
         val userId = AuthManager.currentUserId ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             if (preferencesRepository.updateField(userId, "depth_units", units.rawValue)) {
-                userPreferences = userPreferences?.copy(depthUnits = units.rawValue)
+                withContext(Dispatchers.Main) {
+                    userPreferences = userPreferences?.copy(depthUnits = units.rawValue)
+                }
                 Log.d(TAG, "Updated depth units to ${units.displayName}")
             }
         }
@@ -461,9 +477,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateDistanceUnits(units: DistanceUnits) {
         val userId = AuthManager.currentUserId ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             if (preferencesRepository.updateField(userId, "distance_units", units.rawValue)) {
-                userPreferences = userPreferences?.copy(distanceUnits = units.rawValue)
+                withContext(Dispatchers.Main) {
+                    userPreferences = userPreferences?.copy(distanceUnits = units.rawValue)
+                }
                 Log.d(TAG, "Updated distance units to ${units.displayName}")
             }
         }
@@ -471,9 +489,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSpeedUnits(units: SpeedUnits) {
         val userId = AuthManager.currentUserId ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             if (preferencesRepository.updateField(userId, "speed_units", units.rawValue)) {
-                userPreferences = userPreferences?.copy(speedUnits = units.rawValue)
+                withContext(Dispatchers.Main) {
+                    userPreferences = userPreferences?.copy(speedUnits = units.rawValue)
+                }
                 Log.d(TAG, "Updated speed units to ${units.displayName}")
             }
         }
@@ -481,9 +501,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateTemperatureUnits(units: TemperatureUnits) {
         val userId = AuthManager.currentUserId ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             if (preferencesRepository.updateField(userId, "temperature_units", units.rawValue)) {
-                userPreferences = userPreferences?.copy(temperatureUnits = units.rawValue)
+                withContext(Dispatchers.Main) {
+                    userPreferences = userPreferences?.copy(temperatureUnits = units.rawValue)
+                }
                 Log.d(TAG, "Updated temperature units to ${units.displayName}")
             }
         }
@@ -492,10 +514,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // MARK: - Sign Out
 
     fun signOut() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             AuthManager.signOut()
-            userPreferences = null
-            clearSelection()
+            withContext(Dispatchers.Main) {
+                userPreferences = null
+                clearSelection()
+            }
             Log.d(TAG, "User signed out")
         }
     }

@@ -63,6 +63,8 @@ import com.mapbox.maps.extension.compose.MapboxMap
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
 import com.mapbox.maps.extension.compose.annotation.ViewAnnotation
 import com.mapbox.maps.extension.compose.style.MapStyle
+import com.example.saltyoffshore.data.DatasetRenderingSnapshot
+import com.mapbox.maps.extension.compose.style.projection.generated.Projection
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.viewannotation.geometry
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
@@ -121,7 +123,7 @@ fun MapScreen(
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
-            style = { MapStyle(style = AppConstants.lightMapStyleURI) }
+            style = { MapStyle(style = AppConstants.lightMapStyleURI, projection = Projection.MERCATOR) }
         ) {
             // Wire up repaint callback for Zarr frame updates
             ZarrRepaintEffect(viewModel = viewModel)
@@ -219,7 +221,10 @@ fun MapScreen(
         // Dataset control (bottom)
         if (viewModel.selectedDataset != null) {
             SaltyDatasetControl(
-                viewModel = viewModel,
+                dataset = viewModel.selectedDataset!!,
+                entry = viewModel.selectedEntry,
+                snapshot = viewModel.renderingSnapshot,
+                onEntrySelected = { viewModel.selectEntry(it) },
                 onChange = { showDatasetSheet = true },
                 onFilter = { showFilterSheet = true },
                 modifier = Modifier
@@ -277,31 +282,27 @@ fun MapScreen(
         }
 
         // Dataset filter sheet
-        if (showFilterSheet && state.primaryConfig != null && state.selectedDataset != null) {
-            val config = state.primaryConfig!!
-            val dataset = state.selectedDataset!!
+        if (showFilterSheet && viewModel.primaryConfig != null && viewModel.selectedDataset != null) {
+            val config = viewModel.primaryConfig!!
+            val dataset = viewModel.selectedDataset!!
             val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
-            val entry = state.selectedEntry
+            val entry = viewModel.selectedEntry
             val rangeKey = datasetType.rangeKey
             val rangeData = entry?.ranges?.get(rangeKey)
             val dataRange = if (rangeData?.min != null && rangeData.max != null) {
                 rangeData.min..rangeData.max
             } else {
-                state.renderingSnapshot.dataMin..state.renderingSnapshot.dataMax
+                viewModel.renderingSnapshot.dataMin..viewModel.renderingSnapshot.dataMax
             }
 
             DatasetFilterSheet(
                 config = config,
                 dataRange = dataRange,
-                colorscale = config.colorscale ?: datasetType.defaultColorscale,
                 unit = rangeData?.unit ?: "°F",
                 onConfigChanged = { newConfig ->
-                    viewModel.updatePrimaryConfig { newConfig }
+                    viewModel.updatePrimaryConfig(newConfig)
                 },
                 onDragRangeChanged = { min, max ->
-                    viewModel.zarrManager.shaderHost?.setUniforms(
-                        filterMin = min, filterMax = max
-                    )
                     viewModel.repaint?.invoke()
                 },
                 onDismiss = { showFilterSheet = false }
@@ -338,7 +339,7 @@ private fun DatasetLayersEffect(
     }
 
     // Render layers when any input changes
-    MapEffect(key1 = regionId, key2 = entry?.id, key3 = snapshot, key4 = visualSource) { mapView ->
+    MapEffect(regionId, entry?.id, snapshot, visualSource) { mapView ->
         val mapboxMap = mapView.mapboxMap
 
         // Create layer manager if needed (first render or region changed)

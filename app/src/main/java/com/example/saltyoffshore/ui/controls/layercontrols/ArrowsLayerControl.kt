@@ -19,12 +19,12 @@ fun ArrowsLayerControl(
     LayerSection(
         title = title,
         enabled = config.arrowsEnabled,
-        onToggle = { onConfigChanged(config.copy(arrowsEnabled = it)) },
+        onEnabledChanged = { onConfigChanged(config.copy(arrowsEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = config.arrowsOpacity,
-            onOpacityChanged = { onConfigChanged(config.copy(arrowsOpacity = it)) },
+            opacity = config.arrowsOpacity.toFloat(),
+            onOpacityChanged = { onConfigChanged(config.copy(arrowsOpacity = it.toDouble())) },
             label = "Opacity"
         )
     }
