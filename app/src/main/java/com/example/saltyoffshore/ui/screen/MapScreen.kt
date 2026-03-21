@@ -31,7 +31,7 @@ import com.example.saltyoffshore.data.RegionStatus
 import com.example.saltyoffshore.ui.components.CrosshairOverlay
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
-import com.example.saltyoffshore.ui.components.FilterRangeSheet
+import com.example.saltyoffshore.ui.components.DatasetFilterSheet
 import com.example.saltyoffshore.ui.components.RegionAnnotationView
 import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
@@ -276,30 +276,33 @@ fun MapScreen(
             )
         }
 
-        // Filter range sheet
-        if (showFilterSheet && viewModel.selectedDataset != null) {
-            val dataset = viewModel.selectedDataset!!
+        // Dataset filter sheet
+        if (showFilterSheet && state.primaryConfig != null && state.selectedDataset != null) {
+            val config = state.primaryConfig!!
+            val dataset = state.selectedDataset!!
             val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
-            val entry = viewModel.selectedEntry
+            val entry = state.selectedEntry
             val rangeKey = datasetType.rangeKey
             val rangeData = entry?.ranges?.get(rangeKey)
-            val dataMin = rangeData?.min ?: viewModel.renderingSnapshot.dataMin
-            val dataMax = rangeData?.max ?: viewModel.renderingSnapshot.dataMax
+            val dataRange = if (rangeData?.min != null && rangeData.max != null) {
+                rangeData.min..rangeData.max
+            } else {
+                state.renderingSnapshot.dataMin..state.renderingSnapshot.dataMax
+            }
 
-            FilterRangeSheet(
-                datasetType = datasetType,
-                colorscale = datasetType.defaultColorscale,
-                currentMin = viewModel.renderingSnapshot.dataMin,
-                currentMax = viewModel.renderingSnapshot.dataMax,
-                dataMin = dataMin,
-                dataMax = dataMax,
+            DatasetFilterSheet(
+                config = config,
+                dataRange = dataRange,
+                colorscale = config.colorscale ?: datasetType.defaultColorscale,
                 unit = rangeData?.unit ?: "°F",
-                sheetState = filterSheetState,
-                onRangeChanged = { min, max ->
-                    viewModel.updateDataRange(min, max)
+                onConfigChanged = { newConfig ->
+                    viewModel.updatePrimaryConfig { newConfig }
                 },
-                onReset = {
-                    viewModel.updateDataRange(dataMin, dataMax)
+                onDragRangeChanged = { min, max ->
+                    viewModel.zarrManager.shaderHost?.setUniforms(
+                        filterMin = min, filterMax = max
+                    )
+                    viewModel.repaint?.invoke()
                 },
                 onDismiss = { showFilterSheet = false }
             )
