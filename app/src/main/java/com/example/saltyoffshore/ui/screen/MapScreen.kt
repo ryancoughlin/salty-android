@@ -1,17 +1,11 @@
 package com.example.saltyoffshore.ui.screen
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,8 +67,7 @@ private const val TAG = "MapScreen"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    viewModel: AppViewModel = viewModel(),
-    onSettingsClick: () -> Unit = {}
+    viewModel: AppViewModel = viewModel()
 ) {
     // Sheet state for layers control
     var showLayersSheet by remember { mutableStateOf(false) }
@@ -179,22 +172,6 @@ fun MapScreen(
             latitude = viewModel.currentLatitude,
             isDataLayerActive = viewModel.isDataLayerActive
         )
-
-        // Settings button (top-right)
-        IconButton(
-            onClick = onSettingsClick,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = 16.dp)
-                .size(44.dp)
-                .background(Color.White.copy(alpha = 0.9f), CircleShape)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Settings",
-                tint = Color.DarkGray
-            )
-        }
 
         // Loading overlay
         if (viewModel.appStatus is AppStatus.Loading) {
