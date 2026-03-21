@@ -63,6 +63,10 @@ data class Dataset(
     val hasArrows: Boolean
         get() = datasetType == DatasetType.CURRENTS
 
+    /** Whether this dataset supports particle animation (currents) */
+    val hasParticles: Boolean
+        get() = datasetType == DatasetType.CURRENTS
+
     /** Whether this dataset supports numbers layer */
     val hasNumbers: Boolean
         get() = datasetType != DatasetType.WATER_TYPE

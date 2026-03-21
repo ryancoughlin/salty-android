@@ -1,14 +1,20 @@
 package com.example.saltyoffshore.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,8 +35,6 @@ import com.example.saltyoffshore.ui.components.FilterRangeSheet
 import com.example.saltyoffshore.ui.components.RegionAnnotationView
 import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
-import com.example.saltyoffshore.data.DatasetRenderingSnapshot
-import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.GlobalLayerVisibility
 import com.example.saltyoffshore.data.LoranRegionConfig
 import com.example.saltyoffshore.data.RegionMetadata
@@ -44,7 +48,9 @@ import android.util.Log
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalDensity
+import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
@@ -66,10 +72,9 @@ private const val TAG = "MapScreen"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    viewModel: AppViewModel = viewModel()
+    viewModel: AppViewModel = viewModel(),
+    onSettingsClick: () -> Unit = {}
 ) {
-    val state by viewModel.state.collectAsState()
-
     // Sheet state for layers control
     var showLayersSheet by remember { mutableStateOf(false) }
     val layersSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -92,8 +97,8 @@ fun MapScreen(
     }
 
     // Fly to region when selected
-    LaunchedEffect(state.selectedRegion) {
-        state.selectedRegion?.let { region ->
+    LaunchedEffect(viewModel.selectedRegion) {
+        viewModel.selectedRegion?.let { region ->
             val bounds = region.bounds
             val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
             val centerLat = (bounds[0][1] + bounds[1][1]) / 2.0
@@ -112,9 +117,7 @@ fun MapScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) { // outer container
-
-    Box(modifier = Modifier.fillMaxSize()) { // map + overlays
+    Box(modifier = Modifier.fillMaxSize()) {
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
@@ -124,15 +127,15 @@ fun MapScreen(
             ZarrRepaintEffect(viewModel = viewModel)
 
             // Region bounds outline
-            RegionBoundsEffect(region = state.selectedRegion)
+            RegionBoundsEffect(region = viewModel.selectedRegion)
 
             // Dataset visualization layers (Zarr GPU, Contours, Currents, etc.)
             DatasetLayersEffect(
-                dataset = state.selectedDataset,
-                entry = state.selectedEntry,
-                region = state.selectedRegion,
-                snapshot = state.renderingSnapshot,
-                visualSource = state.visualSource
+                dataset = viewModel.selectedDataset,
+                entry = viewModel.selectedEntry,
+                region = viewModel.selectedRegion,
+                snapshot = viewModel.renderingSnapshot,
+                visualSource = viewModel.visualSource
             )
 
             // Global overlay layers (bathymetry, shipping lanes, etc.)
@@ -145,14 +148,14 @@ fun MapScreen(
 
             // Crosshair feature query on camera changes
             CrosshairQueryEffect(
-                isDataLayerActive = state.isDataLayerActive,
-                datasetType = state.currentDatasetType,
+                isDataLayerActive = viewModel.isDataLayerActive,
+                datasetType = viewModel.currentDatasetType,
                 onValueChanged = { viewModel.updateCurrentValue(it) },
                 onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
             )
 
             // Region annotations
-            state.regions.forEach { region ->
+            viewModel.regions.forEach { region ->
                 ViewAnnotation(
                     options = viewAnnotationOptions {
                         geometry(Point.fromLngLat(region.centerLon, region.centerLat))
@@ -170,14 +173,30 @@ fun MapScreen(
 
         // Crosshair overlay
         CrosshairOverlay(
-            currentValue = state.currentValue,
-            zoom = state.currentZoom,
-            latitude = state.currentLatitude,
-            isDataLayerActive = state.isDataLayerActive
+            currentValue = viewModel.currentValue,
+            zoom = viewModel.currentZoom,
+            latitude = viewModel.currentLatitude,
+            isDataLayerActive = viewModel.isDataLayerActive
         )
 
+        // Settings button (top-right)
+        IconButton(
+            onClick = onSettingsClick,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 48.dp, end = 16.dp)
+                .size(44.dp)
+                .background(Color.White.copy(alpha = 0.9f), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = Color.DarkGray
+            )
+        }
+
         // Loading overlay
-        if (state.appStatus is AppStatus.Loading) {
+        if (viewModel.appStatus is AppStatus.Loading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -187,9 +206,9 @@ fun MapScreen(
         }
 
         // Depth selector (right side)
-        if (state.depthFilterState.hasSelection) {
+        if (viewModel.depthFilterState.hasSelection) {
             DepthSelector(
-                depthFilter = state.depthFilterState,
+                depthFilter = viewModel.depthFilterState,
                 onDepthSelected = { viewModel.onDepthSelected(it) },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -198,12 +217,9 @@ fun MapScreen(
         }
 
         // Dataset control (bottom)
-        if (state.selectedDataset != null) {
+        if (viewModel.selectedDataset != null) {
             SaltyDatasetControl(
-                dataset = state.selectedDataset!!,
-                entry = state.selectedEntry,
-                snapshot = state.renderingSnapshot,
-                onEntrySelected = { viewModel.selectEntry(it) },
+                viewModel = viewModel,
                 onChange = { showDatasetSheet = true },
                 onFilter = { showFilterSheet = true },
                 modifier = Modifier
@@ -213,7 +229,7 @@ fun MapScreen(
         }
 
         // Right side toolbar (layers button)
-        if (state.selectedDataset != null) {
+        if (viewModel.selectedDataset != null) {
             RightSideToolbar(
                 onLayersClick = { showLayersSheet = true },
                 modifier = Modifier
@@ -223,26 +239,14 @@ fun MapScreen(
             )
         }
 
-    } // end map + overlays Box
-
-    // === Sheets render above the map ===
-
-    // Layers control sheet
-    if (showLayersSheet && state.selectedDataset != null) {
+        // Layers control sheet
+        if (showLayersSheet && viewModel.selectedDataset != null && viewModel.primaryConfig != null) {
             LayersControlSheet(
                 // Dataset layer props
-                dataset = state.selectedDataset!!,
-                snapshot = state.renderingSnapshot,
-                onVisualToggle = { viewModel.toggleVisualLayer() },
-                onVisualOpacity = { viewModel.updateVisualOpacity(it.toDouble()) },
-                onContoursToggle = { viewModel.toggleContourLayer() },
-                onContoursOpacity = { viewModel.updateContourOpacity(it.toDouble()) },
-                onArrowsToggle = { viewModel.toggleArrowsLayer() },
-                onArrowsOpacity = { viewModel.updateArrowsOpacity(it.toDouble()) },
-                onBreaksToggle = { viewModel.toggleBreaksLayer() },
-                onBreaksOpacity = { viewModel.updateBreaksOpacity(it.toDouble()) },
-                onNumbersToggle = { viewModel.toggleNumbersLayer() },
-                onNumbersOpacity = { viewModel.updateNumbersOpacity(it.toDouble()) },
+                dataset = viewModel.selectedDataset!!,
+                config = viewModel.primaryConfig!!,
+                onConfigChanged = { viewModel.updatePrimaryConfig(it) },
+                isPrimary = true,
                 // Overlay layer props
                 layersByCategory = viewModel.globalLayerManager.layersByCategory,
                 onOverlayToggle = { viewModel.globalLayerManager.toggleEnabled(it) },
@@ -260,10 +264,10 @@ fun MapScreen(
         }
 
         // Dataset selector sheet
-        if (showDatasetSheet && state.selectedRegion != null) {
+        if (showDatasetSheet && viewModel.selectedRegion != null) {
             DatasetSelectorSheet(
-                datasets = state.selectedRegion!!.activeDatasets,
-                selectedDataset = state.selectedDataset,
+                datasets = viewModel.selectedRegion!!.activeDatasets,
+                selectedDataset = viewModel.selectedDataset,
                 sheetState = datasetSheetState,
                 onDatasetSelected = { dataset ->
                     viewModel.selectDataset(dataset)
@@ -273,20 +277,20 @@ fun MapScreen(
         }
 
         // Filter range sheet
-        if (showFilterSheet && state.selectedDataset != null) {
-            val dataset = state.selectedDataset!!
+        if (showFilterSheet && viewModel.selectedDataset != null) {
+            val dataset = viewModel.selectedDataset!!
             val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
-            val entry = state.selectedEntry
+            val entry = viewModel.selectedEntry
             val rangeKey = datasetType.rangeKey
             val rangeData = entry?.ranges?.get(rangeKey)
-            val dataMin = rangeData?.min ?: state.renderingSnapshot.dataMin
-            val dataMax = rangeData?.max ?: state.renderingSnapshot.dataMax
+            val dataMin = rangeData?.min ?: viewModel.renderingSnapshot.dataMin
+            val dataMax = rangeData?.max ?: viewModel.renderingSnapshot.dataMax
 
             FilterRangeSheet(
                 datasetType = datasetType,
                 colorscale = datasetType.defaultColorscale,
-                currentMin = state.renderingSnapshot.dataMin,
-                currentMax = state.renderingSnapshot.dataMax,
+                currentMin = viewModel.renderingSnapshot.dataMin,
+                currentMax = viewModel.renderingSnapshot.dataMax,
                 dataMin = dataMin,
                 dataMax = dataMax,
                 unit = rangeData?.unit ?: "°F",
@@ -300,7 +304,7 @@ fun MapScreen(
                 onDismiss = { showFilterSheet = false }
             )
         }
-    } // end outer container
+    }
 }
 
 /**
@@ -331,8 +335,8 @@ private fun DatasetLayersEffect(
     }
 
     // Render layers when any input changes
-    MapEffect(regionId, entry?.id, snapshot, visualSource) { mapView ->
-        val mapboxMap = mapView.getMapboxMap()
+    MapEffect(key1 = regionId, key2 = entry?.id, key3 = snapshot, key4 = visualSource) { mapView ->
+        val mapboxMap = mapView.mapboxMap
 
         // Create layer manager if needed (first render or region changed)
         if (datasetLayers == null) {
@@ -358,7 +362,7 @@ private fun DatasetLayersEffect(
 private fun ZarrRepaintEffect(viewModel: AppViewModel) {
     MapEffect(Unit) { mapView ->
         viewModel.repaint = {
-            mapView.getMapboxMap().triggerRepaint()
+            mapView.mapboxMap.triggerRepaint()
         }
     }
 }
@@ -378,7 +382,7 @@ private fun CrosshairQueryEffect(
     val yOffsetPx = with(density) { CrosshairConstants.yOffset.toPx() }
 
     MapEffect(key1 = isDataLayerActive, key2 = datasetType) { mapView ->
-        val mapboxMap = mapView.getMapboxMap()
+        val mapboxMap = mapView.mapboxMap
 
         // Create query manager
         val queryManager = CrosshairFeatureQueryManager(mapboxMap, scope)
@@ -439,13 +443,13 @@ private fun GlobalLayersEffect(
     // Get map reference once and subscribe to style loaded
     MapEffect(Unit) { mapView ->
         Log.d(TAG, "GlobalLayersEffect: MapEffect triggered")
-        mapboxMapRef = mapView.getMapboxMap()
+        mapboxMapRef = mapView.mapboxMap
 
         // Subscribe to style loaded events for initial render
-        mapView.getMapboxMap().subscribeStyleLoaded { _ ->
+        mapView.mapboxMap.subscribeStyleLoaded { _ ->
             Log.d(TAG, "GlobalLayersEffect: Style loaded event received")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.getMapboxMap())
+                globalLayers = GlobalLayers(mapView.mapboxMap)
             }
             globalLayers?.update(
                 visibility = currentVisibility,
@@ -456,10 +460,10 @@ private fun GlobalLayersEffect(
         }
 
         // Also try immediately if style is already loaded
-        mapView.getMapboxMap().getStyle { _ ->
+        mapView.mapboxMap.getStyle { _ ->
             Log.d(TAG, "GlobalLayersEffect: getStyle callback - style available")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.getMapboxMap())
+                globalLayers = GlobalLayers(mapView.mapboxMap)
             }
             globalLayers?.update(
                 visibility = currentVisibility,

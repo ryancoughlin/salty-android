@@ -6,8 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.Dataset
-import com.example.saltyoffshore.data.DatasetRenderingSnapshot
-import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.DatasetRenderConfig
 
 /**
  * Unified layer controls for primary and overlay datasets.
@@ -17,72 +16,61 @@ import com.example.saltyoffshore.data.DatasetType
 @Composable
 fun DatasetLayerControls(
     dataset: Dataset,
-    snapshot: DatasetRenderingSnapshot,
-    onVisualToggle: () -> Unit,
-    onVisualOpacity: (Float) -> Unit,
-    onContoursToggle: () -> Unit,
-    onContoursOpacity: (Float) -> Unit,
-    onArrowsToggle: () -> Unit,
-    onArrowsOpacity: (Float) -> Unit,
-    onBreaksToggle: () -> Unit,
-    onBreaksOpacity: (Float) -> Unit,
-    onNumbersToggle: () -> Unit,
-    onNumbersOpacity: (Float) -> Unit,
+    config: DatasetRenderConfig,
+    onConfigChanged: (DatasetRenderConfig) -> Unit,
+    isPrimary: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val datasetType = DatasetType.fromRawValue(dataset.type)
-
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // PARTICLES (matches iOS order — particles first)
+        if (dataset.hasParticles) {
+            ParticlesLayerControl(
+                config = config,
+                onConfigChanged = onConfigChanged
+            )
+        }
+
         // VISUAL
         if (dataset.hasVisualLayer) {
             VisualLayerControl(
-                enabled = snapshot.visualEnabled,
-                onEnabledChanged = { onVisualToggle() },
-                opacity = snapshot.visualOpacity.toFloat(),
-                onOpacityChanged = onVisualOpacity
+                config = config,
+                onConfigChanged = onConfigChanged
             )
         }
 
         // CONTOURS
         if (dataset.hasContours) {
             ContoursLayerControl(
-                enabled = snapshot.contourEnabled,
-                onEnabledChanged = { onContoursToggle() },
-                opacity = snapshot.contourOpacity.toFloat(),
-                onOpacityChanged = onContoursOpacity
+                config = config,
+                onConfigChanged = onConfigChanged,
+                showDynamicColoring = isPrimary
             )
         }
 
         // BREAKS
         if (dataset.hasBreaks) {
             BreaksLayerControl(
-                enabled = snapshot.breaksEnabled,
-                onEnabledChanged = { onBreaksToggle() },
-                opacity = snapshot.breaksOpacity.toFloat(),
-                onOpacityChanged = onBreaksOpacity
+                config = config,
+                onConfigChanged = onConfigChanged
             )
         }
 
-        // ARROWS (currents only)
+        // ARROWS
         if (dataset.hasArrows) {
             ArrowsLayerControl(
-                enabled = snapshot.arrowsEnabled,
-                onEnabledChanged = { onArrowsToggle() },
-                opacity = snapshot.arrowsOpacity.toFloat(),
-                onOpacityChanged = onArrowsOpacity
+                config = config,
+                onConfigChanged = onConfigChanged
             )
         }
 
-        // NUMBERS
+        // NUMBERS (bottom)
         if (dataset.hasNumbers) {
             NumbersLayerControl(
-                enabled = snapshot.numbersEnabled,
-                onEnabledChanged = { onNumbersToggle() },
-                opacity = snapshot.numbersOpacity.toFloat(),
-                onOpacityChanged = onNumbersOpacity
+                config = config,
+                onConfigChanged = onConfigChanged
             )
         }
     }

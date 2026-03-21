@@ -2,9 +2,11 @@ package com.example.saltyoffshore.viewmodel
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.AppStatus
@@ -17,12 +19,17 @@ import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.SaltyApi
 import com.example.saltyoffshore.data.ScaleMode
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.TimeEntry
+import com.example.saltyoffshore.data.GlobalLayerType
+import com.example.saltyoffshore.data.LoranRegionConfig
+import com.example.saltyoffshore.data.Tournament
+import com.example.saltyoffshore.data.UserPreferences
 import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.data.scaleMode
 import com.example.saltyoffshore.data.zarrVariable
@@ -31,11 +38,7 @@ import com.example.saltyoffshore.repository.UserPreferencesRepository
 import com.example.saltyoffshore.zarr.TimeEntry as ZarrTimeEntry
 import com.example.saltyoffshore.zarr.ZarrManager
 import com.example.saltyoffshore.zarr.ZarrVisualLayer
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "AppViewModel"
@@ -45,29 +48,68 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val context get() = getApplication<Application>()
     private val preferencesRepository = UserPreferencesRepository(SupabaseClientProvider.client)
 
-    // --- Single UI state ---
-    private val _state = MutableStateFlow(MapScreenState())
-    val state: StateFlow<MapScreenState> = _state.asStateFlow()
-
-    private fun updateState(transform: MapScreenState.() -> MapScreenState) {
-        _state.update { it.transform() }
-    }
-
-    // --- Non-UI singletons (NOT in state) ---
-
+    // Global layer manager
     val globalLayerManager = GlobalLayerManager(context, viewModelScope)
 
+    // Zarr manager for GPU rendering
     private val zarrManager = ZarrManager(coroutineScope = viewModelScope)
 
+    // Visual layer source (Zarr GPU or None)
+    var visualSource by mutableStateOf<VisualLayerSource>(VisualLayerSource.None)
+        private set
+
+    // Repaint callback — set by map when loaded
     var repaint: (() -> Unit)? = null
         set(value) {
             field = value
             zarrManager.repaint = value
         }
 
-    // =========================================================================
-    // Init
-    // =========================================================================
+    // User preferences
+    var userPreferences by mutableStateOf<UserPreferences?>(null)
+        private set
+
+    // App state
+    var appStatus by mutableStateOf<AppStatus>(AppStatus.Idle)
+        private set
+
+    // Region list (from /regions)
+    var regions by mutableStateOf<List<RegionListItem>>(emptyList())
+        private set
+
+    // Selected region metadata (from /region/{id})
+    var selectedRegion by mutableStateOf<RegionMetadata?>(null)
+        private set
+
+    // Currently selected dataset
+    var selectedDataset by mutableStateOf<Dataset?>(null)
+        private set
+
+    // Currently selected time entry
+    var selectedEntry by mutableStateOf<TimeEntry?>(null)
+        private set
+
+    // Layer rendering config (source of truth for layer toggles/opacity)
+    var primaryConfig by mutableStateOf<DatasetRenderConfig?>(null)
+        private set
+
+    // Layer rendering state (derived from config for map rendering)
+    var renderingSnapshot by mutableStateOf(DatasetRenderingSnapshot.default())
+        private set
+
+    // Depth filter state
+    var depthFilterState by mutableStateOf(DepthFilterState())
+        private set
+
+    // Crosshair state
+    var currentValue by mutableStateOf<CurrentValue>(CurrentValue.None)
+        private set
+
+    var currentZoom by mutableStateOf(4.0)
+        private set
+
+    var currentLatitude by mutableStateOf(30.0)
+        private set
 
     init {
         loadRegionsAndRestoreSelection()
@@ -77,9 +119,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadUserPreferences() {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch {
-            val prefs = preferencesRepository.fetchPreferences(userId)
-            updateState { copy(userPreferences = prefs) }
-            Log.d(TAG, "Loaded user preferences: ${prefs != null}")
+            userPreferences = preferencesRepository.fetchPreferences(userId)
+            Log.d(TAG, "Loaded user preferences: ${userPreferences != null}")
         }
     }
 
@@ -87,215 +128,138 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val response = SaltyApi.getRegions()
-                val groups = response.groups
-                val regionList = groups.flatMap { it.regions }
-                Log.d(TAG, "Loaded ${regionList.size} regions")
-
-                val preferredId = AppPreferencesDataStore.getPreferredRegionId(context).first()
-
-                updateState {
-                    copy(
-                        regionGroups = groups,
-                        regions = regionList,
-                        preferredRegionId = preferredId,
-                    )
-                }
+                regions = response.groups.flatMap { it.regions }
+                Log.d(TAG, "Loaded ${regions.size} regions")
 
                 // Restore persisted region selection
                 val savedRegionId = AppPreferencesDataStore.getSelectedRegionId(context).first()
-                if (savedRegionId != null && regionList.any { it.id == savedRegionId }) {
+                if (savedRegionId != null && regions.any { it.id == savedRegionId }) {
                     Log.d(TAG, "Restoring saved region: $savedRegionId")
                     onRegionSelected(savedRegionId)
                 }
-
-                updateState { copy(hasCompletedInitialLoad = true) }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load regions", e)
-                updateState { copy(hasCompletedInitialLoad = true) }
             }
         }
     }
 
-    // =========================================================================
-    // Region Selection
-    // =========================================================================
-
     fun onRegionSelected(regionId: String) {
-        updateState { copy(appStatus = AppStatus.Loading) }
+        appStatus = AppStatus.Loading
         Log.d(TAG, "Region selected: $regionId")
 
-        viewModelScope.launch(Dispatchers.IO) {
-            AppPreferencesDataStore.setSelectedRegionId(context, regionId)
+        viewModelScope.launch {
+            // Persist selection
+            AppPreferencesDataStore.saveSelectedRegionId(context, regionId)
 
             try {
                 val region = SaltyApi.fetchRegion(regionId)
+                selectedRegion = region
                 Log.d(TAG, "Loaded region: ${region.name} with ${region.datasets.size} datasets")
 
-                // Prepare all state on IO thread
-                val firstDataset = if (region.status == "coming_soon") null else region.activeDatasets.firstOrNull()
-                val depths = firstDataset?.availableDepths ?: listOf(0)
-                val entry = firstDataset?.mostRecentEntry
-                val depthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
-                val status = when {
-                    region.status == "coming_soon" -> AppStatus.ComingSoon
-                    firstDataset == null -> AppStatus.Idle
-                    else -> AppStatus.Idle
-                }
-
-                // Create config for the new dataset
-                val datasetType = firstDataset?.let { DatasetType.fromRawValue(it.type) }
-                val config = if (datasetType != null && firstDataset != null)
-                    DatasetRenderConfig.primaryDefaults(datasetType, firstDataset.id)
-                else null
-
-                val snapshot = deriveSnapshot(config, entry, firstDataset)
-
-                Log.d(TAG, "Selected dataset: ${firstDataset?.name} (${firstDataset?.type})")
-                if (entry != null) Log.d(TAG, "Selected entry: ${entry.timestamp}")
-
-                // ONE atomic state update (MutableStateFlow.update is thread-safe)
-                updateState {
-                    copy(
-                        selectedRegion = region,
-                        selectedDataset = firstDataset,
-                        selectedEntry = entry,
-                        depthFilterState = depthFilter,
-                        primaryConfig = config,
-                        renderingSnapshot = snapshot,
-                        appStatus = status,
-                    )
-                }
-
-                // Zarr loading is a side effect AFTER state is stable
-                firstDataset?.let { loadZarrForDataset(it) }
+                handleDatasetSetup(region)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load region", e)
-                updateState { copy(appStatus = AppStatus.Error("Failed to load region: ${e.message}")) }
+                appStatus = AppStatus.Error("Failed to load region: ${e.message}")
             }
         }
     }
 
     private fun handleDatasetSetup(region: RegionMetadata) {
+        // Check status
         if (region.status == "coming_soon") {
-            updateState {
-                copy(
-                    appStatus = AppStatus.ComingSoon,
-                    selectedDataset = null,
-                    selectedEntry = null,
-                    depthFilterState = DepthFilterState(),
-                )
-            }
+            appStatus = AppStatus.ComingSoon
+            selectedDataset = null
+            selectedEntry = null
+            depthFilterState = DepthFilterState()
             return
         }
 
+        // Select first active dataset (mirrors iOS: region.activeDatasets.first)
         val firstDataset = region.activeDatasets.firstOrNull()
         if (firstDataset == null) {
             Log.w(TAG, "No active datasets for region ${region.name}")
-            updateState { copy(appStatus = AppStatus.Idle) }
+            appStatus = AppStatus.Idle
             return
         }
 
+        selectedDataset = firstDataset
         Log.d(TAG, "Selected dataset: ${firstDataset.name} (${firstDataset.type})")
 
-        val depths = firstDataset.availableDepths ?: listOf(0)
-        val newDepthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
+        // Initialize render config from dataset type defaults
+        val datasetType = DatasetType.fromRawValue(firstDataset.type) ?: DatasetType.SST
+        primaryConfig = DatasetRenderConfig.primaryDefaults(datasetType, firstDataset.id)
 
-        val entry = firstDataset.mostRecentEntry
-        val datasetType = DatasetType.fromRawValue(firstDataset.type)
-        val config = if (datasetType != null)
-            DatasetRenderConfig.primaryDefaults(datasetType, firstDataset.id)
-        else null
-        val newSnapshot = deriveSnapshot(config, entry, firstDataset)
+        // Update depth filter state from dataset
+        updateDepthFilterForDataset(firstDataset)
 
-        // ONE atomic state update
-        updateState {
-            copy(
-                selectedDataset = firstDataset,
-                depthFilterState = newDepthFilter,
-                selectedEntry = entry,
-                primaryConfig = config,
-                renderingSnapshot = newSnapshot,
-                appStatus = AppStatus.Idle,
-            )
-        }
-
-        if (entry != null) {
+        // Select most recent entry (mirrors iOS: dataset.mostRecentEntry)
+        selectedEntry = firstDataset.mostRecentEntry
+        selectedEntry?.let { entry ->
             Log.d(TAG, "Selected entry: ${entry.timestamp}")
+            updateRenderingSnapshotForEntry(entry, firstDataset)
         }
 
+        // Load Zarr data if available
         loadZarrForDataset(firstDataset)
+
+        appStatus = AppStatus.Idle
     }
 
-    // =========================================================================
-    // Entry / Dataset Selection
-    // =========================================================================
-
     fun selectEntry(entry: TimeEntry) {
+        selectedEntry = entry
         Log.d(TAG, "Entry selected: ${entry.timestamp}")
-        val dataset = _state.value.selectedDataset
-        val config = _state.value.primaryConfig
-        val newSnapshot = deriveSnapshot(config, entry, dataset)
-
-        updateState {
-            copy(
-                selectedEntry = entry,
-                renderingSnapshot = newSnapshot,
-            )
+        selectedDataset?.let { dataset ->
+            updateRenderingSnapshotForEntry(entry, dataset)
         }
 
+        // Show frame in Zarr renderer
         zarrManager.showFrame(entry.id)
     }
 
     fun selectDataset(dataset: Dataset) {
+        selectedDataset = dataset
+        selectedEntry = dataset.mostRecentEntry
         Log.d(TAG, "Dataset selected: ${dataset.name}")
 
-        val depths = dataset.availableDepths ?: listOf(0)
-        val newDepthFilter = DepthFilterState(selectedDepth = 0, availableDepths = depths)
-        val entry = dataset.mostRecentEntry
-        val datasetType = DatasetType.fromRawValue(dataset.type)
-        val config = if (datasetType != null)
-            DatasetRenderConfig.primaryDefaults(datasetType, dataset.id)
-        else null
-        val newSnapshot = deriveSnapshot(config, entry, dataset)
+        // Initialize render config from dataset type defaults
+        val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
+        primaryConfig = DatasetRenderConfig.primaryDefaults(datasetType, dataset.id)
 
-        updateState {
-            copy(
-                selectedDataset = dataset,
-                selectedEntry = entry,
-                depthFilterState = newDepthFilter,
-                primaryConfig = config,
-                renderingSnapshot = newSnapshot,
-            )
+        // Update depth filter state from dataset
+        updateDepthFilterForDataset(dataset)
+
+        selectedEntry?.let { entry ->
+            updateRenderingSnapshotForEntry(entry, dataset)
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            loadZarrForDataset(dataset)
-        }
+        // Load Zarr data if available
+        loadZarrForDataset(dataset)
     }
 
-    // =========================================================================
-    // Zarr Loading
-    // =========================================================================
+    // MARK: - Zarr Loading
 
     private fun loadZarrForDataset(dataset: Dataset) {
         val zarrUrl = dataset.zarrUrl
         if (zarrUrl == null) {
             Log.d(TAG, "Dataset ${dataset.name} has no zarrUrl, using COG fallback")
-            updateState { copy(visualSource = VisualLayerSource.None) }
+            visualSource = VisualLayerSource.None
             return
         }
 
+        // Get shader host from manager
         val shaderHost = zarrManager.shaderHost
-        val host: ZarrVisualLayer
         if (shaderHost == null) {
-            host = ZarrVisualLayer()
-            zarrManager.setShaderHost(host)
+            // Create and set shader host on first load
+            val newHost = ZarrVisualLayer()
+            zarrManager.setShaderHost(newHost)
+            visualSource = VisualLayerSource.Zarr(newHost)
         } else {
-            host = shaderHost
+            visualSource = VisualLayerSource.Zarr(shaderHost)
         }
-        updateState { copy(visualSource = VisualLayerSource.Zarr(host)) }
 
         val datasetType = DatasetType.fromRawValue(dataset.type)
+
+        // Build TimeEntry list for Zarr loading
         val entries = dataset.entries.map { entry ->
             ZarrTimeEntry(
                 id = entry.id,
@@ -304,26 +268,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        val colorscale = datasetType?.defaultColorscale ?: com.example.saltyoffshore.data.Colorscale.VIRIDIS
+        val colorscale = datasetType?.defaultColorscale ?: Colorscale.VIRIDIS
         val scaleMode = datasetType?.scaleMode ?: ScaleMode.LINEAR
         val variableName = datasetType?.zarrVariable ?: "sea_surface_temperature"
 
+        // Get data range from first entry or use defaults
         val rangeKey = datasetType?.rangeKey ?: "value"
-        val currentEntry = _state.value.selectedEntry
-        val rangeData = currentEntry?.ranges?.get(rangeKey)
+        val rangeData = selectedEntry?.ranges?.get(rangeKey)
         val dataRange = if (rangeData?.min != null && rangeData.max != null) {
             rangeData.min.toFloat()..rangeData.max.toFloat()
         } else {
             0f..100f
         }
 
+        // Load Zarr data
         zarrManager.load(
             zarrUrl = zarrUrl,
             variableName = variableName,
             entries = entries,
             depths = dataset.availableDepths ?: listOf(0),
             dataRange = dataRange,
-            initialEntryId = currentEntry?.id,
+            initialEntryId = selectedEntry?.id,
             colorscale = colorscale,
             scaleMode = scaleMode
         )
@@ -331,6 +296,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "Started Zarr load for ${dataset.name} with variable: $variableName")
     }
 
+    /**
+     * Parse ISO8601 timestamp string to Unix seconds.
+     */
     private fun parseTimestamp(timestamp: String): Long {
         return try {
             java.time.Instant.parse(timestamp).epochSecond
@@ -340,143 +308,152 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // =========================================================================
-    // Clear Selection
-    // =========================================================================
-
     fun clearSelection() {
-        updateState {
-            copy(
-                selectedRegion = null,
-                selectedDataset = null,
-                selectedEntry = null,
-                primaryConfig = null,
-                renderingSnapshot = DatasetRenderingSnapshot.default(),
-                depthFilterState = DepthFilterState(),
-                appStatus = AppStatus.Idle,
-                visualSource = VisualLayerSource.None,
-            )
-        }
+        selectedRegion = null
+        selectedDataset = null
+        selectedEntry = null
+        renderingSnapshot = DatasetRenderingSnapshot.default()
+        depthFilterState = DepthFilterState()
+        appStatus = AppStatus.Idle
+        visualSource = VisualLayerSource.None
         zarrManager.removeAll()
 
         viewModelScope.launch {
-            AppPreferencesDataStore.setSelectedRegionId(context, null)
+            AppPreferencesDataStore.saveSelectedRegionId(context, null)
         }
     }
 
-    // =========================================================================
-    // Depth Selection
-    // =========================================================================
+    // MARK: - Depth Selection
+
+    private fun updateDepthFilterForDataset(dataset: Dataset) {
+        val depths = dataset.availableDepths ?: listOf(0)
+        depthFilterState = DepthFilterState(
+            selectedDepth = 0,
+            availableDepths = depths
+        )
+        Log.d(TAG, "Updated depth filter: ${depths.size} depths available")
+    }
 
     fun onDepthSelected(depth: Int) {
+        depthFilterState = depthFilterState.copy(selectedDepth = depth)
         Log.d(TAG, "Depth selected: ${depth}m")
 
-        val dataset = _state.value.selectedDataset ?: return
-        val entriesAtDepth = dataset.entries.filter { it.depth == depth }
-        val entry = entriesAtDepth.maxByOrNull { it.timestamp }
-        val config = _state.value.primaryConfig
-        val newSnapshot = deriveSnapshot(config, entry, dataset)
-
-        updateState {
-            copy(
-                depthFilterState = depthFilterState.copy(selectedDepth = depth),
-                selectedEntry = entry,
-                renderingSnapshot = newSnapshot,
-            )
+        // Filter entries for selected depth and select most recent (mirrors iOS)
+        selectedDataset?.let { dataset ->
+            val entriesAtDepth = dataset.entries.filter { it.depth == depth }
+            selectedEntry = entriesAtDepth.maxByOrNull { it.timestamp }
+            selectedEntry?.let { entry ->
+                updateRenderingSnapshotForEntry(entry, dataset)
+            }
         }
     }
 
-    // =========================================================================
-    // Primary Config Updates (single entry point for all layer mutations)
-    // =========================================================================
+    // MARK: - Config-Based Rendering Updates
 
-    /**
-     * Update primaryConfig and derive a new renderingSnapshot in one atomic state update.
-     * Mirrors iOS DatasetStore.updatePrimaryConfig().
-     */
-    fun updatePrimaryConfig(transform: (DatasetRenderConfig) -> DatasetRenderConfig) {
-        updateState {
-            val config = primaryConfig ?: return@updateState this
-            val newConfig = transform(config)
-            val newSnapshot = deriveSnapshot(newConfig, selectedEntry, selectedDataset)
-            copy(
-                primaryConfig = newConfig,
-                renderingSnapshot = newSnapshot,
-            )
-        }
+    fun updatePrimaryConfig(config: DatasetRenderConfig) {
+        primaryConfig = config
+        // Derive snapshot from config for backward compatibility
+        val dataRange = renderingSnapshot.dataMin..renderingSnapshot.dataMax
+        renderingSnapshot = config.snapshot(dataRange)
     }
 
-    // --- Layer toggles (delegate to config) ---
+    // MARK: - Rendering Snapshot Updates (legacy — will be removed in Task 2.4)
 
     fun toggleVisualLayer() {
-        updatePrimaryConfig { it.copy(visualEnabled = !it.visualEnabled) }
+        renderingSnapshot = renderingSnapshot.copy(
+            visualEnabled = !renderingSnapshot.visualEnabled
+        )
     }
 
     fun toggleContourLayer() {
-        updatePrimaryConfig { it.copy(contourEnabled = !it.contourEnabled) }
+        renderingSnapshot = renderingSnapshot.copy(
+            contourEnabled = !renderingSnapshot.contourEnabled
+        )
     }
 
     fun toggleArrowsLayer() {
-        updatePrimaryConfig { it.copy(arrowsEnabled = !it.arrowsEnabled) }
+        renderingSnapshot = renderingSnapshot.copy(
+            arrowsEnabled = !renderingSnapshot.arrowsEnabled
+        )
     }
 
     fun toggleBreaksLayer() {
-        updatePrimaryConfig { it.copy(breaksEnabled = !it.breaksEnabled) }
+        renderingSnapshot = renderingSnapshot.copy(
+            breaksEnabled = !renderingSnapshot.breaksEnabled
+        )
     }
 
     fun toggleNumbersLayer() {
-        updatePrimaryConfig { it.copy(numbersEnabled = !it.numbersEnabled) }
+        renderingSnapshot = renderingSnapshot.copy(
+            numbersEnabled = !renderingSnapshot.numbersEnabled
+        )
     }
 
-    // --- Opacity updates (delegate to config) ---
-
     fun updateVisualOpacity(opacity: Double) {
-        updatePrimaryConfig { it.copy(visualOpacity = opacity) }
+        renderingSnapshot = renderingSnapshot.copy(visualOpacity = opacity)
     }
 
     fun updateContourOpacity(opacity: Double) {
-        updatePrimaryConfig { it.copy(contourOpacity = opacity) }
+        renderingSnapshot = renderingSnapshot.copy(contourOpacity = opacity)
     }
 
     fun updateArrowsOpacity(opacity: Double) {
-        updatePrimaryConfig { it.copy(arrowsOpacity = opacity) }
+        renderingSnapshot = renderingSnapshot.copy(arrowsOpacity = opacity)
     }
 
     fun updateBreaksOpacity(opacity: Double) {
-        updatePrimaryConfig { it.copy(breaksOpacity = opacity) }
+        renderingSnapshot = renderingSnapshot.copy(breaksOpacity = opacity)
     }
 
     fun updateNumbersOpacity(opacity: Double) {
-        updatePrimaryConfig { it.copy(numbersOpacity = opacity) }
+        renderingSnapshot = renderingSnapshot.copy(numbersOpacity = opacity)
     }
-
-    // --- Data range / filter ---
 
     fun updateDataRange(min: Double, max: Double) {
-        updatePrimaryConfig { it.copy(customRange = min..max) }
+        renderingSnapshot = renderingSnapshot.copy(
+            dataMin = min,
+            dataMax = max
+        )
     }
 
-    // =========================================================================
-    // Crosshair Updates
-    // =========================================================================
+    private fun updateRenderingSnapshotForEntry(entry: TimeEntry, dataset: Dataset) {
+        val datasetType = DatasetType.fromRawValue(dataset.type)
+        val rangeKey = datasetType?.rangeKey ?: "value"
+        val rangeData = entry.ranges?.get(rangeKey)
+
+        if (rangeData?.min != null && rangeData.max != null) {
+            renderingSnapshot = renderingSnapshot.copy(
+                dataMin = rangeData.min,
+                dataMax = rangeData.max
+            )
+            Log.d(TAG, "Updated data range: ${rangeData.min} - ${rangeData.max}")
+        }
+    }
+
+    // MARK: - Crosshair Updates
 
     fun updateCurrentValue(value: CurrentValue) {
-        updateState { copy(currentValue = value) }
+        currentValue = value
     }
 
     fun updateCameraState(zoom: Double, latitude: Double) {
-        updateState { copy(currentZoom = zoom, currentLatitude = latitude) }
+        currentZoom = zoom
+        currentLatitude = latitude
     }
 
-    // =========================================================================
-    // User Preferences
-    // =========================================================================
+    val isDataLayerActive: Boolean
+        get() = selectedDataset != null && selectedEntry != null
+
+    val currentDatasetType: DatasetType?
+        get() = selectedDataset?.let { DatasetType.fromRawValue(it.type) }
+
+    // MARK: - User Preferences Updates
 
     fun updateDepthUnits(units: DepthUnits) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch {
             if (preferencesRepository.updateField(userId, "depth_units", units.rawValue)) {
-                updateState { copy(userPreferences = userPreferences?.copy(depthUnits = units.rawValue)) }
+                userPreferences = userPreferences?.copy(depthUnits = units.rawValue)
                 Log.d(TAG, "Updated depth units to ${units.displayName}")
             }
         }
@@ -486,7 +463,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch {
             if (preferencesRepository.updateField(userId, "distance_units", units.rawValue)) {
-                updateState { copy(userPreferences = userPreferences?.copy(distanceUnits = units.rawValue)) }
+                userPreferences = userPreferences?.copy(distanceUnits = units.rawValue)
                 Log.d(TAG, "Updated distance units to ${units.displayName}")
             }
         }
@@ -496,7 +473,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch {
             if (preferencesRepository.updateField(userId, "speed_units", units.rawValue)) {
-                updateState { copy(userPreferences = userPreferences?.copy(speedUnits = units.rawValue)) }
+                userPreferences = userPreferences?.copy(speedUnits = units.rawValue)
                 Log.d(TAG, "Updated speed units to ${units.displayName}")
             }
         }
@@ -506,108 +483,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch {
             if (preferencesRepository.updateField(userId, "temperature_units", units.rawValue)) {
-                updateState { copy(userPreferences = userPreferences?.copy(temperatureUnits = units.rawValue)) }
+                userPreferences = userPreferences?.copy(temperatureUnits = units.rawValue)
                 Log.d(TAG, "Updated temperature units to ${units.displayName}")
             }
         }
     }
 
-    // =========================================================================
-    // FTUX Region Selection
-    // =========================================================================
-
-    fun selectRegionAsFTUX(regionId: String) {
-        updateState { copy(ftuxLoadingRegionId = regionId) }
-        viewModelScope.launch {
-            AppPreferencesDataStore.setPreferredRegionId(context, regionId)
-            updateState { copy(preferredRegionId = regionId) }
-            onRegionSelected(regionId)
-            updateState { copy(ftuxLoadingRegionId = null) }
-        }
-    }
-
-    // =========================================================================
-    // Foreground Refresh
-    // =========================================================================
-
-    fun refreshData() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val response = SaltyApi.getRegions()
-                val groups = response.groups
-                val regionList = groups.flatMap { it.regions }
-                Log.d(TAG, "Refreshed ${regionList.size} regions")
-
-                updateState {
-                    copy(
-                        regionGroups = groups,
-                        regions = regionList,
-                    )
-                }
-
-                _state.value.selectedRegion?.let { region ->
-                    val refreshedRegion = SaltyApi.fetchRegion(region.id)
-                    updateState { copy(selectedRegion = refreshedRegion) }
-                    handleDatasetSetup(refreshedRegion)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to refresh data", e)
-            }
-        }
-    }
-
-    // =========================================================================
-    // Sign Out
-    // =========================================================================
-
-    fun handleSignOut() {
-        updateState { copy(userPreferences = null) }
-        clearSelection()
-        Log.d(TAG, "Sign out: app state cleared")
-    }
+    // MARK: - Sign Out
 
     fun signOut() {
         viewModelScope.launch {
             AuthManager.signOut()
-            handleSignOut()
+            userPreferences = null
+            clearSelection()
+            Log.d(TAG, "User signed out")
         }
-    }
-
-    // =========================================================================
-    // Helpers
-    // =========================================================================
-
-    /**
-     * Derive a DatasetRenderingSnapshot from config + entry data range.
-     * When config exists, uses config.snapshot() (single source of truth).
-     * Falls back to updating dataMin/dataMax on existing snapshot when no config.
-     */
-    private fun deriveSnapshot(
-        config: DatasetRenderConfig?,
-        entry: TimeEntry?,
-        dataset: Dataset?
-    ): DatasetRenderingSnapshot {
-        if (entry == null || dataset == null) return _state.value.renderingSnapshot
-
-        val datasetType = DatasetType.fromRawValue(dataset.type)
-        val rangeKey = datasetType?.rangeKey ?: "value"
-        val rangeData = entry.ranges?.get(rangeKey)
-        val dataRange = if (rangeData?.min != null && rangeData.max != null) {
-            Log.d(TAG, "Data range: ${rangeData.min} - ${rangeData.max}")
-            rangeData.min..rangeData.max
-        } else {
-            0.0..100.0
-        }
-
-        // Config is source of truth — derive snapshot from it
-        if (config != null) {
-            return config.snapshot(dataRange = dataRange)
-        }
-
-        // Fallback: no config yet, just update data range on existing snapshot
-        return _state.value.renderingSnapshot.copy(
-            dataMin = dataRange.start,
-            dataMax = dataRange.endInclusive
-        )
     }
 }

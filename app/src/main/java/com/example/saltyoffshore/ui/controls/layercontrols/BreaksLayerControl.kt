@@ -2,6 +2,7 @@ package com.example.saltyoffshore.ui.controls.layercontrols
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.example.saltyoffshore.data.DatasetRenderConfig
 
 /**
  * Breaks layer control (thermal fronts).
@@ -10,21 +11,20 @@ import androidx.compose.ui.Modifier
  */
 @Composable
 fun BreaksLayerControl(
-    enabled: Boolean,
-    onEnabledChanged: (Boolean) -> Unit,
-    opacity: Float,
-    onOpacityChanged: (Float) -> Unit,
+    config: DatasetRenderConfig,
+    onConfigChanged: (DatasetRenderConfig) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LayerSection(
         title = "Breaks",
-        enabled = enabled,
-        onEnabledChanged = onEnabledChanged,
+        enabled = config.breaksEnabled,
+        onToggle = { onConfigChanged(config.copy(breaksEnabled = it)) },
         modifier = modifier
     ) {
         LayerOpacityControl(
-            opacity = opacity,
-            onOpacityChanged = onOpacityChanged
+            opacity = config.breaksOpacity,
+            onOpacityChanged = { onConfigChanged(config.copy(breaksOpacity = it)) },
+            label = "Opacity"
         )
     }
 }
