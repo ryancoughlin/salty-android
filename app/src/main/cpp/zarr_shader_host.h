@@ -3,6 +3,8 @@
 
 #include <GLES3/gl3.h>
 #include <string>
+#include <vector>
+#include <memory>
 #include <unordered_map>
 #include <mutex>
 
@@ -37,11 +39,37 @@ struct CachedFrame {
 };
 
 /**
+ * CPU-side frame data queued for GL texture creation.
+ * Populated from any thread, consumed on GL render thread.
+ */
+struct PendingFrame {
+    std::string entryId;
+    std::vector<float> floats;
+    int width;
+    int height;
+    double swEasting;
+    double swNorthing;
+    double neEasting;
+    double neNorthing;
+    float dataMin;
+    float dataMax;
+};
+
+/**
+ * Pending colormap data queued for GL texture creation.
+ */
+struct PendingColormap {
+    std::vector<uint8_t> rgbaBytes;
+    int size;
+};
+
+/**
  * ZarrShaderHost - OpenGL ES 3.0 implementation of CustomLayerHost.
  *
  * Thread safety:
- * - Render methods called from Mapbox GL thread
- * - Frame upload/show called from main thread via JNI
+ * - GL calls ONLY happen on Mapbox GL render thread (initialize, render, deinitialize)
+ * - uploadFrame/showFrame queue data from any thread (IO dispatcher)
+ * - render() drains pending queues on GL thread before drawing
  * - Mutex protects shared state between threads
  */
 class ZarrShaderHost {
@@ -99,8 +127,13 @@ private:
     float currentDataMax_ = 100;
     std::string currentFrameKey_;
 
-    // Frame cache
+    // Frame cache (GL textures, only accessed after processPendingFrames)
     std::unordered_map<std::string, CachedFrame> frames_;
+
+    // Pending queues (populated from any thread, drained on GL thread)
+    std::vector<PendingFrame> pendingFrames_;
+    std::string pendingShowFrameKey_;
+    std::unique_ptr<PendingColormap> pendingColormap_;
 
     // Uniforms
     FragmentUniforms uniforms_ = {1.0f, 0, 100, 0, 0, 0, 0, 1.0f};
@@ -111,6 +144,10 @@ private:
 
     // Thread safety
     mutable std::mutex mutex_;
+
+    // GL thread only — called from render()
+    void processPendingFrames();
+    void processPendingColormap();
 
     // Shader helpers
     GLuint compileShader(GLenum type, const char* source);

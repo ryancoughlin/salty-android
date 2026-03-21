@@ -179,7 +179,7 @@ void ZarrShaderHost::initialize() {
     // Setup geometry
     setupGeometry();
 
-    // Create default colormap (grayscale)
+    // Create default colormap (grayscale) — directly on GL thread
     std::vector<uint8_t> grayscale(256 * 4);
     for (int i = 0; i < 256; i++) {
         grayscale[i * 4 + 0] = static_cast<uint8_t>(i);
@@ -187,16 +187,99 @@ void ZarrShaderHost::initialize() {
         grayscale[i * 4 + 2] = static_cast<uint8_t>(i);
         grayscale[i * 4 + 3] = 255;
     }
-    setColormap(grayscale.data(), 256 * 4);
+    glGenTextures(1, &colormapTexture_);
+    glBindTexture(GL_TEXTURE_2D, colormapTexture_);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, grayscale.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     initialized_ = true;
     LOGI("OpenGL ES 3.0 pipeline initialized");
 }
 
+// MARK: - Pending Queue Processing (GL thread only, mutex must be held)
+
+void ZarrShaderHost::processPendingFrames() {
+    // Drain pending frame queue — create GL textures on the GL thread
+    for (auto& pf : pendingFrames_) {
+        if (frames_.find(pf.entryId) != frames_.end()) continue;
+
+        GLuint texture = createDataTexture(pf.floats.data(), pf.width, pf.height);
+        if (texture == 0) {
+            LOGE("Failed to create texture for frame: %s", pf.entryId.c_str());
+            continue;
+        }
+
+        CachedFrame frame;
+        frame.texture = texture;
+        frame.width = pf.width;
+        frame.height = pf.height;
+        frame.swEasting = pf.swEasting;
+        frame.swNorthing = pf.swNorthing;
+        frame.neEasting = pf.neEasting;
+        frame.neNorthing = pf.neNorthing;
+        frame.dataMin = pf.dataMin;
+        frame.dataMax = pf.dataMax;
+
+        frames_[pf.entryId] = frame;
+        LOGI("Created GL texture for frame: %s (%dx%d)", pf.entryId.c_str(), pf.width, pf.height);
+
+        // Auto-show if this was the deferred showFrame target
+        if (!pendingShowFrameKey_.empty() && pf.entryId == pendingShowFrameKey_) {
+            prevTexture_ = currentTexture_;
+            currentTexture_ = frame.texture;
+            currentWidth_ = frame.width;
+            currentHeight_ = frame.height;
+            currentSW_[0] = frame.swEasting;
+            currentSW_[1] = frame.swNorthing;
+            currentNE_[0] = frame.neEasting;
+            currentNE_[1] = frame.neNorthing;
+            currentDataMin_ = frame.dataMin;
+            currentDataMax_ = frame.dataMax;
+            currentFrameKey_ = pf.entryId;
+            pendingShowFrameKey_.clear();
+            LOGI("Auto-showed deferred frame: %s", pf.entryId.c_str());
+        }
+    }
+    pendingFrames_.clear();
+}
+
+void ZarrShaderHost::processPendingColormap() {
+    if (!pendingColormap_) return;
+
+    int width = pendingColormap_->size / 4;
+
+    if (colormapTexture_ != 0) {
+        glDeleteTextures(1, &colormapTexture_);
+    }
+
+    glGenTextures(1, &colormapTexture_);
+    glBindTexture(GL_TEXTURE_2D, colormapTexture_);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 pendingColormap_->rgbaBytes.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    LOGI("Colormap created on GL thread: %d pixels", width);
+    pendingColormap_.reset();
+}
+
+// MARK: - Render
+
 void ZarrShaderHost::render(const double* projectionMatrix, double zoom) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (!initialized_ || !visible_ || currentTexture_ == 0 || colormapTexture_ == 0) {
+    if (!initialized_) return;
+
+    // Process any queued uploads on the GL thread (where GL context lives)
+    processPendingColormap();
+    processPendingFrames();
+
+    if (!visible_ || currentTexture_ == 0 || colormapTexture_ == 0) {
         return;
     }
 
@@ -347,30 +430,29 @@ void ZarrShaderHost::uploadFrame(
 ) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Skip if already cached
+    // Skip if already cached or already pending
     if (frames_.find(entryId) != frames_.end()) {
         return;
     }
-
-    GLuint texture = createDataTexture(floats, width, height);
-    if (texture == 0) {
-        LOGE("Failed to create texture for frame: %s", entryId.c_str());
-        return;
+    for (const auto& pf : pendingFrames_) {
+        if (pf.entryId == entryId) return;
     }
 
-    CachedFrame frame;
-    frame.texture = texture;
-    frame.width = width;
-    frame.height = height;
-    frame.swEasting = swEasting;
-    frame.swNorthing = swNorthing;
-    frame.neEasting = neEasting;
-    frame.neNorthing = neNorthing;
-    frame.dataMin = dataMin;
-    frame.dataMax = dataMax;
+    // Queue CPU data — NO GL calls. Safe from any thread.
+    PendingFrame pf;
+    pf.entryId = entryId;
+    pf.floats.assign(floats, floats + (width * height));
+    pf.width = width;
+    pf.height = height;
+    pf.swEasting = swEasting;
+    pf.swNorthing = swNorthing;
+    pf.neEasting = neEasting;
+    pf.neNorthing = neNorthing;
+    pf.dataMin = dataMin;
+    pf.dataMax = dataMax;
 
-    frames_[entryId] = frame;
-    LOGI("Uploaded frame: %s (%dx%d)", entryId.c_str(), width, height);
+    pendingFrames_.push_back(std::move(pf));
+    LOGI("Queued frame: %s (%dx%d)", entryId.c_str(), width, height);
 }
 
 bool ZarrShaderHost::showFrame(const std::string& entryId) {
@@ -382,7 +464,9 @@ bool ZarrShaderHost::showFrame(const std::string& entryId) {
 
     auto it = frames_.find(entryId);
     if (it == frames_.end()) {
-        LOGE("Frame not found: %s", entryId.c_str());
+        // Texture not created yet — defer until processPendingFrames runs on GL thread
+        pendingShowFrameKey_ = entryId;
+        LOGI("Deferred showFrame: %s (pending GL upload)", entryId.c_str());
         return false;
     }
 
@@ -401,6 +485,7 @@ bool ZarrShaderHost::showFrame(const std::string& entryId) {
     currentDataMin_ = frame.dataMin;
     currentDataMax_ = frame.dataMax;
     currentFrameKey_ = entryId;
+    pendingShowFrameKey_.clear();
 
     return true;
 }
@@ -414,6 +499,8 @@ void ZarrShaderHost::clearFrames() {
         }
     }
     frames_.clear();
+    pendingFrames_.clear();
+    pendingShowFrameKey_.clear();
     currentTexture_ = 0;
     prevTexture_ = 0;
     currentFrameKey_.clear();
@@ -431,21 +518,12 @@ bool ZarrShaderHost::isLoaded(const std::string& entryId) {
 void ZarrShaderHost::setColormap(const uint8_t* rgbaBytes, int size) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    int width = size / 4;  // RGBA = 4 bytes per pixel
+    // Queue colormap data — NO GL calls. Safe from any thread.
+    pendingColormap_ = std::make_unique<PendingColormap>();
+    pendingColormap_->rgbaBytes.assign(rgbaBytes, rgbaBytes + size);
+    pendingColormap_->size = size;
 
-    if (colormapTexture_ != 0) {
-        glDeleteTextures(1, &colormapTexture_);
-    }
-
-    glGenTextures(1, &colormapTexture_);
-    glBindTexture(GL_TEXTURE_2D, colormapTexture_);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgbaBytes);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    LOGI("Colormap set: %d pixels", width);
+    LOGI("Queued colormap: %d pixels", size / 4);
 }
 
 // MARK: - Uniforms

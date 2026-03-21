@@ -51,8 +51,20 @@ class GlobalLayers(
         selectedTournament: Tournament? = null,
         stations: List<Station> = emptyList()
     ) {
+        // Dedup: skip if nothing changed since last update
+        if (visibility == lastVisibility && loranConfig == lastLoranConfig &&
+            selectedTournament == lastTournament && stations == lastStations) {
+            Log.d(TAG, "update() skipped — no changes")
+            return
+        }
+
         Log.d(TAG, "update() called with ${visibility.enabledLayers.size} enabled layers")
         Log.d(TAG, "  Enabled: ${visibility.enabledLayers.map { it.name }}")
+
+        lastVisibility = visibility
+        lastLoranConfig = loranConfig
+        lastTournament = selectedTournament
+        lastStations = stations
 
         // Shaded Relief (read-only, always included in visibility)
         updateShadedRelief(visibility)
