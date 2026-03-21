@@ -42,7 +42,7 @@ object ZarrPlaybackConfig {
  */
 class ZarrManager(
     private val zarrReader: ZarrReader = ZarrReader(),
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
     companion object {
         const val PRIMARY_KEY = "primary"
@@ -164,16 +164,14 @@ class ZarrManager(
         context = null
         _loadingState.value = LoadingState.Loading
 
+        // Prepare colormap bytes on main thread (cheap), defer GL calls until context ready
+        val colormapBytes = ColormapTextureFactory.createTextureBytes(colorscale)
+        val scaleModeOrdinal = scaleMode.ordinal
+        host.pendingColormap = colormapBytes
+        host.pendingScaleMode = scaleModeOrdinal
+
         loadTask = coroutineScope.launch {
             try {
-                // Set colormap and uniforms
-                val colormapBytes = ColormapTextureFactory.createTextureBytes(colorscale)
-                host.setColormap(colormapBytes)
-                host.setUniforms(
-                    opacity = 1.0f,
-                    scaleMode = scaleMode.ordinal
-                )
-
                 val loadStart = System.currentTimeMillis()
                 Log.d(TAG, "[Timing] Load start. variable=$variableName url=$zarrUrl")
 
@@ -236,7 +234,7 @@ class ZarrManager(
 
                 ensureActive()
 
-                // Upload and show initial frame
+                // Upload and show initial frame (data copy is thread-safe)
                 host.uploadFrame(
                     entryId = initialFrame.entryId,
                     slice = slice,
@@ -246,19 +244,26 @@ class ZarrManager(
                 host.showFrame(initialFrame.entryId)
                 currentFrameKey = initialFrame.entryId
                 frameVersion++
-                repaint?.invoke()
 
                 Log.d(TAG, "[Timing] Total to first frame: ${System.currentTimeMillis() - loadStart}ms")
-                _loadingState.value = LoadingState.Ready
 
-                // Background load remaining frames
-                startBackgroundLoadAll(initialIndex)
+                // Notify UI on main thread (lightweight — just state flip + repaint trigger)
+                withContext(Dispatchers.Main) {
+                    _loadingState.value = LoadingState.Ready
+                    repaint?.invoke()
+                }
+
+                // Background loading deferred — frames load on-demand when user scrubs timeline
+                // TODO: Add progressive background loading with chunked batches (not all 476 at once)
+                Log.d(TAG, "Initial frame displayed. Remaining ${allFrames.size - 1} frames load on-demand.")
 
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Load failed", e)
-                _loadingState.value = LoadingState.Failed(e.message ?: "Unknown error")
+                withContext(Dispatchers.Main) {
+                    _loadingState.value = LoadingState.Failed(e.message ?: "Unknown error")
+                }
             }
         }
     }
@@ -463,52 +468,31 @@ class ZarrManager(
                 async {
                     semaphore.withPermit {
                         ensureActive()
-                        if (host.isLoaded(frame.entryId)) return@async null
+                        if (host.isLoaded(frame.entryId)) return@async
 
-                        val zarrIdx = frame.zarrIndex ?: return@async null
+                        val zarrIdx = frame.zarrIndex ?: return@async
                         try {
                             val slice = zarrReader.loadSlice(preparedDataset, zarrIdx, depthIndex)
                             ensureActive()
-                            PreparedFrame(
-                                metadata = frame,
+                            // Upload immediately as each frame completes (no batching)
+                            host.uploadFrame(
+                                entryId = frame.entryId,
                                 floats = slice.floats,
                                 width = slice.width,
                                 height = slice.height,
                                 bounds = slice.bounds,
-                                dataRange = frame.dataRange
+                                dataMin = frame.dataRange.start,
+                                dataMax = frame.dataRange.endInclusive
                             )
-                        } catch (e: Exception) {
-                            null
+                        } catch (_: Exception) {
+                            // Skip failed frames silently
                         }
                     }
                 }
-            }.awaitAll().filterNotNull().forEach { pf ->
-                withContext(Dispatchers.Main) {
-                    host.uploadFrame(
-                        entryId = pf.metadata.entryId,
-                        floats = pf.floats,
-                        width = pf.width,
-                        height = pf.height,
-                        bounds = pf.bounds,
-                        dataMin = pf.dataRange.start,
-                        dataMax = pf.dataRange.endInclusive
-                    )
-                }
-            }
+            }.awaitAll()
         }
     }
 
-    /**
-     * Pre-loaded frame data ready for GPU upload.
-     */
-    private data class PreparedFrame(
-        val metadata: ZarrFrameMetadata,
-        val floats: FloatArray,
-        val width: Int,
-        val height: Int,
-        val bounds: GridBounds,
-        val dataRange: ClosedFloatingPointRange<Float>
-    )
 }
 
 /**

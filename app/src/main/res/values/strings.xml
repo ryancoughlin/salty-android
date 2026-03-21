@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Salty Offshore</string>
+    <string name="mapbox_access_token" translatable="false">MAPBOX_PUBLIC_REDACTED</string>
 </resources>

@@ -162,7 +162,7 @@ private fun DatasetListItem(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color(datasetType?.defaultColorscale?.stops?.firstOrNull()?.color ?: 0xFF808080)),
+                .background(datasetType?.defaultColorscale?.colors?.firstOrNull()?.let { Color(it) } ?: Color(0xFF808080)),
             contentAlignment = Alignment.Center
         ) {
             Text(

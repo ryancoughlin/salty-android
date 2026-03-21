@@ -1,15 +1,13 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // kotlin.android removed — AGP 9.1 has built-in Kotlin compilation
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "com.example.saltyoffshore"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.saltyoffshore"
@@ -20,8 +18,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Inject Mapbox access token from local.properties
-        resValue("string", "mapbox_access_token", project.findProperty("MAPBOX_ACCESS_TOKEN") as String)
+        // Mapbox access token is in res/values/strings.xml, referenced by AndroidManifest
 
         // NDK configuration for Zarr GPU rendering
         ndk {
@@ -55,9 +52,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
     }
     buildFeatures {
         compose = true

@@ -21,6 +21,10 @@ class ZarrVisualLayer : CustomLayerHost {
     // Track initialization state
     private var isInitialized = false
 
+    // Deferred GL state — set before GL context exists, applied on initialize()
+    var pendingColormap: ByteArray? = null
+    var pendingScaleMode: Int? = null
+
     init {
         bridge.create()
         Log.d(TAG, "ZarrVisualLayer created")
@@ -32,6 +36,18 @@ class ZarrVisualLayer : CustomLayerHost {
         bridge.initialize()
         isInitialized = true
         Log.d(TAG, "ZarrVisualLayer initialized")
+
+        // Apply deferred colormap and uniforms now that GL context exists
+        pendingColormap?.let {
+            bridge.setColormap(it)
+            pendingColormap = null
+            Log.d(TAG, "Applied deferred colormap")
+        }
+        pendingScaleMode?.let {
+            bridge.setUniforms(opacity = 1.0f, filterMin = 0f, filterMax = 0f, filterMode = 0, scaleMode = it, blendFactor = 1.0f)
+            pendingScaleMode = null
+            Log.d(TAG, "Applied deferred uniforms (scaleMode=$it)")
+        }
     }
 
     override fun render(parameters: CustomLayerRenderParameters) {

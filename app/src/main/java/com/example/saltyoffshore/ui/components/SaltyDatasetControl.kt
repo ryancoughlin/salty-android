@@ -7,12 +7,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,22 +79,21 @@ fun SaltyDatasetControl(
             )
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                ControlButton(
-                    icon = Icons.Default.Tune,
-                    label = "Filter",
-                    onClick = onFilter
-                )
-                ControlButton(
-                    icon = Icons.Default.SwapVert,
-                    label = "Change",
-                    onClick = onChange
-                )
-                ControlButton(
-                    icon = Icons.Default.KeyboardArrowDown,
-                    onClick = onExpand
-                )
+                TextButton(onClick = onFilter) {
+                    Icon(Icons.Default.Tune, contentDescription = "Filter", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Filter", color = Color.White, fontSize = 12.sp)
+                }
+                TextButton(onClick = onChange) {
+                    Icon(Icons.Default.SwapVert, contentDescription = "Change", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Change", color = Color.White, fontSize = 12.sp)
+                }
+                IconButton(onClick = onExpand) {
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Collapse", tint = Color.White)
+                }
             }
         }
 

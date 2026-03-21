@@ -258,18 +258,7 @@ val DatasetType.group: DatasetGroup
         DatasetType.WATER_TYPE, DatasetType.MLD, DatasetType.FSLE, DatasetType.DISSOLVED_OXYGEN -> DatasetGroup.OTHER
     }
 
-/**
- * Scale mode for Zarr shader colormap mapping.
- * Matches iOS RenderingConfig.scaleMode.
- */
-val DatasetType.scaleMode: ScaleMode
-    get() = when (this) {
-        DatasetType.SST, DatasetType.MLD, DatasetType.SALINITY, DatasetType.DISSOLVED_OXYGEN,
-        DatasetType.FSLE, DatasetType.WATER_CLARITY, DatasetType.WATER_TYPE -> ScaleMode.LINEAR
-        DatasetType.CHLOROPHYLL, DatasetType.PHYTOPLANKTON -> ScaleMode.LOGARITHMIC
-        DatasetType.CURRENTS -> ScaleMode.SQRT
-        DatasetType.SEA_SURFACE_HEIGHT -> ScaleMode.DIVERGING
-    }
+// scaleMode is defined in RenderingConfig.kt via renderingConfig.scaleMode
 
 /**
  * Zarr variable name for this dataset type.

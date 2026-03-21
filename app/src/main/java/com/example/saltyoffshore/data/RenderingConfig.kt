@@ -51,10 +51,16 @@ val DatasetType.renderingConfig: RenderingConfig
             domainStrategy = DomainStrategy.Fixed(0.01f..8.0f)
         )
 
-        DatasetType.EDDYS -> RenderingConfig(
+        DatasetType.SEA_SURFACE_HEIGHT -> RenderingConfig(
             // Diverging: zero-centered, no snap (scale compression)
             scaleMode = ScaleMode.DIVERGING,
             colorscale = Colorscale.RDBU
+        )
+
+        DatasetType.PHYTOPLANKTON -> RenderingConfig(
+            scaleMode = ScaleMode.LOGARITHMIC,
+            colorscale = Colorscale.CHLOROPHYLL,
+            domainStrategy = DomainStrategy.Fixed(0.01f..8.0f)
         )
 
         DatasetType.WATER_CLARITY -> RenderingConfig(

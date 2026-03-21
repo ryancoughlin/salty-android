@@ -157,7 +157,7 @@ class ZarrChunkLoader(
         // largest known chunk, plus a ratio for unexpected larger payloads.
         val bufferSize = max(deflateData.size * 4, ZarrNetworkConfig.MAX_CHUNK_BYTES)
 
-        val inflater = Inflater()
+        val inflater = Inflater(true) // nowrap=true: data is raw DEFLATE (header already stripped)
         inflater.setInput(deflateData)
 
         val output = ByteArrayOutputStream()

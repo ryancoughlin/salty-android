@@ -153,7 +153,7 @@ fun FilterRangeSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Gradient background bar
-            val gradientColors = colorscale.stops.map { Color(it.color) }
+            val gradientColors = colorscale.colors.map { Color(it) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

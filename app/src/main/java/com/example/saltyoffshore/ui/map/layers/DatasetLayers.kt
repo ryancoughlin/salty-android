@@ -9,9 +9,8 @@ import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.TimeEntry
 import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.zarr.ZarrVisualLayer
-import com.mapbox.maps.CustomLayer
+import com.mapbox.maps.LayerPosition
 import com.mapbox.maps.MapboxMap
-import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.vectorSource
 
@@ -134,9 +133,10 @@ class DatasetLayers(
         // Add new Zarr layer to map
         mapboxMap.style?.let { style ->
             if (!style.styleLayerExists(layerId)) {
-                style.addLayer(
-                    CustomLayer(layerId, renderer)
-                        .slot("middle")
+                style.addStyleCustomLayer(
+                    layerId = layerId,
+                    layerHost = renderer,
+                    layerPosition = LayerPosition(null, null, null)
                 )
                 Log.d(TAG, "Added Zarr CustomLayer: $layerId")
             }

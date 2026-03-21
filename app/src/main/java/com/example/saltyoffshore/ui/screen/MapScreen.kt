@@ -1,11 +1,13 @@
 package com.example.saltyoffshore.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -16,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
@@ -111,7 +115,20 @@ fun MapScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) { // outer container
+
+    // DEBUG: Big red banner to confirm build is deploying
+    Text(
+        "BUILD DEPLOYED",
+        color = Color.White,
+        fontSize = 24.sp,
+        modifier = Modifier
+            .background(Color.Red)
+            .padding(16.dp)
+            .zIndex(999f)
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) { // map + overlays
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
@@ -217,8 +234,12 @@ fun MapScreen(
             )
         }
 
-        // Layers control sheet
-        if (showLayersSheet && viewModel.selectedDataset != null) {
+    } // end map + overlays Box
+
+    // === Sheets render above the map ===
+
+    // Layers control sheet
+    if (showLayersSheet && viewModel.selectedDataset != null) {
             LayersControlSheet(
                 // Dataset layer props
                 dataset = viewModel.selectedDataset!!,
@@ -290,7 +311,7 @@ fun MapScreen(
                 onDismiss = { showFilterSheet = false }
             )
         }
-    }
+    } // end outer container
 }
 
 /**
@@ -321,8 +342,8 @@ private fun DatasetLayersEffect(
     }
 
     // Render layers when any input changes
-    MapEffect(key1 = regionId, key2 = entry?.id, key3 = snapshot, key4 = visualSource) { mapView ->
-        val mapboxMap = mapView.mapboxMap
+    MapEffect(regionId, entry?.id, snapshot, visualSource) { mapView ->
+        val mapboxMap = mapView.getMapboxMap()
 
         // Create layer manager if needed (first render or region changed)
         if (datasetLayers == null) {
@@ -348,7 +369,7 @@ private fun DatasetLayersEffect(
 private fun ZarrRepaintEffect(viewModel: AppViewModel) {
     MapEffect(Unit) { mapView ->
         viewModel.repaint = {
-            mapView.mapboxMap.triggerRepaint()
+            mapView.getMapboxMap().triggerRepaint()
         }
     }
 }
@@ -368,7 +389,7 @@ private fun CrosshairQueryEffect(
     val yOffsetPx = with(density) { CrosshairConstants.yOffset.toPx() }
 
     MapEffect(key1 = isDataLayerActive, key2 = datasetType) { mapView ->
-        val mapboxMap = mapView.mapboxMap
+        val mapboxMap = mapView.getMapboxMap()
 
         // Create query manager
         val queryManager = CrosshairFeatureQueryManager(mapboxMap, scope)
@@ -429,13 +450,13 @@ private fun GlobalLayersEffect(
     // Get map reference once and subscribe to style loaded
     MapEffect(Unit) { mapView ->
         Log.d(TAG, "GlobalLayersEffect: MapEffect triggered")
-        mapboxMapRef = mapView.mapboxMap
+        mapboxMapRef = mapView.getMapboxMap()
 
         // Subscribe to style loaded events for initial render
-        mapView.mapboxMap.subscribeStyleLoaded { _ ->
+        mapView.getMapboxMap().subscribeStyleLoaded { _ ->
             Log.d(TAG, "GlobalLayersEffect: Style loaded event received")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.mapboxMap)
+                globalLayers = GlobalLayers(mapView.getMapboxMap())
             }
             globalLayers?.update(
                 visibility = currentVisibility,
@@ -446,10 +467,10 @@ private fun GlobalLayersEffect(
         }
 
         // Also try immediately if style is already loaded
-        mapView.mapboxMap.getStyle { _ ->
+        mapView.getMapboxMap().getStyle { _ ->
             Log.d(TAG, "GlobalLayersEffect: getStyle callback - style available")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.mapboxMap)
+                globalLayers = GlobalLayers(mapView.getMapboxMap())
             }
             globalLayers?.update(
                 visibility = currentVisibility,

@@ -28,14 +28,19 @@ data class DatasetConfiguration(
                     unit = DatasetUnit.MG_PER_CUBIC_METER,
                     decimalPlaces = 2
                 )
-                DatasetType.EDDYS -> DatasetConfiguration(
+                DatasetType.SEA_SURFACE_HEIGHT -> DatasetConfiguration(
                     valueKey = "ssh",
                     unit = DatasetUnit.CENTIMETERS,
                     decimalPlaces = 0
                 )
+                DatasetType.PHYTOPLANKTON -> DatasetConfiguration(
+                    valueKey = "phytoplankton",
+                    unit = DatasetUnit.MG_PER_CUBIC_METER,
+                    decimalPlaces = 2
+                )
                 DatasetType.WATER_CLARITY -> DatasetConfiguration(
                     valueKey = "Kd_490",
-                    unit = DatasetUnit.PER_METER,
+                    unit = DatasetUnit.INVERSE_METERS,
                     decimalPlaces = 3
                 )
                 DatasetType.SALINITY -> DatasetConfiguration(
@@ -45,7 +50,7 @@ data class DatasetConfiguration(
                 )
                 DatasetType.WATER_TYPE -> DatasetConfiguration(
                     valueKey = "water_type",
-                    unit = DatasetUnit.UNITLESS,
+                    unit = DatasetUnit.DIMENSIONLESS,
                     decimalPlaces = 0
                 )
                 DatasetType.MLD -> DatasetConfiguration(
