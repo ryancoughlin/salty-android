@@ -1,0 +1,734 @@
+package com.example.saltyoffshore.ui.screen
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.saltyoffshore.data.DepthUnits
+import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.SpeedUnits
+import com.example.saltyoffshore.data.TemperatureUnits
+import com.example.saltyoffshore.data.UserPreferences
+import kotlinx.coroutines.launch
+
+// Salty design tokens matching iOS Color.base, Color.sunken
+private val SaltyBase = Color(0xFF0A0A0F)
+private val SaltySunken = Color(0xFF141419)
+private val SaltyTextPrimary = Color(0xFFFFFFFF)
+private val SaltyTextSecondary = Color(0xFF8A8A9A)
+private val SaltyDestructive = Color(0xFFDC2626)
+private val SaltyAccent = Color(0xFF00D4AA)
+
+/**
+ * AccountHub bottom sheet matching iOS AccountHub.swift.
+ *
+ * Sections in order:
+ * 1. Welcome
+ * 2. Account Settings (4 navigation rows)
+ * 3. Notifications
+ * 4. Units (migrated from SettingsScreen)
+ * 5. Map Theme
+ * 6. Dataset Information
+ * 7. About Salty (4 rows)
+ * 8. Sign Out
+ * 9. Delete Account (2-step confirm)
+ * 10. Diagnostics
+ * 11. Version footer
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AccountHubSheet(
+    sheetState: SheetState,
+    preferences: UserPreferences?,
+    onDepthUnitsChanged: (DepthUnits) -> Unit,
+    onDistanceUnitsChanged: (DistanceUnits) -> Unit,
+    onSpeedUnitsChanged: (SpeedUnits) -> Unit,
+    onTemperatureUnitsChanged: (TemperatureUnits) -> Unit,
+    onSignOut: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = SaltyBase,
+        dragHandle = {
+            // Standard drag indicator
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.3f))
+            )
+        }
+    ) {
+        AccountHubContent(
+            preferences = preferences,
+            onDepthUnitsChanged = onDepthUnitsChanged,
+            onDistanceUnitsChanged = onDistanceUnitsChanged,
+            onSpeedUnitsChanged = onSpeedUnitsChanged,
+            onTemperatureUnitsChanged = onTemperatureUnitsChanged,
+            onSignOut = {
+                scope.launch {
+                    onSignOut()
+                    onDismiss()
+                }
+            },
+            onDone = {
+                scope.launch {
+                    sheetState.hide()
+                    onDismiss()
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AccountHubContent(
+    preferences: UserPreferences?,
+    onDepthUnitsChanged: (DepthUnits) -> Unit,
+    onDistanceUnitsChanged: (DistanceUnits) -> Unit,
+    onSpeedUnitsChanged: (SpeedUnits) -> Unit,
+    onTemperatureUnitsChanged: (TemperatureUnits) -> Unit,
+    onSignOut: () -> Unit,
+    onDone: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val context = LocalContext.current
+
+    // Delete account state
+    var showingDeleteConfirmation by remember { mutableStateOf(false) }
+    var showingFinalConfirmation by remember { mutableStateOf(false) }
+    var confirmationText by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .verticalScroll(scrollState)
+            .padding(horizontal = 16.dp)
+    ) {
+        // Title bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Settings",
+                color = SaltyTextPrimary,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            TextButton(onClick = onDone) {
+                Text("Done", color = SaltyTextPrimary, fontSize = 16.sp)
+            }
+        }
+
+        // 1. Welcome Section
+        WelcomeSection()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 2. Account Settings Section
+        AccountSettingsSection()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. Notifications Section
+        NotificationsSection()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 4. Units Section
+        UnitsSection(
+            preferences = preferences,
+            onDepthUnitsChanged = onDepthUnitsChanged,
+            onDistanceUnitsChanged = onDistanceUnitsChanged,
+            onSpeedUnitsChanged = onSpeedUnitsChanged,
+            onTemperatureUnitsChanged = onTemperatureUnitsChanged
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 5. Map Theme Section
+        MapThemeSection()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 6. Dataset Information Section
+        DatasetInfoSection()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 7. About Salty Section
+        AboutSection()
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 8. Sign Out Button
+        Button(
+            onClick = onSignOut,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SaltyDestructive
+            )
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Sign Out", color = Color.White, fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 9. Delete Account Button
+        Button(
+            onClick = { showingDeleteConfirmation = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SaltySunken
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = null,
+                tint = SaltyTextSecondary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Delete Account", color = SaltyTextSecondary, fontWeight = FontWeight.Medium)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 10. Diagnostics Section
+        DiagnosticsSection()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 11. Version Footer
+        VersionFooter()
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    // Delete account - first confirmation
+    if (showingDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showingDeleteConfirmation = false },
+            title = { Text("Delete Account") },
+            text = {
+                Text("Are you sure you want to delete your account? This action cannot be undone and will permanently delete all your data.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showingDeleteConfirmation = false
+                        showingFinalConfirmation = true
+                    }
+                ) {
+                    Text("Continue", color = SaltyDestructive)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showingDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete account - final confirmation with text input
+    if (showingFinalConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                showingFinalConfirmation = false
+                confirmationText = ""
+            },
+            title = { Text("Final Confirmation") },
+            text = {
+                Column {
+                    Text("Type \"DELETE\" to permanently delete your account and all associated data.")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = confirmationText,
+                        onValueChange = { confirmationText = it },
+                        placeholder = { Text("Type DELETE to confirm") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showingFinalConfirmation = false
+                        confirmationText = ""
+                        // TODO: Wire account deletion service
+                    },
+                    enabled = confirmationText == "DELETE"
+                ) {
+                    Text("Delete Account", color = if (confirmationText == "DELETE") SaltyDestructive else Color.Gray)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showingFinalConfirmation = false
+                    confirmationText = ""
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+// =============================================================================
+// MARK: - Sections
+// =============================================================================
+
+@Composable
+private fun WelcomeSection() {
+    val context = LocalContext.current
+    SunkenCard {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Welcome to Salty",
+                color = SaltyTextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Thanks for being part of the Salty community. We built this app because we love fishing and wanted better tools for the water.",
+                color = SaltyTextSecondary,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:feedback@saltyoffshore.com?subject=App%20Feedback")
+                    }
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SaltySunken
+                )
+            ) {
+                Text("Share Feedback", color = SaltyTextPrimary, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountSettingsSection() {
+    SectionHeader(title = "ACCOUNT SETTINGS")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Default.Map,
+            title = "Preferred Region",
+            onClick = { /* Future: region selection */ }
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Default.Person,
+            title = "Edit Profile",
+            onClick = { /* Future: edit profile */ }
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Default.WifiOff,
+            title = "Offline Mode",
+            onClick = { /* Future: offline management */ }
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Default.Star,
+            title = "Subscription",
+            onClick = { /* Future: subscription management */ }
+        )
+    }
+}
+
+@Composable
+private fun NotificationsSection() {
+    SectionHeader(title = "NOTIFICATIONS")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Default.Notifications,
+            title = "Notification Settings",
+            onClick = { /* Future: notification settings */ }
+        )
+    }
+}
+
+@Composable
+private fun UnitsSection(
+    preferences: UserPreferences?,
+    onDepthUnitsChanged: (DepthUnits) -> Unit,
+    onDistanceUnitsChanged: (DistanceUnits) -> Unit,
+    onSpeedUnitsChanged: (SpeedUnits) -> Unit,
+    onTemperatureUnitsChanged: (TemperatureUnits) -> Unit
+) {
+    SectionHeader(title = "UNITS")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        UnitPickerRow(
+            label = "Temperature",
+            currentValue = TemperatureUnits.fromRawValue(preferences?.temperatureUnits)?.displayName ?: "Fahrenheit",
+            options = TemperatureUnits.entries.map { it.displayName },
+            onSelected = { displayName ->
+                TemperatureUnits.entries.find { it.displayName == displayName }?.let(onTemperatureUnitsChanged)
+            }
+        )
+        RowDivider()
+        UnitPickerRow(
+            label = "Depth",
+            currentValue = DepthUnits.fromRawValue(preferences?.depthUnits)?.displayName ?: "Feet",
+            options = DepthUnits.entries.map { it.displayName },
+            onSelected = { displayName ->
+                DepthUnits.entries.find { it.displayName == displayName }?.let(onDepthUnitsChanged)
+            }
+        )
+        RowDivider()
+        UnitPickerRow(
+            label = "Distance",
+            currentValue = DistanceUnits.fromRawValue(preferences?.distanceUnits)?.displayName ?: "Nautical Miles",
+            options = DistanceUnits.entries.map { it.displayName },
+            onSelected = { displayName ->
+                DistanceUnits.entries.find { it.displayName == displayName }?.let(onDistanceUnitsChanged)
+            }
+        )
+        RowDivider()
+        UnitPickerRow(
+            label = "Speed",
+            currentValue = SpeedUnits.fromRawValue(preferences?.speedUnits)?.displayName ?: "Knots",
+            options = SpeedUnits.entries.map { it.displayName },
+            onSelected = { displayName ->
+                SpeedUnits.entries.find { it.displayName == displayName }?.let(onSpeedUnitsChanged)
+            }
+        )
+    }
+}
+
+@Composable
+private fun MapThemeSection() {
+    SectionHeader(title = "MAP THEME")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Default.Palette,
+            title = "Map Theme",
+            onClick = { /* Future: theme selection */ }
+        )
+    }
+}
+
+@Composable
+private fun DatasetInfoSection() {
+    SectionHeader(title = "DATASET INFORMATION")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Default.Info,
+            title = "Dataset Guide",
+            onClick = { /* Future: dataset guide */ }
+        )
+    }
+}
+
+@Composable
+private fun AboutSection() {
+    val context = LocalContext.current
+
+    SectionHeader(title = "ABOUT SALTY")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Outlined.AutoAwesome,
+            title = "Take the Tour",
+            onClick = { /* Future: tour */ }
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Default.PrivacyTip,
+            title = "Privacy Policy",
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://saltyoffshore.com/privacy"))
+                context.startActivity(intent)
+            }
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Outlined.Description,
+            title = "Terms of Use",
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://saltyoffshore.com/terms"))
+                context.startActivity(intent)
+            }
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Default.QuestionMark,
+            title = "Get Help",
+            onClick = {
+                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                    data = Uri.parse("mailto:support@saltyoffshore.com?subject=Help%20Request")
+                }
+                context.startActivity(intent)
+            }
+        )
+    }
+}
+
+@Composable
+private fun DiagnosticsSection() {
+    SectionHeader(title = "DIAGNOSTICS")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Tile Server", color = SaltyTextSecondary, fontSize = 14.sp)
+            Spacer(modifier = Modifier.weight(1f))
+            Text("OK", color = SaltyAccent, fontSize = 14.sp)
+        }
+        RowDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Map Cache", color = SaltyTextSecondary, fontSize = 14.sp)
+            Spacer(modifier = Modifier.weight(1f))
+            Text("OK", color = SaltyAccent, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+private fun VersionFooter() {
+    val context = LocalContext.current
+    val packageInfo = remember {
+        context.packageManager.getPackageInfo(context.packageName, 0)
+    }
+    val versionName = packageInfo.versionName ?: "Unknown"
+    val versionCode = packageInfo.longVersionCode
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Version $versionName",
+            color = SaltyTextSecondary,
+            fontSize = 12.sp
+        )
+        Text(
+            text = "Build $versionCode",
+            color = SaltyTextSecondary.copy(alpha = 0.6f),
+            fontSize = 11.sp
+        )
+    }
+}
+
+// =============================================================================
+// MARK: - Shared Components
+// =============================================================================
+
+@Composable
+private fun SunkenCard(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SaltySunken)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        color = SaltyTextSecondary,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+@Composable
+private fun NavigationRow(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = SaltyTextPrimary.copy(alpha = 0.75f),
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            color = SaltyTextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "\u203A", // right chevron character
+            color = SaltyTextSecondary,
+            fontSize = 20.sp
+        )
+    }
+}
+
+@Composable
+private fun UnitPickerRow(
+    label: String,
+    currentValue: String,
+    options: List<String>,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                color = SaltyTextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = currentValue,
+                color = SaltyTextSecondary,
+                fontSize = 14.sp
+            )
+        }
+
+        androidx.compose.material3.DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 52.dp),
+        color = Color.White.copy(alpha = 0.06f)
+    )
+}
