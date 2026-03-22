@@ -13,12 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -35,9 +29,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
-import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.RegionStatus
 import com.example.saltyoffshore.ui.components.CrosshairOverlay
+import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
 import com.example.saltyoffshore.ui.components.DatasetFilterSheet
@@ -81,7 +75,6 @@ import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
 import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
 import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
-import com.example.saltyoffshore.ui.theme.SaltyLayout
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.mapbox.maps.extension.compose.MapEffect
@@ -280,21 +273,15 @@ fun MapScreen(
             isDataLayerActive = viewModel.isDataLayerActive
         )
 
-        // Settings button (top-right)
-        IconButton(
-            onClick = onSettingsClick,
+        // Top bar: left (crew/future) | center (loading/error capsules) | right (account)
+        TopBar(
+            isVisible = !viewModel.measurementState.isActive,
+            notifications = viewModel.notificationManager.notifications,
+            onAccountTap = onSettingsClick,
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = Spacing.large)
-                .size(SaltyLayout.topBarElementHeight)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f), CircleShape)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+                .align(Alignment.TopCenter)
+                .padding(top = 48.dp)
+        )
 
         // Snackbar host (import feedback)
         SnackbarHost(
@@ -303,16 +290,6 @@ fun MapScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 80.dp)
         )
-
-        // Loading overlay
-        if (viewModel.appStatus is AppStatus.Loading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
-        }
 
         // Depth selector (right side)
         if (viewModel.depthFilterState.hasSelection) {

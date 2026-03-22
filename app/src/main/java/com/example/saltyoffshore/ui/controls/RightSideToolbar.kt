@@ -5,10 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,14 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.R
 import com.example.saltyoffshore.ui.theme.SaltyMotion
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Straighten
 import kotlinx.coroutines.delay
 
 /**
@@ -45,14 +47,12 @@ fun RightSideToolbar(
     shouldHide: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Entrance animation state
     var hasAppeared by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(250)
         hasAppeared = true
     }
 
-    // Hide animation
     val hideAlpha by animateFloatAsState(
         targetValue = if (shouldHide) 0f else 1f,
         animationSpec = SaltyMotion.springDefault(),
@@ -71,57 +71,142 @@ fun RightSideToolbar(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.End
     ) {
-        // Filter button (delay 100ms)
-        StaggeredMapButton(
-            icon = Icons.Default.Tune,
-            onClick = onFilterClick,
-            contentDescription = "Filter",
-            hasAppeared = hasAppeared,
-            delayMs = 100
-        )
+        StaggeredMapButton(hasAppeared, 100) {
+            MapControlButton(
+                icon = Icons.Default.Tune,
+                contentDescription = "Filter",
+                onClick = onFilterClick
+            )
+        }
 
-        // Layers button (delay 200ms)
-        StaggeredMapButton(
-            iconResId = R.drawable.ic_layers,
-            onClick = onLayersClick,
-            contentDescription = "Layers",
-            hasAppeared = hasAppeared,
-            delayMs = 200
-        )
+        StaggeredMapButton(hasAppeared, 200) {
+            MapControlButton(
+                iconResId = R.drawable.ic_layers,
+                contentDescription = "Layers",
+                onClick = onLayersClick
+            )
+        }
 
-        // Waypoints button (delay 300ms)
-        StaggeredMapButton(
-            icon = Icons.Default.Place,
-            onClick = onWaypointsClick,
-            contentDescription = "Waypoints",
-            hasAppeared = hasAppeared,
-            delayMs = 300
-        )
+        StaggeredMapButton(hasAppeared, 300) {
+            MapControlButton(
+                icon = Icons.Default.Place,
+                contentDescription = "Waypoints",
+                onClick = onWaypointsClick
+            )
+        }
 
-        // Measure button (delay 400ms)
-        StaggeredMapButton(
-            icon = Icons.Default.Straighten,
-            onClick = onMeasureClick,
-            contentDescription = "Measure",
-            hasAppeared = hasAppeared,
-            delayMs = 400,
-            isActive = isMeasureModeActive
+        StaggeredMapButton(hasAppeared, 400) {
+            MapControlButton(
+                icon = Icons.Default.Straighten,
+                contentDescription = "Measure",
+                onClick = onMeasureClick,
+                isActive = isMeasureModeActive
+            )
+        }
+    }
+}
+
+// ── Reusable map control button ─────────────────────────────────────────────
+// Matches iOS RoundedMapButton: 48×48, 12pt radius, 20pt icon.
+// Normal → FilledTonalIconButton (surfaceContainerHighest).
+// Active → FilledIconButton (primary).
+//
+// iOS ref: Map/Controls/RoundedMapButton.swift
+
+private val MapControlButtonSize = 48.dp
+private val MapControlIconSize = 20.dp
+
+@Composable
+fun MapControlButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isActive: Boolean = false
+) {
+    MapControlButtonContainer(
+        onClick = onClick,
+        isActive = isActive,
+        modifier = modifier
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(MapControlIconSize)
         )
     }
 }
 
-/**
- * A RoundedMapButton with staggered entrance animation.
- */
+@Composable
+fun MapControlButton(
+    iconResId: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isActive: Boolean = false
+) {
+    MapControlButtonContainer(
+        onClick = onClick,
+        isActive = isActive,
+        modifier = modifier
+    ) {
+        Icon(
+            painter = painterResource(id = iconResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(MapControlIconSize)
+        )
+    }
+}
+
+@Composable
+private fun MapControlButtonContainer(
+    onClick: () -> Unit,
+    isActive: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val shape = MaterialTheme.shapes.extraLarge
+    val shadowMod = modifier
+        .shadow(
+            elevation = 4.dp,
+            shape = shape,
+            ambientColor = MaterialTheme.colorScheme.scrim,
+            spotColor = MaterialTheme.colorScheme.scrim
+        )
+        .size(MapControlButtonSize)
+
+    if (isActive) {
+        FilledIconButton(
+            onClick = onClick,
+            modifier = shadowMod,
+            shape = shape,
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            content = content
+        )
+    } else {
+        FilledTonalIconButton(
+            onClick = onClick,
+            modifier = shadowMod,
+            shape = shape,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ),
+            content = content
+        )
+    }
+}
+
+// ── Staggered entrance animation ────────────────────────────────────────────
+
 @Composable
 private fun StaggeredMapButton(
-    icon: ImageVector? = null,
-    iconResId: Int? = null,
-    onClick: () -> Unit,
-    contentDescription: String,
     hasAppeared: Boolean,
     delayMs: Long,
-    isActive: Boolean = false
+    content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(hasAppeared) {
@@ -134,101 +219,15 @@ private fun StaggeredMapButton(
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = SaltyMotion.springDefault(),
-        label = "btn_alpha_$contentDescription"
+        label = "stagger_alpha"
     )
     val scale by animateFloatAsState(
         targetValue = if (visible) 1f else 0.8f,
         animationSpec = SaltyMotion.springDefault(),
-        label = "btn_scale_$contentDescription"
+        label = "stagger_scale"
     )
 
-    val activeBg = if (isActive) MaterialTheme.colorScheme.primary else null
-    val activeTint = if (isActive) MaterialTheme.colorScheme.onPrimary else null
-
-    if (icon != null) {
-        RoundedMapButton(
-            icon = icon,
-            onClick = onClick,
-            contentDescription = contentDescription,
-            modifier = Modifier.alpha(alpha).scale(scale),
-            backgroundColor = activeBg,
-            iconTint = activeTint
-        )
-    } else if (iconResId != null) {
-        RoundedMapButton(
-            iconResId = iconResId,
-            onClick = onClick,
-            contentDescription = contentDescription,
-            modifier = Modifier.alpha(alpha).scale(scale),
-            backgroundColor = activeBg,
-            iconTint = activeTint
-        )
-    }
-}
-
-/**
- * Rounded rectangle map control button.
- * Matches iOS RoundedMapButton: 48x48, 12pt corner radius, ultraThinMaterial bg, elevation shadow.
- *
- * iOS ref: Map/Controls/RoundedMapButton.swift
- */
-@Composable
-fun RoundedMapButton(
-    iconResId: Int,
-    onClick: () -> Unit,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    backgroundColor: Color? = null,
-    iconTint: Color? = null
-) {
-    val bgColor = backgroundColor ?: MaterialTheme.colorScheme.surfaceContainerHighest
-    val tint = iconTint ?: MaterialTheme.colorScheme.onSurface
-
-    Surface(
-        onClick = onClick,
-        modifier = modifier.size(48.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = bgColor,
-        shadowElevation = 4.dp,
-        tonalElevation = 2.dp
-    ) {
-        Icon(
-            painter = painterResource(id = iconResId),
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-/**
- * Overload accepting an ImageVector instead of a drawable resource.
- */
-@Composable
-fun RoundedMapButton(
-    icon: ImageVector,
-    onClick: () -> Unit,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    backgroundColor: Color? = null,
-    iconTint: Color? = null
-) {
-    val bgColor = backgroundColor ?: MaterialTheme.colorScheme.surfaceContainerHighest
-    val tint = iconTint ?: MaterialTheme.colorScheme.onSurface
-
-    Surface(
-        onClick = onClick,
-        modifier = modifier.size(48.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = bgColor,
-        shadowElevation = 4.dp,
-        tonalElevation = 2.dp
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(20.dp)
-        )
+    Column(modifier = Modifier.alpha(alpha).scale(scale)) {
+        content()
     }
 }

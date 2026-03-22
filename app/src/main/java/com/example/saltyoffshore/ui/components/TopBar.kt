@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.example.saltyoffshore.data.AppNotification
+import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationCenter
 
 /**
  * TopBar - Three-slot layout matching iOS TopBar.swift.
@@ -23,12 +25,11 @@ import androidx.compose.ui.unit.dp
  *
  * Animate in on appear: fade + slide from -20dp, spring(response=0.4, damping=0.85).
  * Hide when shouldHideTopUI is true (dataset control expanded or special mode active).
- *
- * Phase 1: left and center slots are empty. Right slot = AccountButton.
  */
 @Composable
 fun TopBar(
     isVisible: Boolean,
+    notifications: List<AppNotification>,
     onAccountTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -62,12 +63,12 @@ fun TopBar(
                 modifier = Modifier.weight(1f),
                 contentAlignment = Alignment.CenterStart
             ) {
-                // Empty for Phase 1
+                // Empty — crew chips phase
             }
 
-            // CENTER slot: Notification center (future phases)
+            // CENTER slot: Loading / error capsules
             Box(contentAlignment = Alignment.Center) {
-                // Empty for Phase 1
+                UnifiedNotificationCenter(notifications = notifications)
             }
 
             // RIGHT slot: Account button

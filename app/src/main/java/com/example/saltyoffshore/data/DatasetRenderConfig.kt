@@ -90,6 +90,18 @@ data class DatasetRenderConfig(
     }
 
     /**
+     * Get the selected variable for a dataset.
+     * Returns primary variable if none selected or selection invalid.
+     * iOS ref: DatasetRenderConfig.selectedVariable(for:)
+     */
+    fun selectedVariable(dataset: Dataset): DatasetVariable {
+        val datasetType = DatasetType.fromRawValue(dataset.type) ?: return DatasetType.SST.primaryVariable
+        return selectedVariableId?.let { id ->
+            datasetType.availableVariables.find { it.id == id }
+        } ?: datasetType.primaryVariable
+    }
+
+    /**
      * Active range: user filter if set, otherwise data range from API.
      * Single source of truth for what range to use for visualization.
      */

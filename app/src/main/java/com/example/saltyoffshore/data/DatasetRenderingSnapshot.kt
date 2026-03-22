@@ -16,11 +16,11 @@ data class DatasetRenderingSnapshot(
     val selectedBreakId: String? = null,
 
     // Contour Layer
-    val contourEnabled: Boolean = true,
+    val contourEnabled: Boolean = false,
     val contourOpacity: Double = 1.0,
 
     // Arrows Layer (Currents only)
-    val arrowsEnabled: Boolean = true,
+    val arrowsEnabled: Boolean = false,
     val arrowsOpacity: Double = 1.0,
 
     // Particles Layer (Currents only)

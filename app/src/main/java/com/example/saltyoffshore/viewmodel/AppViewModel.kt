@@ -10,6 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.AppStatus
+import com.example.saltyoffshore.data.LoadOperation
+import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationManager
 import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
@@ -35,8 +37,11 @@ import com.example.saltyoffshore.data.LoranRegionConfig
 import com.example.saltyoffshore.data.Tournament
 import com.example.saltyoffshore.data.UserPreferences
 import com.example.saltyoffshore.data.VisualLayerSource
+import com.example.saltyoffshore.data.RenderingConfig
+import com.example.saltyoffshore.data.renderingConfig
 import com.example.saltyoffshore.data.scaleMode
 import com.example.saltyoffshore.data.zarrVariable
+import com.example.saltyoffshore.zarr.ColormapTextureFactory
 import com.example.saltyoffshore.data.waypoint.GPXImportOptions
 import com.example.saltyoffshore.data.waypoint.GPXImportService
 import com.example.saltyoffshore.data.waypoint.LoadingState
@@ -101,6 +106,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // App state
     var appStatus by mutableStateOf<AppStatus>(AppStatus.Idle)
         private set
+
+    // Notification manager — drives top-center loading/error capsules
+    val notificationManager = UnifiedNotificationManager()
 
     // Region list (from /regions)
     var regions by mutableStateOf<List<RegionListItem>>(emptyList())
@@ -284,6 +292,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onRegionSelected(regionId: String) {
         appStatus = AppStatus.Loading
+        notificationManager.startLoading(LoadOperation.Region)
         Log.d(TAG, "Region selected: $regionId")
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -297,11 +306,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     Log.d(TAG, "Loaded region: ${region.name} with ${region.datasets.size} datasets")
 
                     handleDatasetSetup(region)
+                    notificationManager.finishLoading(LoadOperation.Region)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load region", e)
                 withContext(Dispatchers.Main) {
                     appStatus = AppStatus.Error("Failed to load region: ${e.message}")
+                    notificationManager.finishLoading(LoadOperation.Region)
+                    notificationManager.updateError("Failed to load region: ${e.message}")
                 }
             }
         }
@@ -363,10 +375,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         // Now load Zarr with populated entries
                         loadZarrForDataset(datasetWithEntries)
+                        notificationManager.finishLoading(LoadOperation.Dataset)
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load entries for ${dataset.name}", e)
+                withContext(Dispatchers.Main) {
+                    notificationManager.finishLoading(LoadOperation.Dataset)
+                    notificationManager.updateError("Failed to load data: ${e.message}")
+                }
             }
         }
     }
@@ -383,6 +400,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectDataset(dataset: Dataset) {
+        notificationManager.startLoading(LoadOperation.Dataset)
         selectedDataset = dataset
         Log.d(TAG, "Dataset selected: ${dataset.name}")
 
@@ -407,6 +425,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             selectedRegion?.let { region ->
                 loadEntriesForDataset(dataset, region)
             }
+        } else {
+            // Entries already exist — zarr load started, finish loading indicator
+            notificationManager.finishLoading(LoadOperation.Dataset)
         }
     }
 
@@ -433,6 +454,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         val datasetType = DatasetType.fromRawValue(dataset.type)
 
+        // Resolve rendering config from config + variable (matches iOS load path)
+        val config = primaryConfig
+        val rc = if (config != null) resolveRenderingConfig(config)
+            else datasetType?.renderingConfig ?: DatasetType.SST.renderingConfig
+
         // Build TimeEntry list for Zarr loading
         val entries = (dataset.entries ?: emptyList()).map { entry ->
             ZarrTimeEntry(
@@ -442,8 +468,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        val colorscale = datasetType?.defaultColorscale ?: Colorscale.VIRIDIS
-        val scaleMode = datasetType?.scaleMode ?: ScaleMode.LINEAR
         val variableName = datasetType?.zarrVariable ?: "sea_surface_temperature"
 
         // Get data range from first entry or use defaults
@@ -463,9 +487,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             depths = dataset.availableDepths ?: listOf(0),
             dataRange = dataRange,
             initialEntryId = selectedEntry?.id,
-            colorscale = colorscale,
-            scaleMode = scaleMode
+            colorscale = rc.colorscale,
+            scaleMode = rc.scaleMode
         )
+
+        // Apply full config (colorscale distribution, filter, etc.) after load starts
+        if (config != null) syncConfigToShader(config)
 
         Log.d(TAG, "Started Zarr load for ${dataset.name} with variable: $variableName")
     }
@@ -530,13 +557,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setFilterRangeDirect(min: Float, max: Float) {
         val config = primaryConfig ?: return
+        val rc = resolveRenderingConfig(config)
         val filterActive = min < max
         zarrManager.setUniforms(
             opacity = config.visualOpacity.toFloat(),
             filterMin = if (filterActive) min else 0f,
             filterMax = if (filterActive) max else 0f,
             filterMode = config.filterMode.ordinal,
-            scaleMode = 0,
+            scaleMode = rc.scaleMode.rawValue,
             blendFactor = 1.0f
         )
         repaint?.invoke()
@@ -544,75 +572,91 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updatePrimaryConfig(config: DatasetRenderConfig) {
         primaryConfig = config
-        // Derive snapshot from config for backward compatibility
         val dataRange = renderingSnapshot.dataMin..renderingSnapshot.dataMax
         renderingSnapshot = config.snapshot(dataRange)
 
-        // Push visual uniforms to GPU shader
-        pushUniformsToShader(config, renderingSnapshot)
+        syncConfigToShader(config)
     }
 
     /**
-     * Push config changes to the Zarr GPU shader.
-     * iOS ref: DatasetStore.updateConfig() pushes uniforms to ZarrShaderHost immediately.
+     * Sync config to GPU shader — resolves variable, applies colorscale + uniforms.
+     * iOS ref: ZarrManager.syncConfig() → applyConfig()
      */
-    private fun pushUniformsToShader(config: DatasetRenderConfig, snapshot: DatasetRenderingSnapshot) {
-        val filterMin = if (snapshot.isFilterActive) snapshot.filterMin.toFloat() else 0f
-        val filterMax = if (snapshot.isFilterActive) snapshot.filterMax.toFloat() else 0f
-        val filterMode = config.filterMode.ordinal
+    private fun syncConfigToShader(config: DatasetRenderConfig) {
+        val rc = resolveRenderingConfig(config)
+
+        // Colorscale: user override or dataset default.
+        // Use dataset distribution only for default colorscale (authored at specific values).
+        // Custom colorscales have evenly-spaced stops → uniform.
+        val colorscale = config.colorscale ?: rc.colorscale
+        val distribution = if (config.colorscale == null) rc.colormapDistribution
+            else ColormapTextureFactory.StopDistribution.Uniform
+        zarrManager.setColorscale(colorscale, distribution)
+
+        // Uniforms
+        val filterMin: Float
+        val filterMax: Float
+        if (config.customRange != null) {
+            filterMin = config.customRange.start.toFloat()
+            filterMax = config.customRange.endInclusive.toFloat()
+        } else {
+            filterMin = 0f
+            filterMax = 0f
+        }
 
         zarrManager.setUniforms(
             opacity = config.visualOpacity.toFloat(),
             filterMin = filterMin,
             filterMax = filterMax,
-            filterMode = filterMode,
-            scaleMode = 0, // LINEAR
+            filterMode = config.filterMode.ordinal,
+            scaleMode = rc.scaleMode.rawValue,
             blendFactor = 1.0f
         )
 
-        // Update colorscale if set
-        config.colorscale?.let { colorscale ->
-            zarrManager.setColorscale(colorscale)
-        }
-
         repaint?.invoke()
+    }
+
+    /**
+     * Resolve the rendering config for the current dataset + selected variable.
+     * Merges variable overrides (colorscale, scaleMode) with dataset type defaults.
+     */
+    private fun resolveRenderingConfig(config: DatasetRenderConfig): RenderingConfig {
+        val dataset = selectedDataset ?: return DatasetType.SST.renderingConfig
+        val datasetType = DatasetType.fromRawValue(dataset.type) ?: return DatasetType.SST.renderingConfig
+        val variable = config.selectedVariable(dataset)
+        return datasetType.renderingConfig(variable)
     }
 
     // MARK: - Rendering Snapshot Updates (legacy — will be removed in Task 2.4)
 
     fun toggleVisualLayer() {
-        renderingSnapshot = renderingSnapshot.copy(
-            visualEnabled = !renderingSnapshot.visualEnabled
-        )
-        // Push visibility to shader
-        zarrManager.setUniforms(
-            opacity = if (renderingSnapshot.visualEnabled) renderingSnapshot.visualOpacity.toFloat() else 0f
-        )
-        repaint?.invoke()
+        val config = primaryConfig ?: return
+        val newConfig = config.copy(visualEnabled = !config.visualEnabled)
+        updatePrimaryConfig(newConfig)
     }
 
     fun toggleContourLayer() {
-        renderingSnapshot = renderingSnapshot.copy(
-            contourEnabled = !renderingSnapshot.contourEnabled
-        )
+        val config = primaryConfig ?: return
+        val newConfig = config.copy(contourEnabled = !config.contourEnabled)
+        updatePrimaryConfig(newConfig)
     }
 
     fun toggleArrowsLayer() {
-        renderingSnapshot = renderingSnapshot.copy(
-            arrowsEnabled = !renderingSnapshot.arrowsEnabled
-        )
+        val config = primaryConfig ?: return
+        val newConfig = config.copy(arrowsEnabled = !config.arrowsEnabled)
+        updatePrimaryConfig(newConfig)
     }
 
     fun toggleBreaksLayer() {
-        renderingSnapshot = renderingSnapshot.copy(
-            breaksEnabled = !renderingSnapshot.breaksEnabled
-        )
+        val config = primaryConfig ?: return
+        val newConfig = config.copy(breaksEnabled = !config.breaksEnabled)
+        updatePrimaryConfig(newConfig)
     }
 
     fun toggleNumbersLayer() {
-        renderingSnapshot = renderingSnapshot.copy(
-            numbersEnabled = !renderingSnapshot.numbersEnabled
-        )
+        val config = primaryConfig ?: return
+        val newConfig = config.copy(numbersEnabled = !config.numbersEnabled)
+        updatePrimaryConfig(newConfig)
     }
 
     fun updateVisualOpacity(opacity: Double) {
@@ -622,19 +666,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateContourOpacity(opacity: Double) {
-        renderingSnapshot = renderingSnapshot.copy(contourOpacity = opacity)
+        val config = primaryConfig ?: return
+        updatePrimaryConfig(config.copy(contourOpacity = opacity))
     }
 
     fun updateArrowsOpacity(opacity: Double) {
-        renderingSnapshot = renderingSnapshot.copy(arrowsOpacity = opacity)
+        val config = primaryConfig ?: return
+        updatePrimaryConfig(config.copy(arrowsOpacity = opacity))
     }
 
     fun updateBreaksOpacity(opacity: Double) {
-        renderingSnapshot = renderingSnapshot.copy(breaksOpacity = opacity)
+        val config = primaryConfig ?: return
+        updatePrimaryConfig(config.copy(breaksOpacity = opacity))
     }
 
     fun updateNumbersOpacity(opacity: Double) {
-        renderingSnapshot = renderingSnapshot.copy(numbersOpacity = opacity)
+        val config = primaryConfig ?: return
+        updatePrimaryConfig(config.copy(numbersOpacity = opacity))
     }
 
     fun updateDataRange(min: Double, max: Double) {
