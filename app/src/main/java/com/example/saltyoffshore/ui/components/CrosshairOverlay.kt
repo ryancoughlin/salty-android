@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.saltyoffshore.config.CrosshairConstants
 import com.example.saltyoffshore.data.CurrentValue
+import com.example.saltyoffshore.data.TemperatureUnits
 
 /**
  * Complete crosshair overlay assembly.
@@ -17,7 +18,8 @@ import com.example.saltyoffshore.data.CurrentValue
  */
 @Composable
 fun CrosshairOverlay(
-    currentValue: CurrentValue,
+    primaryValue: CurrentValue,
+    temperatureUnits: TemperatureUnits,
     zoom: Double,
     latitude: Double,
     isDataLayerActive: Boolean,
@@ -30,7 +32,8 @@ fun CrosshairOverlay(
     ) {
         // Crosshair at center with Y offset
         CrosshairView(
-            currentValue = currentValue,
+            primaryValue = primaryValue,
+            temperatureUnits = temperatureUnits,
             modifier = Modifier
                 .align(Alignment.Center)
                 .offset(y = CrosshairConstants.yOffset)

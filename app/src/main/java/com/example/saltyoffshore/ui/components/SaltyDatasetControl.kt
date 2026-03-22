@@ -57,7 +57,7 @@ fun SaltyDatasetControl(
     dataset: Dataset,
     entry: TimeEntry?,
     snapshot: DatasetRenderingSnapshot,
-    currentValue: CurrentValue = CurrentValue.None,
+    primaryValue: CurrentValue = CurrentValue(),
     isExpanded: Boolean = false,
     primaryConfig: DatasetRenderConfig? = null,
     onConfigChanged: ((DatasetRenderConfig) -> Unit)? = null,
@@ -137,7 +137,7 @@ fun SaltyDatasetControl(
                     ?: datasetType?.defaultColorscale
 
                 if (colorscale != null) {
-                    val pointerValue = (currentValue as? CurrentValue.Value)?.value
+                    val pointerValue = primaryValue.value
 
                     val filterRange = if (snapshot.isFilterActive) {
                         snapshot.filterMin..snapshot.filterMax

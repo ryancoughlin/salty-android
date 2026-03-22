@@ -145,7 +145,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     // Crosshair state
-    var currentValue by mutableStateOf<CurrentValue>(CurrentValue.None)
+    var primaryValue by mutableStateOf(CurrentValue())
         private set
 
     var currentZoom by mutableStateOf(4.0)
@@ -524,6 +524,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // MARK: - Config-Based Rendering Updates
 
+    /**
+     * Direct GPU uniform push during drag — no config snapshot, no state update.
+     * iOS ref: ZarrShaderHost.setFilterRangeDirect() + datasetStore.repaint()
+     */
+    fun setFilterRangeDirect(min: Float, max: Float) {
+        val config = primaryConfig ?: return
+        val filterActive = min < max
+        zarrManager.setUniforms(
+            opacity = config.visualOpacity.toFloat(),
+            filterMin = if (filterActive) min else 0f,
+            filterMax = if (filterActive) max else 0f,
+            filterMode = config.filterMode.ordinal,
+            scaleMode = 0,
+            blendFactor = 1.0f
+        )
+        repaint?.invoke()
+    }
+
     fun updatePrimaryConfig(config: DatasetRenderConfig) {
         primaryConfig = config
         // Derive snapshot from config for backward compatibility
@@ -642,8 +660,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // MARK: - Crosshair Updates
 
-    fun updateCurrentValue(value: CurrentValue) {
-        currentValue = value
+    fun updatePrimaryValue(value: CurrentValue) {
+        primaryValue = value
     }
 
     fun updateCameraState(zoom: Double, latitude: Double) {

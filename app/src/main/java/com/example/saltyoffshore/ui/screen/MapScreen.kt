@@ -60,8 +60,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.waypoint.SharedWaypoint
 import com.example.saltyoffshore.data.waypoint.Waypoint
 import com.example.saltyoffshore.data.waypoint.WaypointSelectionSource
@@ -205,7 +207,7 @@ fun MapScreen(
             CrosshairQueryEffect(
                 isDataLayerActive = viewModel.isDataLayerActive,
                 datasetType = viewModel.currentDatasetType,
-                onValueChanged = { viewModel.updateCurrentValue(it) },
+                onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
                 onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
             )
 
@@ -270,7 +272,9 @@ fun MapScreen(
 
         // Crosshair overlay
         CrosshairOverlay(
-            currentValue = viewModel.currentValue,
+            primaryValue = viewModel.primaryValue,
+            temperatureUnits = TemperatureUnits.fromRawValue(viewModel.userPreferences?.temperatureUnits)
+                ?: TemperatureUnits.FAHRENHEIT,
             zoom = viewModel.currentZoom,
             latitude = viewModel.currentLatitude,
             isDataLayerActive = viewModel.isDataLayerActive
@@ -371,7 +375,7 @@ fun MapScreen(
                     dataset = viewModel.selectedDataset!!,
                     entry = viewModel.selectedEntry,
                     snapshot = viewModel.renderingSnapshot,
-                    currentValue = viewModel.currentValue,
+                    primaryValue = viewModel.primaryValue,
                     isExpanded = viewModel.isDatasetControlCollapsed,
                     primaryConfig = viewModel.primaryConfig,
                     onConfigChanged = { viewModel.updatePrimaryConfig(it) },
@@ -447,7 +451,7 @@ fun MapScreen(
                     viewModel.updatePrimaryConfig(newConfig)
                 },
                 onDragRangeChanged = { min, max ->
-                    viewModel.repaint?.invoke()
+                    viewModel.setFilterRangeDirect(min, max)
                 },
                 onDismiss = { showFilterSheet = false }
             )
@@ -580,12 +584,13 @@ private fun ZarrRepaintEffect(viewModel: AppViewModel) {
 
 /**
  * Effect that queries features at crosshair position when camera changes.
+ * Manager owns primaryValue state and notifies via callback.
  */
 @Composable
 private fun CrosshairQueryEffect(
     isDataLayerActive: Boolean,
     datasetType: DatasetType?,
-    onValueChanged: (com.example.saltyoffshore.data.CurrentValue) -> Unit,
+    onPrimaryValueChanged: (CurrentValue) -> Unit,
     onCameraChanged: (zoom: Double, latitude: Double) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -595,33 +600,30 @@ private fun CrosshairQueryEffect(
     MapEffect(key1 = isDataLayerActive, key2 = datasetType) { mapView ->
         val mapboxMap = mapView.mapboxMap
 
-        // Create query manager
         val queryManager = CrosshairFeatureQueryManager(mapboxMap, scope)
+        queryManager.configure(datasetType)
+        queryManager.onPrimaryValueChanged = { onPrimaryValueChanged(it) }
 
-        // Subscribe to camera changes
         val cancelable = mapboxMap.subscribeCameraChanged { _ ->
             val cameraState = mapboxMap.cameraState
             val zoom = cameraState.zoom
             val center = cameraState.center
             val latitude = center.latitude()
 
-            // Update camera state
             onCameraChanged(zoom, latitude)
 
-            // Calculate crosshair screen position (center + yOffset)
-            val screenCenterX = mapView.width / 2.0
-            val screenCenterY = mapView.height / 2.0 + yOffsetPx
-
             if (isDataLayerActive) {
+                val screenCenterX = mapView.width / 2.0
+                val screenCenterY = mapView.height / 2.0 + yOffsetPx
                 val screenPoint = ScreenCoordinate(screenCenterX, screenCenterY)
-                queryManager.queryAtPoint(screenPoint, zoom, datasetType, onValueChanged)
+                queryManager.queryCenterFeatures(screenPoint, zoom)
             }
         }
 
-        // Suspend until cancelled (keeps MapEffect alive), then cleanup
         try {
             kotlinx.coroutines.awaitCancellation()
         } finally {
+            queryManager.reset()
             cancelable.cancel()
         }
     }

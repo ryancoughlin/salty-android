@@ -15,13 +15,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.CurrentValue
+import com.example.saltyoffshore.data.DatasetConfiguration
+import com.example.saltyoffshore.data.TemperatureUnits
 
 /**
  * Crosshair visual with value display.
@@ -29,15 +30,12 @@ import com.example.saltyoffshore.data.CurrentValue
  */
 @Composable
 fun CrosshairView(
-    currentValue: CurrentValue,
+    primaryValue: CurrentValue,
+    temperatureUnits: TemperatureUnits,
     modifier: Modifier = Modifier
 ) {
     val crosshairColor = MaterialTheme.colorScheme.onPrimary
     val shadowColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-    val labelBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-    val noDataColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val loadingColor = MaterialTheme.colorScheme.outline
-    val defaultTextColor = MaterialTheme.colorScheme.onPrimary
 
     Box(
         modifier = modifier,
@@ -126,7 +124,7 @@ fun CrosshairView(
 
         // Value label below crosshair
         AnimatedVisibility(
-            visible = currentValue.displayText.isNotEmpty(),
+            visible = primaryValue.shouldShow,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -136,25 +134,32 @@ fun CrosshairView(
             Box(
                 modifier = Modifier
                     .background(
-                        labelBackground,
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = currentValue.displayText,
+                    text = formatValue(primaryValue, temperatureUnits),
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = when (currentValue) {
-                            is CurrentValue.Land -> Color(0xFFFF9800) // Orange for land
-                            is CurrentValue.NoData -> noDataColor
-                            is CurrentValue.Loading -> loadingColor
-                            else -> defaultTextColor
-                        }
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 )
             }
         }
     }
+}
+
+private fun formatValue(currentValue: CurrentValue, temperatureUnits: TemperatureUnits): String {
+    val value = currentValue.value ?: return "--"
+    val apiUnit = currentValue.apiUnit ?: return "--"
+    val datasetType = currentValue.datasetType ?: return "--"
+
+    val config = DatasetConfiguration.forDatasetType(datasetType)
+    val displayValue = apiUnit.convertForDisplay(value, temperatureUnits)
+    val unitSuffix = apiUnit.displayUnitSuffix(temperatureUnits)
+
+    return String.format("%.${config.decimalPlaces}f%s", displayValue, unitSuffix)
 }

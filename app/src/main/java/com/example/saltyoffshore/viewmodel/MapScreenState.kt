@@ -38,7 +38,7 @@ data class MapScreenState(
     val visualSource: VisualLayerSource = VisualLayerSource.None,
 
     // Crosshair
-    val currentValue: CurrentValue = CurrentValue.None,
+    val primaryValue: CurrentValue = CurrentValue(),
     val currentZoom: Double = 4.0,
     val currentLatitude: Double = 30.0,
 

@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -316,18 +317,25 @@ private fun DragHandle(
         ((touchTargetWidth - HANDLE_WIDTH) / 2).toPx()
     }
 
+    // rememberUpdatedState keeps lambdas fresh inside the long-lived pointerInput block.
+    // Without this, pointerInput(Unit) captures stale closures from first composition,
+    // causing each drag delta to fight back to the original position.
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
+
     Box(
         modifier = Modifier
             .offset { IntOffset((offsetPx - touchTargetOffset).roundToInt(), 0) }
             .size(touchTargetWidth, HANDLE_HEIGHT)
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
-                    onDragStart = { onDragStart() },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = { currentOnDragStart() },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        onDrag(dragAmount)
+                        currentOnDrag(dragAmount)
                     }
                 )
             },

@@ -1,39 +1,28 @@
 package com.example.saltyoffshore.config
 
 import androidx.compose.ui.unit.dp
+import kotlin.math.pow
 
 /**
  * Crosshair positioning and query configuration.
  * Matches iOS CrosshairConstants exactly.
  */
 object CrosshairConstants {
-    /**
-     * Crosshair Y offset from screen center (negative = above center).
-     * iOS uses -40 points.
-     */
     val yOffset = (-40).dp
 
+    private const val BASE_SIZE = 20.0
+
     /**
-     * Query box size at various zoom levels.
-     * Larger box at lower zoom, smaller at higher zoom for precision.
+     * Query box size scaled by zoom level.
+     * Higher zoom → grid points spread further on screen → bigger box.
      */
-    fun queryBoxSize(zoom: Double): Int {
-        return when {
-            zoom < 5 -> 384
-            zoom < 6 -> 192
-            zoom < 7 -> 96
-            zoom < 8 -> 48
-            else -> 24
-        }
+    fun queryBoxSize(zoomLevel: Double): Double {
+        val zoomOffset = zoomLevel - 7.0
+        val scaled = BASE_SIZE * 1.5.pow(zoomOffset)
+        return scaled.coerceIn(16.0, 80.0)
     }
 
-    /**
-     * Throttle delay for crosshair queries (ms).
-     */
-    const val QUERY_THROTTLE_MS = 350L
+    const val QUERY_THROTTLE_MS = 150L
 
-    /**
-     * Minimum zoom to show scale bar.
-     */
     const val SCALE_BAR_MIN_ZOOM = 8.0
 }
