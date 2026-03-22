@@ -20,16 +20,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.QuestionMark
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.AlertDialog
@@ -38,7 +34,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
@@ -57,11 +52,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.GpsFormat
+import com.example.saltyoffshore.data.MapTheme
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.UserPreferences
@@ -100,7 +96,12 @@ fun AccountHubSheet(
     onDistanceUnitsChanged: (DistanceUnits) -> Unit,
     onSpeedUnitsChanged: (SpeedUnits) -> Unit,
     onTemperatureUnitsChanged: (TemperatureUnits) -> Unit,
+    onGpsFormatChanged: (GpsFormat) -> Unit,
+    onMapThemeChanged: (MapTheme) -> Unit,
+    onEditProfile: () -> Unit,
+    onPreferredRegion: () -> Unit,
     onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -127,6 +128,11 @@ fun AccountHubSheet(
             onDistanceUnitsChanged = onDistanceUnitsChanged,
             onSpeedUnitsChanged = onSpeedUnitsChanged,
             onTemperatureUnitsChanged = onTemperatureUnitsChanged,
+            onGpsFormatChanged = onGpsFormatChanged,
+            onMapThemeChanged = onMapThemeChanged,
+            onEditProfile = onEditProfile,
+            onPreferredRegion = onPreferredRegion,
+            onDeleteAccount = onDeleteAccount,
             onSignOut = {
                 scope.launch {
                     onSignOut()
@@ -150,11 +156,15 @@ private fun AccountHubContent(
     onDistanceUnitsChanged: (DistanceUnits) -> Unit,
     onSpeedUnitsChanged: (SpeedUnits) -> Unit,
     onTemperatureUnitsChanged: (TemperatureUnits) -> Unit,
+    onGpsFormatChanged: (GpsFormat) -> Unit,
+    onMapThemeChanged: (MapTheme) -> Unit,
+    onEditProfile: () -> Unit,
+    onPreferredRegion: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onSignOut: () -> Unit,
     onDone: () -> Unit
 ) {
     val scrollState = rememberScrollState()
-    val context = LocalContext.current
 
     // Delete account state
     var showingDeleteConfirmation by remember { mutableStateOf(false) }
@@ -191,12 +201,10 @@ private fun AccountHubContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         // 2. Account Settings Section
-        AccountSettingsSection()
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 3. Notifications Section
-        NotificationsSection()
+        AccountSettingsSection(
+            onEditProfile = onEditProfile,
+            onPreferredRegion = onPreferredRegion
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -206,13 +214,17 @@ private fun AccountHubContent(
             onDepthUnitsChanged = onDepthUnitsChanged,
             onDistanceUnitsChanged = onDistanceUnitsChanged,
             onSpeedUnitsChanged = onSpeedUnitsChanged,
-            onTemperatureUnitsChanged = onTemperatureUnitsChanged
+            onTemperatureUnitsChanged = onTemperatureUnitsChanged,
+            onGpsFormatChanged = onGpsFormatChanged
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // 5. Map Theme Section
-        MapThemeSection()
+        MapThemeSection(
+            preferences = preferences,
+            onMapThemeChanged = onMapThemeChanged
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -335,7 +347,7 @@ private fun AccountHubContent(
                     onClick = {
                         showingFinalConfirmation = false
                         confirmationText = ""
-                        // TODO: Wire account deletion service
+                        onDeleteAccount()
                     },
                     enabled = confirmationText == "DELETE"
                 ) {
@@ -397,46 +409,52 @@ private fun WelcomeSection() {
 }
 
 @Composable
-private fun AccountSettingsSection() {
+private fun AccountSettingsSection(
+    onEditProfile: () -> Unit,
+    onPreferredRegion: () -> Unit
+) {
     SectionHeader(title = "ACCOUNT SETTINGS")
     Spacer(modifier = Modifier.height(8.dp))
     SunkenCard {
         NavigationRow(
             icon = Icons.Default.Map,
             title = "Preferred Region",
-            onClick = { /* Future: region selection */ }
+            onClick = onPreferredRegion
         )
         RowDivider()
         NavigationRow(
             icon = Icons.Default.Person,
             title = "Edit Profile",
-            onClick = { /* Future: edit profile */ }
+            onClick = onEditProfile
         )
         RowDivider()
-        NavigationRow(
-            icon = Icons.Default.WifiOff,
-            title = "Offline Mode",
-            onClick = { /* Future: offline management */ }
-        )
-        RowDivider()
-        NavigationRow(
-            icon = Icons.Default.Star,
-            title = "Subscription",
-            onClick = { /* Future: subscription management */ }
-        )
-    }
-}
-
-@Composable
-private fun NotificationsSection() {
-    SectionHeader(title = "NOTIFICATIONS")
-    Spacer(modifier = Modifier.height(8.dp))
-    SunkenCard {
-        NavigationRow(
-            icon = Icons.Default.Notifications,
-            title = "Notification Settings",
-            onClick = { /* Future: notification settings */ }
-        )
+        // Placeholder — wiring deferred until Google Play Billing integration
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = null,
+                tint = SaltyTextSecondary.copy(alpha = 0.4f),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "Subscription",
+                color = SaltyTextSecondary.copy(alpha = 0.4f),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "Coming Soon",
+                color = SaltyTextSecondary.copy(alpha = 0.3f),
+                fontSize = 12.sp
+            )
+        }
     }
 }
 
@@ -446,7 +464,8 @@ private fun UnitsSection(
     onDepthUnitsChanged: (DepthUnits) -> Unit,
     onDistanceUnitsChanged: (DistanceUnits) -> Unit,
     onSpeedUnitsChanged: (SpeedUnits) -> Unit,
-    onTemperatureUnitsChanged: (TemperatureUnits) -> Unit
+    onTemperatureUnitsChanged: (TemperatureUnits) -> Unit,
+    onGpsFormatChanged: (GpsFormat) -> Unit
 ) {
     SectionHeader(title = "UNITS")
     Spacer(modifier = Modifier.height(8.dp))
@@ -486,19 +505,71 @@ private fun UnitsSection(
                 SpeedUnits.entries.find { it.displayName == displayName }?.let(onSpeedUnitsChanged)
             }
         )
+        RowDivider()
+        val currentGpsFormat = GpsFormat.fromRawValue(preferences?.gpsFormat) ?: GpsFormat.DMM
+        UnitPickerRow(
+            label = "GPS Format",
+            currentValue = currentGpsFormat.displayName,
+            options = GpsFormat.entries.map { it.displayName },
+            onSelected = { displayName ->
+                GpsFormat.entries.find { it.displayName == displayName }?.let(onGpsFormatChanged)
+            }
+        )
+        // Show example for selected GPS format
+        Text(
+            text = currentGpsFormat.example,
+            color = SaltyTextSecondary,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 16.dp, bottom = 12.dp, end = 16.dp)
+        )
     }
 }
 
 @Composable
-private fun MapThemeSection() {
+private fun MapThemeSection(
+    preferences: UserPreferences?,
+    onMapThemeChanged: (MapTheme) -> Unit
+) {
+    val selectedTheme = MapTheme.fromRawValue(preferences?.mapTheme) ?: MapTheme.LIGHT
+
     SectionHeader(title = "MAP THEME")
     Spacer(modifier = Modifier.height(8.dp))
     SunkenCard {
-        NavigationRow(
-            icon = Icons.Default.Palette,
-            title = "Map Theme",
-            onClick = { /* Future: theme selection */ }
-        )
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Segmented buttons: Light | Dark (matching iOS MapThemeRow)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MapTheme.userSelectable.forEach { theme ->
+                    val isSelected = theme == selectedTheme
+                    Button(
+                        onClick = { onMapThemeChanged(theme) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) SaltyAccent else Color.White.copy(alpha = 0.08f)
+                        )
+                    ) {
+                        Text(
+                            text = theme.displayName,
+                            color = if (isSelected) Color.White else SaltyTextSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = selectedTheme.description,
+                color = SaltyTextSecondary,
+                fontSize = 12.sp,
+                lineHeight = 16.sp
+            )
+        }
     }
 }
 

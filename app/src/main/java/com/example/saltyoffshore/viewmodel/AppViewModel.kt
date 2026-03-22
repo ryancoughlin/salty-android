@@ -19,6 +19,8 @@ import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.GpsFormat
+import com.example.saltyoffshore.data.MapTheme
 import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
@@ -323,7 +325,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val datasetType = DatasetType.fromRawValue(dataset.type)
 
         // Build TimeEntry list for Zarr loading
-        val entries = dataset.entries.map { entry ->
+        val entries = (dataset.entries ?: emptyList()).map { entry ->
             ZarrTimeEntry(
                 id = entry.id,
                 timestamp = parseTimestamp(entry.timestamp),
@@ -403,7 +405,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         // Filter entries for selected depth and select most recent (mirrors iOS)
         selectedDataset?.let { dataset ->
-            val entriesAtDepth = dataset.entries.filter { it.depth == depth }
+            val entriesAtDepth = (dataset.entries ?: emptyList()).filter { it.depth == depth }
             selectedEntry = entriesAtDepth.maxByOrNull { it.timestamp }
             selectedEntry?.let { entry ->
                 updateRenderingSnapshotForEntry(entry, dataset)
@@ -515,6 +517,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDepthUnits(units: DepthUnits) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setDepthUnits(context, units.rawValue)
             if (preferencesRepository.updateField(userId, "depth_units", units.rawValue)) {
                 withContext(Dispatchers.Main) {
                     userPreferences = userPreferences?.copy(depthUnits = units.rawValue)
@@ -527,6 +530,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDistanceUnits(units: DistanceUnits) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setDistanceUnits(context, units.rawValue)
             if (preferencesRepository.updateField(userId, "distance_units", units.rawValue)) {
                 withContext(Dispatchers.Main) {
                     userPreferences = userPreferences?.copy(distanceUnits = units.rawValue)
@@ -539,6 +543,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSpeedUnits(units: SpeedUnits) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setSpeedUnits(context, units.rawValue)
             if (preferencesRepository.updateField(userId, "speed_units", units.rawValue)) {
                 withContext(Dispatchers.Main) {
                     userPreferences = userPreferences?.copy(speedUnits = units.rawValue)
@@ -551,6 +556,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateTemperatureUnits(units: TemperatureUnits) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setTemperatureUnits(context, units.rawValue)
             if (preferencesRepository.updateField(userId, "temperature_units", units.rawValue)) {
                 withContext(Dispatchers.Main) {
                     userPreferences = userPreferences?.copy(temperatureUnits = units.rawValue)
@@ -560,12 +566,81 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateGpsFormat(format: GpsFormat) {
+        val userId = AuthManager.currentUserId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setGpsFormat(context, format.rawValue)
+            if (preferencesRepository.updateField(userId, "gps_format", format.rawValue)) {
+                withContext(Dispatchers.Main) {
+                    userPreferences = userPreferences?.copy(gpsFormat = format.rawValue)
+                }
+                Log.d(TAG, "Updated GPS format to ${format.displayName}")
+            }
+        }
+    }
+
+    // Profile saving state
+    var isSavingProfile by mutableStateOf(false)
+        private set
+
+    fun updateProfile(firstName: String?, lastName: String?, location: String?) {
+        val userId = AuthManager.currentUserId ?: return
+        isSavingProfile = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentPrefs = userPreferences ?: UserPreferences.empty(userId)
+            val updatedPrefs = currentPrefs.copy(
+                firstName = firstName,
+                lastName = lastName,
+                location = location
+            )
+            val result = preferencesRepository.updatePreferences(updatedPrefs)
+            withContext(Dispatchers.Main) {
+                if (result != null) {
+                    userPreferences = result
+                }
+                isSavingProfile = false
+            }
+            Log.d(TAG, "Updated profile: ${result != null}")
+        }
+    }
+
+    fun updatePreferredRegion(regionId: String) {
+        val userId = AuthManager.currentUserId
+        viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setPreferredRegionId(context, regionId)
+            if (userId != null) {
+                preferencesRepository.updateField(userId, "preferred_region_id", regionId)
+            }
+            withContext(Dispatchers.Main) {
+                preferredRegionId = regionId
+                userPreferences = userPreferences?.copy(preferredRegionId = regionId)
+            }
+            Log.d(TAG, "Updated preferred region to $regionId")
+        }
+    }
+
+    fun updateMapTheme(theme: MapTheme) {
+        val userId = AuthManager.currentUserId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setMapTheme(context, theme.rawValue)
+            if (preferencesRepository.updateField(userId, "map_theme", theme.rawValue)) {
+                withContext(Dispatchers.Main) {
+                    userPreferences = userPreferences?.copy(mapTheme = theme.rawValue)
+                }
+                Log.d(TAG, "Updated map theme to ${theme.displayName}")
+            }
+        }
+    }
+
     // MARK: - Sign Out
 
     fun signOut() {
         viewModelScope.launch(Dispatchers.IO) {
             AuthManager.signOut()
+            // Clear all user-specific DataStore preferences
             AppPreferencesDataStore.setPreferredRegionId(context, null)
+            AppPreferencesDataStore.setSelectedRegionId(context, null)
+            AppPreferencesDataStore.setRegionBounds(context, null)
             withContext(Dispatchers.Main) {
                 userPreferences = null
                 preferredRegionId = null
@@ -573,6 +648,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 clearSelection()
             }
             Log.d(TAG, "User signed out")
+        }
+    }
+
+    fun deleteAccount() {
+        val userId = AuthManager.currentUserId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                preferencesRepository.updateField(userId, "deleted", "true")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to mark account for deletion", e)
+            }
+            // Sign out after requesting deletion
+            withContext(Dispatchers.Main) {
+                signOut()
+            }
+            Log.d(TAG, "Account deletion requested for user $userId")
         }
     }
 }

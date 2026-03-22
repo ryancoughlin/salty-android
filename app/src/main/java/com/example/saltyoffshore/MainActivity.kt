@@ -24,7 +24,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.ui.screen.AccountHubSheet
+import com.example.saltyoffshore.ui.screen.EditProfileSheet
 import com.example.saltyoffshore.ui.screen.FTUXRegionSelectionScreen
+import com.example.saltyoffshore.ui.screen.RegionSelectionSheet
 import com.example.saltyoffshore.ui.screen.LoginScreen
 import com.example.saltyoffshore.ui.screen.MapScreen
 import com.example.saltyoffshore.ui.screen.SignUpScreen
@@ -119,9 +121,13 @@ private fun SaltyApp() {
 @Composable
 private fun AuthenticatedContent(viewModel: AppViewModel) {
     var showingAccountSheet by remember { mutableStateOf(false) }
+    var showingEditProfile by remember { mutableStateOf(false) }
+    var showingRegionSelection by remember { mutableStateOf(false) }
     var hasAppeared by remember { mutableStateOf(false) }
 
     val accountSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val editProfileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val regionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Trigger appear animation
     LaunchedEffect(Unit) {
@@ -145,8 +151,38 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
             onDistanceUnitsChanged = viewModel::updateDistanceUnits,
             onSpeedUnitsChanged = viewModel::updateSpeedUnits,
             onTemperatureUnitsChanged = viewModel::updateTemperatureUnits,
+            onGpsFormatChanged = viewModel::updateGpsFormat,
+            onMapThemeChanged = viewModel::updateMapTheme,
+            onEditProfile = { showingEditProfile = true },
+            onPreferredRegion = { showingRegionSelection = true },
             onSignOut = { viewModel.signOut() },
+            onDeleteAccount = { viewModel.deleteAccount() },
             onDismiss = { showingAccountSheet = false }
+        )
+    }
+
+    // Edit Profile bottom sheet
+    if (showingEditProfile) {
+        EditProfileSheet(
+            sheetState = editProfileSheetState,
+            preferences = viewModel.userPreferences,
+            isSaving = viewModel.isSavingProfile,
+            onSave = { firstName, lastName, location ->
+                viewModel.updateProfile(firstName, lastName, location)
+                showingEditProfile = false
+            },
+            onDismiss = { showingEditProfile = false }
+        )
+    }
+
+    // Region Selection bottom sheet
+    if (showingRegionSelection) {
+        RegionSelectionSheet(
+            sheetState = regionSheetState,
+            regionGroups = viewModel.regionGroups,
+            selectedRegionId = viewModel.preferredRegionId,
+            onRegionSelected = viewModel::updatePreferredRegion,
+            onDismiss = { showingRegionSelection = false }
         )
     }
 
