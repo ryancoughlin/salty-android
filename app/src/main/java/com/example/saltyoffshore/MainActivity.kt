@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.ui.screen.AccountHubSheet
+import com.example.saltyoffshore.ui.screen.FTUXRegionSelectionScreen
 import com.example.saltyoffshore.ui.screen.LoginScreen
 import com.example.saltyoffshore.ui.screen.MapScreen
 import com.example.saltyoffshore.ui.screen.SignUpScreen
@@ -145,6 +146,15 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
             onTemperatureUnitsChanged = viewModel::updateTemperatureUnits,
             onSignOut = { viewModel.signOut() },
             onDismiss = { showingAccountSheet = false }
+        )
+    }
+
+    // FTUX: blocking full-screen dialog when no preferred region
+    if (viewModel.hasCompletedInitialLoad && viewModel.preferredRegionId == null) {
+        FTUXRegionSelectionScreen(
+            regionGroups = viewModel.regionGroups,
+            loadingRegionId = viewModel.ftuxLoadingRegionId,
+            onRegionSelected = viewModel::onFTUXRegionSelected
         )
     }
 }

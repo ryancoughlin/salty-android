@@ -19,6 +19,7 @@ import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.SaltyApi
@@ -79,6 +80,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var regions by mutableStateOf<List<RegionListItem>>(emptyList())
         private set
 
+    // Region groups (for FTUX grouped display)
+    var regionGroups by mutableStateOf<List<RegionGroup>>(emptyList())
+        private set
+
+    // FTUX state
+    var preferredRegionId by mutableStateOf<String?>(null)
+        private set
+
+    var hasCompletedInitialLoad by mutableStateOf(false)
+        private set
+
+    var ftuxLoadingRegionId by mutableStateOf<String?>(null)
+        private set
+
     // Selected region metadata (from /region/{id})
     var selectedRegion by mutableStateOf<RegionMetadata?>(null)
         private set
@@ -134,8 +149,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val response = SaltyApi.getRegions()
                 val regionList = response.groups.flatMap { it.regions }
+                val savedPreferredId = AppPreferencesDataStore.getPreferredRegionId(context).first()
+
                 withContext(Dispatchers.Main) {
                     regions = regionList
+                    regionGroups = response.groups
+                    preferredRegionId = savedPreferredId
                 }
                 Log.d(TAG, "Loaded ${regionList.size} regions")
 
@@ -147,8 +166,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         onRegionSelected(savedRegionId)
                     }
                 }
+
+                withContext(Dispatchers.Main) {
+                    hasCompletedInitialLoad = true
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load regions", e)
+                withContext(Dispatchers.Main) {
+                    hasCompletedInitialLoad = true
+                }
+            }
+        }
+    }
+
+    fun onFTUXRegionSelected(regionId: String) {
+        ftuxLoadingRegionId = regionId
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // Save as preferred region (local + Supabase)
+            AppPreferencesDataStore.setPreferredRegionId(context, regionId)
+            val userId = AuthManager.currentUserId
+            if (userId != null) {
+                try {
+                    preferencesRepository.updateField(userId, "preferred_region_id", regionId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to sync preferred region to Supabase", e)
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                preferredRegionId = regionId
+                ftuxLoadingRegionId = null
+                onRegionSelected(regionId)
             }
         }
     }
@@ -516,8 +565,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun signOut() {
         viewModelScope.launch(Dispatchers.IO) {
             AuthManager.signOut()
+            AppPreferencesDataStore.setPreferredRegionId(context, null)
             withContext(Dispatchers.Main) {
                 userPreferences = null
+                preferredRegionId = null
+                hasCompletedInitialLoad = false
                 clearSelection()
             }
             Log.d(TAG, "User signed out")
