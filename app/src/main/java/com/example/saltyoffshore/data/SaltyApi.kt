@@ -25,6 +25,16 @@ object SaltyApi {
     }
 
     suspend fun fetchRegion(regionId: String): RegionMetadata {
-        return client.get("${AppConstants.apiBaseURL}/region/$regionId").body()
+        return client.get("${AppConstants.apiBaseURL}/v2/region/$regionId").body()
+    }
+
+    /**
+     * Fetch entries for a single dataset on demand.
+     * Returns a Dataset with populated entries list.
+     *
+     * iOS ref: OceanDataService.fetchDatasetEntries(regionId:datasetId:)
+     */
+    suspend fun fetchDatasetEntries(regionId: String, datasetId: String): Dataset {
+        return client.get("${AppConstants.apiBaseURL}/v2/region/$regionId/dataset/$datasetId").body()
     }
 }

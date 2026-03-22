@@ -257,17 +257,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Update depth filter state from dataset
         updateDepthFilterForDataset(firstDataset)
 
-        // Select most recent entry (mirrors iOS: dataset.mostRecentEntry)
-        selectedEntry = firstDataset.mostRecentEntry
-        selectedEntry?.let { entry ->
-            Log.d(TAG, "Selected entry: ${entry.timestamp}")
-            updateRenderingSnapshotForEntry(entry, firstDataset)
-        }
-
         // Load Zarr data if available
         loadZarrForDataset(firstDataset)
 
         appStatus = AppStatus.Idle
+
+        // Fetch entries lazily (v2 API returns datasets with entries: null)
+        // iOS ref: DatasetStore calls OceanDataService.fetchDatasetEntries on demand
+        loadEntriesForDataset(firstDataset, region)
+    }
+
+    /**
+     * Fetch entries for a dataset from the per-dataset endpoint.
+     * Updates selectedDataset with populated entries and selects most recent entry.
+     */
+    private fun loadEntriesForDataset(dataset: Dataset, region: RegionMetadata) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val datasetWithEntries = SaltyApi.fetchDatasetEntries(region.id, dataset.id)
+                Log.d(TAG, "Loaded ${datasetWithEntries.entries?.size ?: 0} entries for ${dataset.name}")
+
+                withContext(Dispatchers.Main) {
+                    // Only update if this is still the selected dataset
+                    if (selectedDataset?.id == dataset.id) {
+                        selectedDataset = datasetWithEntries
+                        selectedEntry = datasetWithEntries.mostRecentEntry
+                        selectedEntry?.let { entry ->
+                            Log.d(TAG, "Selected entry: ${entry.timestamp}")
+                            updateRenderingSnapshotForEntry(entry, datasetWithEntries)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load entries for ${dataset.name}", e)
+            }
+        }
     }
 
     fun selectEntry(entry: TimeEntry) {
@@ -283,7 +307,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectDataset(dataset: Dataset) {
         selectedDataset = dataset
-        selectedEntry = dataset.mostRecentEntry
         Log.d(TAG, "Dataset selected: ${dataset.name}")
 
         // Initialize render config from dataset type defaults
@@ -293,12 +316,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Update depth filter state from dataset
         updateDepthFilterForDataset(dataset)
 
+        // If dataset already has entries (e.g., previously loaded), use them
+        selectedEntry = dataset.mostRecentEntry
         selectedEntry?.let { entry ->
             updateRenderingSnapshotForEntry(entry, dataset)
         }
 
         // Load Zarr data if available
         loadZarrForDataset(dataset)
+
+        // Fetch entries if not already populated
+        if (dataset.entries.isNullOrEmpty()) {
+            selectedRegion?.let { region ->
+                loadEntriesForDataset(dataset, region)
+            }
+        }
     }
 
     // MARK: - Zarr Loading

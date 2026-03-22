@@ -23,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.TimeEntry
@@ -37,8 +39,8 @@ import com.example.saltyoffshore.ui.theme.Spacing
  *
  * Layout:
  * - Row 1: Dataset name + Change/Collapse buttons
- * - Row 2: GradientScaleBar
- * - Row 3: TimelineControl
+ * - Row 2: GradientScaleBar (color ramp, min/max labels, current value pointer)
+ * - Row 3: TimelineControl (scrubber with time display)
  *
  * iOS ref: Map/Controls/MapControlsContainer.swift → bottomControls()
  */
@@ -47,19 +49,23 @@ fun SaltyDatasetControl(
     dataset: Dataset,
     entry: TimeEntry?,
     snapshot: DatasetRenderingSnapshot,
+    currentValue: CurrentValue = CurrentValue.None,
     onEntrySelected: (TimeEntry) -> Unit,
     onExpand: () -> Unit = {},
     onChange: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val datasetType = DatasetType.fromRawValue(dataset.type)
+    val config = datasetType?.let { DatasetConfiguration.forDatasetType(it) }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.large),
         shape = RoundedCornerShape(SaltyLayout.cardCornerRadius),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        tonalElevation = 3.dp,
-        shadowElevation = 4.dp
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 2.dp,
+        shadowElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
@@ -108,18 +114,35 @@ fun SaltyDatasetControl(
                 }
             }
 
-            // Row 2: Gradient scale bar
+            // Row 2: Gradient scale bar with current value pointer
             entry?.let { currentEntry ->
-                val datasetType = DatasetType.fromRawValue(dataset.type)
                 val rangeKey = datasetType?.rangeKey ?: dataset.type
                 val range = currentEntry.ranges?.get(rangeKey)
-                val colorscale = datasetType?.defaultColorscale
+                val colorscale = snapshot.selectedColorscale
+                    ?: datasetType?.defaultColorscale
 
                 if (colorscale != null) {
+                    // Extract numeric value from crosshair reading
+                    val pointerValue = (currentValue as? CurrentValue.Value)?.value
+
+                    // Filter range from snapshot
+                    val filterRange = if (snapshot.isFilterActive) {
+                        snapshot.filterMin..snapshot.filterMax
+                    } else null
+
+                    val dataMin = range?.min ?: snapshot.dataMin
+                    val dataMax = range?.max ?: snapshot.dataMax
+
                     GradientScaleBar(
-                        min = range?.min ?: snapshot.dataMin,
-                        max = range?.max ?: snapshot.dataMax,
-                        colorscale = colorscale
+                        min = dataMin,
+                        max = dataMax,
+                        colorscale = colorscale,
+                        currentValue = pointerValue,
+                        filterRange = filterRange,
+                        fullRange = dataMin..dataMax,
+                        apiUnit = config?.unit ?: com.example.saltyoffshore.data.DatasetUnit.FAHRENHEIT,
+                        datasetType = datasetType,
+                        decimalPlaces = config?.decimalPlaces ?: 1
                     )
                 }
             }

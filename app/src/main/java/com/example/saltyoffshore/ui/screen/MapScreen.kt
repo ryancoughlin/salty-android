@@ -254,6 +254,7 @@ fun MapScreen(
                     dataset = viewModel.selectedDataset!!,
                     entry = viewModel.selectedEntry,
                     snapshot = viewModel.renderingSnapshot,
+                    currentValue = viewModel.currentValue,
                     onEntrySelected = { viewModel.selectEntry(it) },
                     onChange = { showDatasetSheet = true }
                 )

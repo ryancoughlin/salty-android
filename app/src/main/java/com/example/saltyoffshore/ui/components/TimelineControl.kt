@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,12 +29,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.TimeEntry
+import com.example.saltyoffshore.ui.theme.SaltyType
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -49,6 +47,8 @@ private const val MAX_ENTRIES = 48
  * - Tick marks: 1.5dp width, 80% height selected, 60% otherwise
  * - Selection capsule: 6dp width, full height, white with shadow
  * - Time display: 85dp width, monospaced
+ *
+ * Uses Material 3 color tokens for theme-aware rendering.
  */
 @Composable
 fun TimelineControl(
@@ -69,6 +69,13 @@ fun TimelineControl(
 
     val displayIndex = if (isDragging) dragIndex else selectedIndex
 
+    // Theme-aware colors
+    val trackBackground = MaterialTheme.colorScheme.surfaceContainerLow
+    val tickColor = MaterialTheme.colorScheme.onSurface
+    val tickInactiveAlpha = 0.5f
+    val capsuleColor = MaterialTheme.colorScheme.primary
+    val timeTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -82,7 +89,7 @@ fun TimelineControl(
                 .weight(1f)
                 .height(TRACK_HEIGHT.dp)
                 .clip(RoundedCornerShape((TRACK_HEIGHT / 6).dp))
-                .background(Color.Black.copy(alpha = 0.2f))
+                .background(trackBackground)
                 .pointerInput(displayedEntries) {
                     detectTapGestures { offset ->
                         val index = nearestIndex(offset.x, size.width.toFloat(), displayedEntries.size)
@@ -123,7 +130,10 @@ fun TimelineControl(
                         .width(1.5.dp)
                         .height(tickHeight.dp)
                         .align(Alignment.CenterStart)
-                        .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.6f))
+                        .background(
+                            if (isSelected) tickColor
+                            else tickColor.copy(alpha = tickInactiveAlpha)
+                        )
                 )
             }
 
@@ -137,11 +147,11 @@ fun TimelineControl(
                     .width(6.dp)
                     .fillMaxHeight()
                     .shadow(
-                        elevation = 1.dp,
+                        elevation = 2.dp,
                         shape = RoundedCornerShape(3.dp),
-                        ambientColor = Color.Black.copy(alpha = 0.8f)
+                        ambientColor = Color.Black.copy(alpha = 0.6f)
                     )
-                    .background(Color.White, RoundedCornerShape(3.dp))
+                    .background(capsuleColor, RoundedCornerShape(3.dp))
             )
         }
 
@@ -153,21 +163,13 @@ fun TimelineControl(
             ) {
                 Text(
                     text = formatTime(selectedEntry.timestamp),
-                    style = TextStyle(
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Normal,
-                        color = Color.White
-                    )
+                    style = SaltyType.mono(12),
+                    color = timeTextColor
                 )
                 Text(
                     text = formatShortDate(selectedEntry.timestamp),
-                    style = TextStyle(
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Normal,
-                        color = Color.White
-                    )
+                    style = SaltyType.mono(12),
+                    color = timeTextColor
                 )
             }
         }
