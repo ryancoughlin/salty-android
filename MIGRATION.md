@@ -158,7 +158,8 @@ Decision: Evaluate after UI is complete
 
 | Feature | iOS Source | Status |
 |---------|------------|--------|
-| Waypoints | `WaypointStore.swift` | ❌ |
+| Waypoints | `WaypointStore.swift` | ✅ Phase 1 complete ([details](docs/WAYPOINT_MIGRATION.md)) |
+| Measurement | `Features/Measurement/` | ✅ Complete ([phase-7](docs/plans/phases/phase-7-measurement.md)) |
 | Crews | `CrewViewModel.swift` | ❌ |
 | Saved Maps | `SavedMapViewModel.swift` | ❌ |
 | Timeline Scrubber | `TimelineCoordinator.swift` | ❌ |
@@ -185,7 +186,7 @@ Decision: Evaluate after UI is complete
 | Map Layers | ✅ Complete | All vector layers working (Contours, Currents, Breaks, Numbers) |
 | Dataset UI | ✅ Complete | DatasetSelectorSheet, FilterRangeSheet, Filter button |
 | Visual Layer | 🔄 Evaluate | Currently using COG/TiTiler, iOS uses Zarr Metal shader |
-| Core Features | ❌ Not Started | Waypoints, Crews, Saved Maps |
+| Core Features | 🔄 In Progress | Waypoints ✅, Measurement ✅, Crews ❌, Saved Maps ❌ |
 | Polish | ❌ Not Started | Offline, Tracks, AI Reports |
 
 **Current Focus:** Evaluate visual layer approach (COG vs Zarr).

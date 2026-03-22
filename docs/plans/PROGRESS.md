@@ -1,6 +1,6 @@
 # iOS → Android Parity: Progress Tracker
 
-> Updated: 2026-03-21. Check items off, note issues, flag things to revisit.
+> Updated: 2026-03-22. Check items off, note issues, flag things to revisit.
 
 ---
 
@@ -54,6 +54,24 @@
 
 ---
 
+## Phase 7: Measurement Tool — COMPLETE
+
+- [x] Port measurement types (`MeasurementPoint`, `MeasurementSegment`, `MapMeasurement`)
+- [x] Port `MeasurementManager` as `MeasurementState` (merged mode + session state)
+- [x] Wire `MeasureMode` toggle into `AppViewModel` + `RightSideToolbar`
+- [x] Build `MeasurementMapEffect` — GeoJSON lines, circle points, symbol labels via Mapbox Turf
+- [x] Build `MeasureModeOverlay` — status pill + undo/clear/done toolbar
+- [x] Wire map tap handler to route taps to measurement when mode active
+- [x] Material 3 surface hierarchy polish (accent pill, primary Done, secondary icon actions)
+
+**Files created:** `data/measurement/MeasurementTypes.kt`, `data/measurement/MeasurementState.kt`, `ui/measurement/MeasurementMapEffect.kt`, `ui/measurement/MeasureModeOverlay.kt`
+
+**Dependency added:** `com.mapbox.mapboxsdk:mapbox-sdk-turf:7.3.0` for distance/midpoint/bearing calculations.
+
+**Design note:** iOS splits `MeasureMode` (toggle) and `MeasurementManager` (session) as two `@Observable` classes injected via `@Environment`. Android merges both into `MeasurementState` held by `AppViewModel` — simpler, same behavior.
+
+---
+
 ## Upcoming Phases
 
 | Phase | Status | Spec |
@@ -62,7 +80,7 @@
 | 4 — Colorscale + Variables | Not started | `phases/phase-4-colorscale-variables.md` |
 | 5 — Overlay Datasets | Not started | `phases/phase-5-overlay-datasets.md` |
 | 6 — Waypoints | Not started | `phases/phase-6-waypoints.md` |
-| 7 — Measurement | Not started | `phases/phase-7-measurement.md` |
+| 7 — Measurement | **Complete** | `phases/phase-7-measurement.md` |
 | 8 — Announcements | Not started | `phases/phase-8-announcements.md` |
 | 9 — Route Recording | Not started | `phases/phase-9-route-recording.md` |
 | 10 — Stations + Weather | Not started | `phases/phase-10-stations-weather.md` |

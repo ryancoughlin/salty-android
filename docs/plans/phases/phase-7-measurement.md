@@ -53,9 +53,15 @@ MeasurementManager: activeMeasurement (MapMeasurement?),
 ```
 
 ## Tasks
-1. Port measurement types (`MeasurementPoint`, `MeasurementSegment`, `MapMeasurement`)
-2. Port `MeasurementManager` as ViewModel with active/completed state
-3. Port `MeasureMode` toggle state integrated with map coordinator
-4. Build `MeasurementLayer` -- Mapbox polylines, circle annotations, midpoint labels
-5. Build `MeasureModeOverlay` -- status pill + undo/clear/done toolbar
-6. Wire map tap handler to route taps to measurement manager when mode active
+1. ✅ Port measurement types (`MeasurementPoint`, `MeasurementSegment`, `MapMeasurement`)
+2. ✅ Port `MeasurementManager` as `MeasurementState` (merged mode + session into one class)
+3. ✅ Port `MeasureMode` toggle into `AppViewModel` + `RightSideToolbar` button
+4. ✅ Build `MeasurementMapEffect` -- GeoJSON LineLayer + CircleLayer + SymbolLayer via Mapbox Turf
+5. ✅ Build `MeasureModeOverlay` -- accent status pill + undo/clear/done with M3 surface hierarchy
+6. ✅ Wire map tap handler to route taps to measurement state when mode active
+
+## Android Files Created
+- `data/measurement/MeasurementTypes.kt` — data classes + `formatDistance()`
+- `data/measurement/MeasurementState.kt` — merged mode + session state with Compose `mutableStateOf`
+- `ui/measurement/MeasurementMapEffect.kt` — 3 GeoJSON sources + 3 layers (line, circle, symbol)
+- `ui/measurement/MeasureModeOverlay.kt` — M3 Surface with accent pill + icon actions + primary Done
