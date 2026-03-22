@@ -75,9 +75,12 @@ Three critical disconnects fixed + six iOS parity corrections.
 - [ ] Scrub timeline → visual layer and contours update to new entry
 
 ### Known Remaining Gaps (not blocking, future work)
-- [ ] **Per-dataset contour layer variants**: iOS has 6 specialized contour renderers (StandardContourLayer, MLDContourLayer, SalinityContourLayer, DissolvedOxygenContourLayer, PhytoplanktonContourLayer, SSHContourLayer) with different line widths, spacing, label formatting. Android uses one generic ContourLayer for all.
-- [ ] **SST contour label math**: iOS computes `°F`/`°C` labels from raw `temperature` field with number formatting. Android uses pre-formatted `temp_label` from PMTiles.
-- [ ] **Dynamic contour coloring expression**: iOS builds a data-driven Mapbox expression that colors contour lines by value. Android has `dynamicColoring` flag but no expression builder.
+- [x] **Per-dataset contour layer variants**: ~~iOS has 6 specialized contour renderers. Android used one generic.~~ Fixed 2026-03-22: `ContourLayer.kt` now dispatches per dataset type (Standard, SSH, Simple, DissolvedOxygen, Phytoplankton) matching all 6 iOS renderers with correct line widths, spacing, labels.
+- [x] **Contour state disconnect**: Toggle in layer controls showed OFF but contours rendered. Fixed: `DatasetRenderingSnapshot` defaults changed (`contourEnabled=false`, `arrowsEnabled=false`), all toggle/opacity methods now flow through `updatePrimaryConfig()` instead of mutating snapshot directly.
+- [x] **Chlorophyll/Phytoplankton contour capabilities**: iOS had `hasContours=true`, Android was missing. Fixed in `DatasetType.capabilities`.
+- [ ] **SST contour label math**: iOS computes `°F`/`°C` labels from raw `temperature` field with number formatting + unit suffix. Android uses pre-formatted `temp_label` from PMTiles (correct values, but no live unit conversion).
+- [ ] **Dynamic contour coloring expression**: iOS builds a data-driven Mapbox expression that colors contour lines by value using dataset colorscale. Android has `dynamicColoring` flag but only SSH uses data-driven color (hardcoded interpolation). Other datasets use static black.
+- [ ] **SSH circulation arrows**: iOS renders arrow icons along SSH contour lines (arrow-left/arrow-right by circulation direction). Android SSH contours have lines and labels but no arrows.
 - [ ] **Filter drag → direct GPU**: iOS calls `host.setFilterRangeDirect()` during drag for 60fps. Android filter drag goes through state update (may cause jank).
 - [ ] **Crossfade animation**: iOS does 0.4s linear blend between frames on timeline scrub. Android shows frames instantly.
 - [ ] **Fade-in animation**: iOS fades in first frame with 0.3s opacity animation. Android shows instantly.

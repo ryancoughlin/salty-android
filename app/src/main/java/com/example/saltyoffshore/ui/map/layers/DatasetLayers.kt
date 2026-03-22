@@ -32,8 +32,9 @@ class DatasetLayers(
     private var breaksLayer: BreaksVectorLayer? = null
     private var numbersLayer: NumbersLayer? = null
 
-    // Track current PMTiles URLs to detect when source needs rebuilding
+    // Track current PMTiles URLs and dataset type to detect when source needs rebuilding
     private var currentContourPmtilesUrl: String? = null
+    private var currentContourDatasetType: DatasetType? = null
     private var currentDataQueryPmtilesUrl: String? = null
     private var currentCurrentsPmtilesUrl: String? = null
     private var currentBreaksPmtilesUrl: String? = null
@@ -257,12 +258,15 @@ class DatasetLayers(
         val sourceId = "contour-source-$regionId"
         val layerId = "contour-layer-$regionId"
 
-        // If PMTiles URL changed (new entry or dataset), tear down and rebuild
-        if (currentContourPmtilesUrl != null && currentContourPmtilesUrl != tileUrl) {
-            Log.d(TAG, "Contour PMTiles URL changed, rebuilding layers")
+        // Rebuild if URL or dataset type changed (different types have different layer structures)
+        val needsRebuild = (currentContourPmtilesUrl != null && currentContourPmtilesUrl != tileUrl)
+            || (currentContourDatasetType != null && currentContourDatasetType != type)
+        if (needsRebuild) {
+            Log.d(TAG, "Contour source changed (url or type), rebuilding layers")
             removeContourLayer()
         }
         currentContourPmtilesUrl = tileUrl
+        currentContourDatasetType = type
 
         // Add or update source
         mapboxMap.style?.let { style ->
@@ -310,6 +314,7 @@ class DatasetLayers(
             }
         }
         currentContourPmtilesUrl = null
+        currentContourDatasetType = null
     }
 
     // MARK: - Breaks Layer

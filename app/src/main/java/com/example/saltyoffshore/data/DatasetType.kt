@@ -189,7 +189,17 @@ val DatasetType.capabilities: LayerCapabilities
             hasNumbers = true,
             hasDepthSelection = true
         )
-        DatasetType.CHLOROPHYLL, DatasetType.WATER_CLARITY, DatasetType.WATER_TYPE, DatasetType.PHYTOPLANKTON -> LayerCapabilities(
+        DatasetType.CHLOROPHYLL -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasContours = true,
+            hasNumbers = true
+        )
+        DatasetType.PHYTOPLANKTON -> LayerCapabilities(
+            hasVisualLayer = true,
+            hasContours = true,
+            hasNumbers = true
+        )
+        DatasetType.WATER_CLARITY, DatasetType.WATER_TYPE -> LayerCapabilities(
             hasVisualLayer = true,
             hasNumbers = true
         )

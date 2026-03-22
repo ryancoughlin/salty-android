@@ -204,8 +204,10 @@ fun MapScreen(
                 onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
             )
 
-            // Region annotations
-            viewModel.regions.forEach { region ->
+            // Region annotations — hide the active region (matches iOS guard)
+            viewModel.regions
+                .filter { it.id != viewModel.selectedRegion?.id }
+                .forEach { region ->
                 ViewAnnotation(
                     options = viewAnnotationOptions {
                         geometry(Point.fromLngLat(region.centerLon, region.centerLat))
