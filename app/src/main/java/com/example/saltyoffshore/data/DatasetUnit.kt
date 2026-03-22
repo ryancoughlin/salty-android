@@ -23,9 +23,42 @@ enum class DatasetUnit(val symbol: String) {
     PSU_PER_KM("PSU/km"),
     CM_PER_KM("cm/km");
 
+    /**
+     * User-facing unit suffix. Temperature respects user preference.
+     * All other units pass through unchanged.
+     */
+    fun displayUnitSuffix(temperatureUnits: TemperatureUnits): String = when (this) {
+        FAHRENHEIT -> temperatureUnits.unitSuffix
+        else -> symbol
+    }
+
+    /**
+     * Convert raw API value to user-preferred display unit.
+     * API sends temperature in Fahrenheit.
+     */
+    fun convertForDisplay(value: Double, temperatureUnits: TemperatureUnits): Double = when (this) {
+        FAHRENHEIT -> temperatureUnits.convert(value)
+        else -> value
+    }
+
+    /**
+     * Convert user-preferred display value back to API units.
+     * Inverse of convertForDisplay.
+     */
+    fun convertFromDisplay(value: Double, temperatureUnits: TemperatureUnits): Double = when (this) {
+        FAHRENHEIT -> temperatureUnits.toFahrenheit(value)
+        else -> value
+    }
+
     companion object {
         fun fromString(value: String): DatasetUnit {
-            return entries.find { it.symbol == value } ?: DIMENSIONLESS
+            return entries.find { it.symbol == value }
+                ?: when (value) {
+                    "F" -> FAHRENHEIT
+                    "C" -> CELSIUS
+                    "kt" -> KNOTS
+                    else -> DIMENSIONLESS
+                }
         }
     }
 }

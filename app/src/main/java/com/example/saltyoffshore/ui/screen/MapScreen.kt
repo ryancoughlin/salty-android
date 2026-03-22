@@ -1,8 +1,14 @@
 package com.example.saltyoffshore.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -49,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalDensity
+import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
@@ -87,9 +94,8 @@ fun MapScreen(
     var showDatasetSheet by remember { mutableStateOf(false) }
     val datasetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Sheet state for filter range
+    // Filter sheet state (fixed-position panel, not ModalBottomSheet)
     var showFilterSheet by remember { mutableStateOf(false) }
-    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val mapViewportState = rememberMapViewportState {
         setCameraOptions {
@@ -220,30 +226,38 @@ fun MapScreen(
             )
         }
 
-        // Dataset control (bottom)
+        // Bottom controls column — matches iOS MapControlsContainer VStack
         if (viewModel.selectedDataset != null) {
-            SaltyDatasetControl(
-                dataset = viewModel.selectedDataset!!,
-                entry = viewModel.selectedEntry,
-                snapshot = viewModel.renderingSnapshot,
-                onEntrySelected = { viewModel.selectEntry(it) },
-                onChange = { showDatasetSheet = true },
-                onFilter = { showFilterSheet = true },
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
                     .padding(bottom = 32.dp)
-            )
-        }
+            ) {
+                // Right toolbar (right-aligned, above quick actions + bottom panel)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = Spacing.large),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    RightSideToolbar(
+                        onFilterClick = { showFilterSheet = true },
+                        onLayersClick = { showLayersSheet = true }
+                    )
+                }
 
-        // Right side toolbar (layers button)
-        if (viewModel.selectedDataset != null) {
-            RightSideToolbar(
-                onLayersClick = { showLayersSheet = true },
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = Spacing.large)
-                    .padding(top = 100.dp) // Below depth selector area
-            )
+                Spacer(Modifier.height(Spacing.medium))
+
+                // Bottom panel
+                SaltyDatasetControl(
+                    dataset = viewModel.selectedDataset!!,
+                    entry = viewModel.selectedEntry,
+                    snapshot = viewModel.renderingSnapshot,
+                    onEntrySelected = { viewModel.selectEntry(it) },
+                    onChange = { showDatasetSheet = true }
+                )
+            }
         }
 
         // Layers control sheet
@@ -275,6 +289,8 @@ fun MapScreen(
             DatasetSelectorSheet(
                 datasets = viewModel.selectedRegion!!.activeDatasets,
                 selectedDataset = viewModel.selectedDataset,
+                selectedEntry = viewModel.selectedEntry,
+                isPremium = true, // TODO: Wire up subscription status
                 sheetState = datasetSheetState,
                 onDatasetSelected = { dataset ->
                     viewModel.selectDataset(dataset)
@@ -300,7 +316,9 @@ fun MapScreen(
             DatasetFilterSheet(
                 config = config,
                 dataRange = dataRange,
-                unit = rangeData?.unit ?: "°F",
+                datasetType = datasetType,
+                apiUnit = DatasetConfiguration.forDatasetType(datasetType).unit,
+                decimalPlaces = DatasetConfiguration.forDatasetType(datasetType).decimalPlaces,
                 onConfigChanged = { newConfig ->
                     viewModel.updatePrimaryConfig(newConfig)
                 },

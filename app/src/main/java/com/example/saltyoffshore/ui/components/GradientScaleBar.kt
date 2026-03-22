@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -15,45 +16,57 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.DatasetUnit
+import com.example.saltyoffshore.data.TemperatureUnits
+import androidx.compose.material3.MaterialTheme
+import com.example.saltyoffshore.ui.theme.SaltyType
+import com.example.saltyoffshore.ui.theme.Spacing
+import com.example.saltyoffshore.utils.GradientScaleUtil
 
 /**
  * Matches iOS GradientScaleBar.swift exactly:
  * - 12pt monospaced fonts for min/max labels
- * - 6dp height gradient bar with 4dp corner radius
+ * - 6dp height gradient bar with 2dp corner radius
  * - Optional current value pointer (16x8dp rounded rect)
+ * - Filter awareness: checkerboard behind with gradient clipped to filtered portion
+ * - Unit conversion via DatasetUnit + TemperatureUnits
+ * - Scale-aware position calculation via GradientScaleUtil
  */
 @Composable
 fun GradientScaleBar(
     min: Double,
     max: Double,
-    unit: String,
     colors: List<Color>,
     currentValue: Double? = null,
+    filterRange: ClosedFloatingPointRange<Double>? = null,
+    fullRange: ClosedFloatingPointRange<Double> = min..max,
+    apiUnit: DatasetUnit = DatasetUnit.FAHRENHEIT,
+    temperatureUnits: TemperatureUnits = TemperatureUnits.FAHRENHEIT,
+    datasetType: DatasetType? = null,
+    decimalPlaces: Int = 0,
     modifier: Modifier = Modifier
 ) {
+    val labelColor = MaterialTheme.colorScheme.onSurface
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
         // Min label
+        val displayMin = apiUnit.convertForDisplay(min, temperatureUnits)
         Text(
-            text = "${min.toInt()}$unit",
-            style = TextStyle(
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White
-            )
+            text = GradientScaleUtil.formatValue(displayMin, decimalPlaces) +
+                    apiUnit.displayUnitSuffix(temperatureUnits),
+            style = SaltyType.mono(12).copy(color = labelColor)
         )
 
         // Gradient bar with optional pointer
@@ -66,22 +79,65 @@ fun GradientScaleBar(
             val density = LocalDensity.current
             val widthPx = constraints.maxWidth.toFloat()
 
-            // The gradient bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .background(
-                        Brush.horizontalGradient(colors),
-                        RoundedCornerShape(4.dp)
+            val isFiltered = filterRange != null &&
+                    (filterRange.start != fullRange.start || filterRange.endInclusive != fullRange.endInclusive)
+
+            if (isFiltered) {
+                // Checkerboard behind the full bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                ) {
+                    CheckerboardPattern(
+                        size = CheckerboardSize.SMALL,
+                        modifier = Modifier.fillMaxSize()
                     )
-            )
+                }
+
+                // Gradient clipped to filtered portion
+                val filterStart = filterRange!!.start
+                val filterEnd = filterRange.endInclusive
+                val startFraction = GradientScaleUtil.calculatePosition(
+                    filterStart, fullRange, datasetType
+                ).toFloat().coerceIn(0f, 1f)
+                val endFraction = GradientScaleUtil.calculatePosition(
+                    filterEnd, fullRange, datasetType
+                ).toFloat().coerceIn(0f, 1f)
+
+                val leftDp = with(density) { (startFraction * widthPx).toDp() }
+                val barWidth = with(density) { ((endFraction - startFraction) * widthPx).toDp() }
+
+                if (barWidth > 0.dp) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = leftDp)
+                            .size(width = barWidth, height = 6.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Brush.horizontalGradient(colors))
+                    )
+                }
+            } else {
+                // Full gradient bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .background(
+                            Brush.horizontalGradient(colors),
+                            RoundedCornerShape(2.dp)
+                        )
+                )
+            }
 
             // Current value pointer
             if (currentValue != null && max > min) {
-                val ratio = ((currentValue - min) / (max - min)).coerceIn(0.0, 1.0)
+                val ratio = GradientScaleUtil.calculatePosition(
+                    currentValue, fullRange, datasetType
+                ).toFloat().coerceIn(0f, 1f)
                 val positionPx = ratio * widthPx
-                val positionDp = with(density) { positionPx.toFloat().toDp() }
+                val positionDp = with(density) { positionPx.toDp() }
                 val pointerColor = colorAt(currentValue, min, max, colors)
 
                 Box(
@@ -96,13 +152,11 @@ fun GradientScaleBar(
         }
 
         // Max label
+        val displayMax = apiUnit.convertForDisplay(max, temperatureUnits)
         Text(
-            text = "${max.toInt()}$unit",
-            style = TextStyle(
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White
-            )
+            text = GradientScaleUtil.formatValue(displayMax, decimalPlaces) +
+                    apiUnit.displayUnitSuffix(temperatureUnits),
+            style = SaltyType.mono(12).copy(color = labelColor)
         )
     }
 }
@@ -136,9 +190,14 @@ private fun lerp(start: Color, end: Color, fraction: Float): Color {
 fun GradientScaleBar(
     min: Double,
     max: Double,
-    unit: String,
     colorscale: Colorscale,
     currentValue: Double? = null,
+    filterRange: ClosedFloatingPointRange<Double>? = null,
+    fullRange: ClosedFloatingPointRange<Double> = min..max,
+    apiUnit: DatasetUnit = DatasetUnit.FAHRENHEIT,
+    temperatureUnits: TemperatureUnits = TemperatureUnits.FAHRENHEIT,
+    datasetType: DatasetType? = null,
+    decimalPlaces: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val colors = colorscale.hexColors.map { hex ->
@@ -147,9 +206,14 @@ fun GradientScaleBar(
     GradientScaleBar(
         min = min,
         max = max,
-        unit = unit,
         colors = colors,
         currentValue = currentValue,
+        filterRange = filterRange,
+        fullRange = fullRange,
+        apiUnit = apiUnit,
+        temperatureUnits = temperatureUnits,
+        datasetType = datasetType,
+        decimalPlaces = decimalPlaces,
         modifier = modifier
     )
 }

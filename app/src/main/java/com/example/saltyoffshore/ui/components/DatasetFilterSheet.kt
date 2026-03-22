@@ -1,165 +1,200 @@
 package com.example.saltyoffshore.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.DatasetRenderConfig
+import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.DatasetUnit
 import com.example.saltyoffshore.data.FilterMode
+import com.example.saltyoffshore.data.TemperatureUnits
+import com.example.saltyoffshore.data.renderingConfig
 import com.example.saltyoffshore.ui.theme.SaltyColors
+import com.example.saltyoffshore.ui.theme.SaltyLayout
+import com.example.saltyoffshore.ui.theme.SaltyType
+import com.example.saltyoffshore.ui.theme.Spacing
 
 /**
- * Modal bottom sheet for dataset filter controls.
- * Matches iOS DatasetFilterSheet exactly.
+ * Fixed-position filter panel — NOT a ModalBottomSheet.
  *
- * Fixed ~240dp height, non-swipe-dismissable.
- * Contains: header (title + reset + close), filter mode picker, colorscale button,
- * and embedded FilterGradientBar.
+ * ModalBottomSheet's anchoredDraggable steals horizontal drag events from
+ * FilterGradientBar handles, making them unusable. iOS uses a fixed sheet with
+ * interactiveDismissDisabled(true) — no swipe dismiss at all. This matches that
+ * by rendering a scrim + bottom-anchored Surface with no drag gesture system.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DatasetFilterSheet(
     config: DatasetRenderConfig,
     dataRange: ClosedFloatingPointRange<Double>,
+    datasetType: DatasetType,
+    apiUnit: DatasetUnit,
+    temperatureUnits: TemperatureUnits = TemperatureUnits.FAHRENHEIT,
+    decimalPlaces: Int = 1,
     onConfigChanged: (DatasetRenderConfig) -> Unit,
     onDragRangeChanged: ((Float, Float) -> Unit)? = null,
-    unit: String,
-    decimalPlaces: Int = 1,
     onDismiss: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
     val isFilterModified = config.customRange != null
+    val effectiveColorscale = config.colorscale ?: datasetType.renderingConfig.colorscale
+    val defaultColorscale = datasetType.renderingConfig.colorscale
 
-    // Resolve effective colorscale for the gradient bar
-    val effectiveColorscale = config.colorscale
-        ?: com.example.saltyoffshore.data.Colorscale.SST // fallback; caller should provide type default
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SaltyColors.base,
-        dragHandle = null
-    ) {
-        Column(
+    // Scrim — tapping dismisses (matches ModalBottomSheet behavior)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
             modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.32f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onDismiss() }
+        )
+
+        // Bottom-anchored panel
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .heightIn(min = 240.dp)
+                .shadow(8.dp, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = SaltyColors.base
         ) {
-            // ── Header ───────────────────────────────────────────────────
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .height(24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .navigationBarsPadding()
+                    .heightIn(min = 240.dp)
             ) {
-                Text(
-                    text = "Range & Color",
-                    style = TextStyle(
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
+                // ── Header (56dp, matches iOS) ──────────────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(horizontal = Spacing.extraLarge),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Range & Color",
+                        style = SaltyType.heading,
                         color = SaltyColors.textPrimary
                     )
-                )
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Reset button (only visible when filter modified)
-                    if (isFilterModified) {
-                        TextButton(onClick = {
-                            onConfigChanged(config.clearFilter())
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }) {
-                            Text(
-                                text = "Reset",
-                                style = TextStyle(
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = SaltyColors.accent
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                    ) {
+                        if (isFilterModified) {
+                            TextButton(onClick = {
+                                onConfigChanged(config.clearFilter())
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }) {
+                                Text(
+                                    text = "Reset",
+                                    style = SaltyType.body.copy(color = SaltyColors.accent)
                                 )
+                            }
+                        }
+
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = SaltyColors.iconButton,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = SaltyColors.iconButton,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
                 }
-            }
 
-            Divider(color = SaltyColors.borderSubtle)
+                Divider(color = SaltyColors.borderSubtle)
 
-            // ── Top controls: Filter Mode picker ─────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(modifier = Modifier.weight(1f))
+                // ── Top controls ────────────────────────────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.large, vertical = Spacing.medium),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
 
-                // Filter Mode toggle
-                FilterModePicker(
-                    selected = config.filterMode,
-                    onSelected = { mode ->
-                        onConfigChanged(config.copy(filterMode = mode))
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    }
+                    FilterModePicker(
+                        selected = config.filterMode,
+                        onSelected = { mode ->
+                            onConfigChanged(config.copy(filterMode = mode))
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    )
+
+                    ColorscalePickerButton(
+                        selection = config.colorscale,
+                        defaultColorscale = defaultColorscale,
+                        onChanged = { newColorscale ->
+                            onConfigChanged(config.copy(colorscale = newColorscale))
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    )
+                }
+
+                // ── FilterGradientBar ───────────────────────────────────
+                FilterGradientBar(
+                    selectedRange = config.customRange,
+                    valueRange = dataRange,
+                    colorscale = effectiveColorscale,
+                    datasetType = datasetType,
+                    apiUnit = apiUnit,
+                    temperatureUnits = temperatureUnits,
+                    onRangeChanged = { newRange ->
+                        onConfigChanged(config.copy(customRange = newRange))
+                    },
+                    onDragRangeChanged = onDragRangeChanged,
+                    decimalPlaces = decimalPlaces,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.large)
                 )
+
+                Spacer(modifier = Modifier.height(Spacing.extraLarge))
             }
-
-            // ── Embedded FilterGradientBar ───────────────────────────────
-            FilterGradientBar(
-                selectedRange = config.customRange,
-                valueRange = dataRange,
-                colorscale = effectiveColorscale,
-                onRangeChanged = { newRange ->
-                    onConfigChanged(config.copy(customRange = newRange))
-                },
-                onDragRangeChanged = onDragRangeChanged,
-                unit = unit,
-                decimalPlaces = decimalPlaces,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -172,7 +207,7 @@ private fun FilterModePicker(
     onSelected: (FilterMode) -> Unit
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FilterMode.entries.forEach { mode ->
@@ -182,8 +217,7 @@ private fun FilterModePicker(
             ) {
                 Text(
                     text = mode.displayName,
-                    style = TextStyle(
-                        fontSize = 14.sp,
+                    style = SaltyType.bodySmall.copy(
                         fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (isActive) SaltyColors.accent else SaltyColors.textSecondary
                     )

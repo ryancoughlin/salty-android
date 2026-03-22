@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,26 +28,35 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.example.saltyoffshore.data.Dataset
 import com.example.saltyoffshore.data.DatasetGroup
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.TimeEntry
 import com.example.saltyoffshore.data.group
+import com.example.saltyoffshore.ui.theme.SaltyColors
+import com.example.saltyoffshore.ui.theme.SaltyLayout
+import com.example.saltyoffshore.ui.theme.SaltyType
+import com.example.saltyoffshore.ui.theme.Spacing
 
 /**
  * Modal bottom sheet for selecting datasets.
- * Matches iOS DatasetSelectorView layout.
+ * Matches iOS DatasetSelectorView layout with preview images and info chips.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DatasetSelectorSheet(
     datasets: List<Dataset>,
     selectedDataset: Dataset?,
+    selectedEntry: TimeEntry?,
+    isPremium: Boolean,
     sheetState: SheetState,
     onDatasetSelected: (Dataset) -> Unit,
     onDismiss: () -> Unit
@@ -61,7 +72,7 @@ fun DatasetSelectorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1C1C1E),
+        containerColor = SaltyColors.overlay,
         dragHandle = null
     ) {
         Column(
@@ -73,23 +84,23 @@ fun DatasetSelectorSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = Spacing.large, vertical = Spacing.medium),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Change Dataset",
-                    style = TextStyle(
-                        fontSize = 18.sp,
+                    style = SaltyType.heading.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        fontSize = 18.sp,
+                        color = SaltyColors.textPrimary
                     )
                 )
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = Color.White.copy(alpha = 0.7f)
+                        tint = SaltyColors.iconButton
                     )
                 }
             }
@@ -97,7 +108,7 @@ fun DatasetSelectorSheet(
             // Dataset list grouped by category
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(Spacing.large)
             ) {
                 groupedDatasets.forEach { (group, datasetsInGroup) ->
                     // Category header
@@ -110,9 +121,12 @@ fun DatasetSelectorSheet(
                         items = datasetsInGroup,
                         key = { it.id }
                     ) { dataset ->
+                        val isSelected = selectedDataset?.id == dataset.id
                         DatasetListItem(
                             dataset = dataset,
-                            isSelected = selectedDataset?.id == dataset.id,
+                            isSelected = isSelected,
+                            selectedEntry = if (isSelected) selectedEntry else null,
+                            isPremium = isPremium,
                             onSelect = {
                                 onDatasetSelected(dataset)
                                 onDismiss()
@@ -129,64 +143,82 @@ fun DatasetSelectorSheet(
 private fun CategoryHeader(title: String) {
     Text(
         text = title,
-        style = TextStyle(
-            fontSize = 12.sp,
+        style = SaltyType.caption.copy(
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.5f),
+            color = SaltyColors.textSecondary,
             letterSpacing = 1.sp
         ),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        modifier = Modifier.padding(horizontal = Spacing.large, vertical = Spacing.small)
     )
 }
 
+/**
+ * Dataset list item — matches iOS DatasetListItem layout:
+ * [Preview Image 120x80] [8dp] [Name + BETA badge / Info chips]
+ */
 @Composable
 private fun DatasetListItem(
     dataset: Dataset,
     isSelected: Boolean,
+    selectedEntry: TimeEntry?,
+    isPremium: Boolean,
     onSelect: () -> Unit
 ) {
-    val backgroundColor = if (isSelected) Color.White else Color.Transparent
-    val textColor = if (isSelected) Color.Black else Color.White
+    val isLocked = !isSelected && !isPremium
+    val backgroundColor = if (isSelected) SaltyColors.textPrimary else Color.Transparent
+    val textColor = if (isSelected) SaltyColors.base else SaltyColors.textPrimary
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onSelect)
+            .alpha(if (isLocked) 0.85f else 1f)
+            .clickable(enabled = !isLocked, onClick = onSelect)
             .background(backgroundColor)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = Spacing.large, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Dataset type indicator
-        val datasetType = DatasetType.fromRawValue(dataset.type)
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(datasetType?.defaultColorscale?.colors?.firstOrNull()?.let { Color(it) } ?: Color(0xFF808080)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = datasetType?.shortName ?: "?",
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+        // Preview image with lock overlay
+        if (dataset.previewUrl != null) {
+            Box(
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(6.dp))
+            ) {
+                AsyncImage(
+                    model = dataset.previewUrl,
+                    contentDescription = dataset.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
-            )
-        }
 
-        Spacer(modifier = Modifier.width(12.dp))
+                // Lock overlay for non-premium, non-selected datasets
+                if (isLocked) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.8f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = "Locked",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         // Dataset info
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = dataset.name,
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = textColor
-                    )
+                    style = SaltyType.body.copy(color = textColor)
                 )
                 if (dataset.beta == true) {
                     Spacer(modifier = Modifier.width(6.dp))
@@ -194,9 +226,13 @@ private fun DatasetListItem(
                 }
             }
 
-            // Metadata chips
-            Spacer(modifier = Modifier.height(4.dp))
-            DatasetMetadataRow(dataset = dataset, textColor = textColor)
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Info chips (sensor, cloud, frequency, HD, free preview)
+            DatasetInfoChips(
+                dataset = dataset,
+                selectedEntry = selectedEntry
+            )
         }
     }
 }
@@ -205,50 +241,13 @@ private fun DatasetListItem(
 private fun BetaBadge() {
     Text(
         text = "BETA",
-        style = TextStyle(
+        style = SaltyType.captionSmall.copy(
             fontSize = 8.sp,
             fontWeight = FontWeight.SemiBold,
             color = Color.White
         ),
         modifier = Modifier
-            .background(Color(0xFFFF9500), RoundedCornerShape(2.dp))
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-    )
-}
-
-@Composable
-private fun DatasetMetadataRow(
-    dataset: Dataset,
-    textColor: Color
-) {
-    val chipColor = textColor.copy(alpha = 0.6f)
-    val metadata = dataset.metadata
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Sensor chip
-        metadata?.sensor?.let { sensor ->
-            MetadataChip(text = sensor, color = chipColor)
-        }
-
-        // Frequency chip
-        metadata?.frequency?.let { frequency ->
-            MetadataChip(text = frequency, color = chipColor)
-        }
-    }
-}
-
-@Composable
-private fun MetadataChip(
-    text: String,
-    color: Color
-) {
-    Text(
-        text = text,
-        style = TextStyle(
-            fontSize = 11.sp,
-            color = color
-        )
+            .background(Color(0xFFFF9500).copy(alpha = 0.8f), RoundedCornerShape(2.dp))
+            .padding(horizontal = Spacing.small, vertical = 2.dp)
     )
 }

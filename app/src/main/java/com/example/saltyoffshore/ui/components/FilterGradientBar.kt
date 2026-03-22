@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import android.graphics.Rect as AndroidRect
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,20 +37,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.Colorscale
+import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.DatasetUnit
+import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.ui.theme.SaltyColors
+import com.example.saltyoffshore.ui.theme.SaltyType
+import com.example.saltyoffshore.ui.theme.Spacing
+import com.example.saltyoffshore.utils.GradientScaleUtil
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -68,7 +72,9 @@ fun FilterGradientBar(
     colorscale: Colorscale,
     onRangeChanged: (ClosedFloatingPointRange<Double>?) -> Unit,
     onDragRangeChanged: ((Float, Float) -> Unit)? = null,
-    unit: String,
+    datasetType: DatasetType? = null,
+    apiUnit: DatasetUnit = DatasetUnit.FAHRENHEIT,
+    temperatureUnits: TemperatureUnits = TemperatureUnits.FAHRENHEIT,
     decimalPlaces: Int = 1,
     modifier: Modifier = Modifier
 ) {
@@ -97,7 +103,8 @@ fun FilterGradientBar(
         ) {
             FilterValueField(
                 value = effectiveMin,
-                unit = unit,
+                apiUnit = apiUnit,
+                temperatureUnits = temperatureUnits,
                 decimalPlaces = decimalPlaces,
                 textAlign = TextAlign.Start,
                 onCommit = { newValue ->
@@ -109,7 +116,8 @@ fun FilterGradientBar(
 
             FilterValueField(
                 value = effectiveMax,
-                unit = unit,
+                apiUnit = apiUnit,
+                temperatureUnits = temperatureUnits,
                 decimalPlaces = decimalPlaces,
                 textAlign = TextAlign.End,
                 onCommit = { newValue ->
@@ -126,6 +134,7 @@ fun FilterGradientBar(
             effectiveMax = effectiveMax,
             valueRange = valueRange,
             gradientColors = gradientColors,
+            datasetType = datasetType,
             onDragStart = { isLower ->
                 isDragging = true
                 dragMin = effectiveMin
@@ -133,14 +142,15 @@ fun FilterGradientBar(
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             },
             onDragUpdate = { isLower, newValue ->
+                val snapped = GradientScaleUtil.snapValue(newValue, datasetType)
                 if (isLower) {
-                    val clamped = newValue.coerceIn(valueRange.start, dragMax)
+                    val clamped = snapped.coerceIn(valueRange.start, dragMax)
                     if (clamped != dragMin) {
                         dragMin = clamped
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
                 } else {
-                    val clamped = newValue.coerceIn(dragMin, valueRange.endInclusive)
+                    val clamped = snapped.coerceIn(dragMin, valueRange.endInclusive)
                     if (clamped != dragMax) {
                         dragMax = clamped
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -170,30 +180,45 @@ private fun GradientBarWithHandles(
     effectiveMax: Double,
     valueRange: ClosedFloatingPointRange<Double>,
     gradientColors: List<Color>,
+    datasetType: DatasetType?,
     onDragStart: (isLower: Boolean) -> Unit,
     onDragUpdate: (isLower: Boolean, newValue: Double) -> Unit,
     onDragEnd: () -> Unit
 ) {
     val density = LocalDensity.current
 
+    val view = LocalView.current
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(HANDLE_HEIGHT)
+            .onGloballyPositioned { coordinates ->
+                // Tell Android: don't trigger system back gesture in this area.
+                // Without this, edge-swipe back steals horizontal drags from handles.
+                val posInWindow = coordinates.localToWindow(androidx.compose.ui.geometry.Offset.Zero)
+                val rect = AndroidRect(
+                    posInWindow.x.toInt(),
+                    posInWindow.y.toInt(),
+                    (posInWindow.x + coordinates.size.width).toInt(),
+                    (posInWindow.y + coordinates.size.height).toInt()
+                )
+                view.systemGestureExclusionRects = listOf(rect)
+            }
     ) {
         val totalWidthPx = with(density) { maxWidth.toPx() }
         val handleWidthPx = with(density) { HANDLE_WIDTH.toPx() }
         val availableWidthPx = totalWidthPx - handleWidthPx  // usable space for positioning
 
-        val range = valueRange.endInclusive - valueRange.start
-
         fun valueToFraction(value: Double): Float {
-            if (range == 0.0) return 0f
-            return ((value - valueRange.start) / range).toFloat().coerceIn(0f, 1f)
+            return GradientScaleUtil.calculatePosition(value, valueRange, datasetType)
+                .toFloat().coerceIn(0f, 1f)
         }
 
         fun fractionToValue(fraction: Float): Double {
-            return valueRange.start + fraction.toDouble().coerceIn(0.0, 1.0) * range
+            return GradientScaleUtil.calculateValue(
+                fraction.toDouble().coerceIn(0.0, 1.0), valueRange, datasetType
+            )
         }
 
         fun valueToOffsetPx(value: Double): Float {
@@ -202,9 +227,6 @@ private fun GradientBarWithHandles(
 
         val lowerOffsetPx = valueToOffsetPx(effectiveMin)
         val upperOffsetPx = valueToOffsetPx(effectiveMax)
-
-        val barOffsetY = with(density) { ((HANDLE_HEIGHT - BAR_HEIGHT) / 2).toPx() }
-        val barHeightPx = with(density) { BAR_HEIGHT.toPx() }
 
         // Layer 1: Checkerboard background (filtered areas visible)
         Box(
@@ -275,6 +297,11 @@ private fun GradientBarWithHandles(
 
 // ── Drag Handle ──────────────────────────────────────────────────────────────
 
+/**
+ * Drag handle with 44dp touch target (visual 18dp centered inside).
+ * Sheet dismiss is disabled via confirmValueChange, so standard
+ * detectHorizontalDragGestures works without gesture conflicts.
+ */
 @Composable
 private fun DragHandle(
     offsetPx: Float,
@@ -284,23 +311,28 @@ private fun DragHandle(
     onDrag: (deltaPx: Float) -> Unit,
     onDragEnd: () -> Unit
 ) {
+    val touchTargetWidth = 44.dp
+    val touchTargetOffset = with(LocalDensity.current) {
+        ((touchTargetWidth - HANDLE_WIDTH) / 2).toPx()
+    }
+
     Box(
         modifier = Modifier
-            .offset { IntOffset(offsetPx.roundToInt(), 0) }
-            .size(HANDLE_WIDTH, HANDLE_HEIGHT)
+            .offset { IntOffset((offsetPx - touchTargetOffset).roundToInt(), 0) }
+            .size(touchTargetWidth, HANDLE_HEIGHT)
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragStart = { onDragStart() },
                     onDragEnd = { onDragEnd() },
                     onDragCancel = { onDragEnd() },
-                    onHorizontalDrag = { _, dragAmount ->
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
                         onDrag(dragAmount)
                     }
                 )
             },
         contentAlignment = Alignment.Center
     ) {
-        // White rounded rect
         Box(
             modifier = Modifier
                 .size(HANDLE_WIDTH, HANDLE_HEIGHT)
@@ -308,8 +340,7 @@ private fun DragHandle(
                 .background(Color.White, RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center
         ) {
-            // Two grip lines
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 GripLine()
                 GripLine()
             }
@@ -331,13 +362,15 @@ private fun GripLine() {
 @Composable
 private fun FilterValueField(
     value: Double,
-    unit: String,
+    apiUnit: DatasetUnit,
+    temperatureUnits: TemperatureUnits,
     decimalPlaces: Int,
     textAlign: TextAlign,
     onCommit: (Double) -> Unit
 ) {
-    val formatted = remember(value, decimalPlaces) {
-        String.format("%.${decimalPlaces}f", value)
+    val displayValue = apiUnit.convertForDisplay(value, temperatureUnits)
+    val formatted = remember(displayValue, decimalPlaces) {
+        GradientScaleUtil.formatValue(displayValue, decimalPlaces)
     }
 
     var editingText by remember { mutableStateOf("") }
@@ -353,9 +386,7 @@ private fun FilterValueField(
         BasicTextField(
             value = displayText,
             onValueChange = { editingText = it },
-            textStyle = TextStyle(
-                fontSize = 16.sp,
-                fontFamily = FontFamily.Monospace,
+            textStyle = SaltyType.mono(16).copy(
                 color = SaltyColors.textPrimary,
                 textAlign = textAlign
             ),
@@ -366,7 +397,9 @@ private fun FilterValueField(
             ),
             keyboardActions = KeyboardActions(
                 onDone = {
-                    editingText.toDoubleOrNull()?.let(onCommit)
+                    editingText.toDoubleOrNull()?.let { typedValue ->
+                        onCommit(apiUnit.convertFromDisplay(typedValue, temperatureUnits))
+                    }
                 }
             ),
             modifier = Modifier
@@ -374,10 +407,15 @@ private fun FilterValueField(
                 .focusRequester(focusRequester)
                 .onFocusChanged { state ->
                     if (state.isFocused && !isFocused) {
-                        editingText = formatted
+                        editingText = GradientScaleUtil.formatValue(
+                            apiUnit.convertForDisplay(value, temperatureUnits),
+                            decimalPlaces
+                        )
                     }
                     if (!state.isFocused && isFocused) {
-                        editingText.toDoubleOrNull()?.let(onCommit)
+                        editingText.toDoubleOrNull()?.let { typedValue ->
+                            onCommit(apiUnit.convertFromDisplay(typedValue, temperatureUnits))
+                        }
                     }
                     isFocused = state.isFocused
                 },
@@ -401,12 +439,8 @@ private fun FilterValueField(
         )
 
         Text(
-            text = unit,
-            style = TextStyle(
-                fontSize = 16.sp,
-                fontFamily = FontFamily.Monospace,
-                color = SaltyColors.textPrimary
-            )
+            text = apiUnit.displayUnitSuffix(temperatureUnits),
+            style = SaltyType.mono(16).copy(color = SaltyColors.textPrimary)
         )
     }
 }

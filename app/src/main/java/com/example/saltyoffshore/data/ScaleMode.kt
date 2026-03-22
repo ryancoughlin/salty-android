@@ -6,6 +6,12 @@ package com.example.saltyoffshore.data
  *
  * Matches iOS ScaleMode enum exactly - rawValue passed to Metal shaders.
  */
+import com.example.saltyoffshore.utils.DivergentNormalizer
+import com.example.saltyoffshore.utils.LinearNormalizer
+import com.example.saltyoffshore.utils.Log10Normalizer
+import com.example.saltyoffshore.utils.ScaleNormalizer
+import com.example.saltyoffshore.utils.SqrtNormalizer
+
 enum class ScaleMode(val rawValue: Int) {
     /**
      * Linear: value maps directly to colormap position.
@@ -31,5 +37,13 @@ enum class ScaleMode(val rawValue: Int) {
      * Square root: sqrt of linear position — expands low values, compresses high.
      * Currently used for Currents.
      */
-    SQRT(3)
+    SQRT(3);
+
+    /** Create the matching ScaleNormalizer for this mode. */
+    fun normalizer(min: Float, max: Float, center: Float = 0f): ScaleNormalizer = when (this) {
+        LINEAR -> LinearNormalizer(min, max)
+        LOGARITHMIC -> Log10Normalizer(min, max)
+        DIVERGING -> DivergentNormalizer(min, max, center)
+        SQRT -> SqrtNormalizer(min, max)
+    }
 }
