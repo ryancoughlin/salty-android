@@ -19,6 +19,7 @@ import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
+import com.example.saltyoffshore.data.measurement.MeasurementState
 import com.example.saltyoffshore.data.GpsFormat
 import com.example.saltyoffshore.data.MapTheme
 import com.example.saltyoffshore.data.RegionGroup
@@ -36,11 +37,26 @@ import com.example.saltyoffshore.data.UserPreferences
 import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.data.scaleMode
 import com.example.saltyoffshore.data.zarrVariable
+import com.example.saltyoffshore.data.waypoint.LoadingState
+import com.example.saltyoffshore.data.waypoint.SharedWaypoint
+import com.example.saltyoffshore.data.waypoint.Waypoint
+import com.example.saltyoffshore.data.waypoint.WaypointFormState
+import com.example.saltyoffshore.data.waypoint.WaypointSection
+import com.example.saltyoffshore.data.waypoint.WaypointSelectionSource
+import com.example.saltyoffshore.data.waypoint.WaypointSheet
+import com.example.saltyoffshore.data.waypoint.WaypointSortOption
+import com.example.saltyoffshore.data.waypoint.WaypointStorage
+import com.example.saltyoffshore.data.waypoint.WaypointSymbol
+import com.example.saltyoffshore.data.waypoint.WaypointCategory
 import com.example.saltyoffshore.preferences.AppPreferencesDataStore
 import com.example.saltyoffshore.repository.UserPreferencesRepository
 import com.example.saltyoffshore.zarr.TimeEntry as ZarrTimeEntry
 import com.example.saltyoffshore.zarr.ZarrManager
 import com.example.saltyoffshore.zarr.ZarrVisualLayer
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -52,6 +68,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context get() = getApplication<Application>()
     private val preferencesRepository = UserPreferencesRepository(SupabaseClientProvider.client)
+
+    // Measurement state
+    val measurementState = MeasurementState()
+
+    val currentDistanceUnits: DistanceUnits
+        get() = DistanceUnits.fromRawValue(userPreferences?.distanceUnits) ?: DistanceUnits.NAUTICAL_MILES
 
     // Global layer manager
     val globalLayerManager = GlobalLayerManager(context, viewModelScope)
@@ -129,6 +151,57 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var currentLatitude by mutableStateOf(30.0)
         private set
+
+    // Dataset control state (matches iOS DatasetControlState)
+    var isDatasetControlCollapsed by mutableStateOf(false)
+    var isDatasetSelectorExpanded by mutableStateOf(false)
+
+    // MARK: - Waypoint State
+
+    var waypoints by mutableStateOf<List<Waypoint>>(emptyList())
+        private set
+
+    var crewWaypoints by mutableStateOf<List<SharedWaypoint>>(emptyList())
+        private set
+
+    var waypointLoadingState by mutableStateOf(LoadingState.IDLE)
+        private set
+
+    var selectedWaypointId by mutableStateOf<String?>(null)
+        private set
+
+    var activeWaypointSheet by mutableStateOf<WaypointSheet?>(null)
+        private set
+
+    var waypointFormState by mutableStateOf(WaypointFormState())
+
+    var waypointSortOption by mutableStateOf(WaypointSortOption.DATE_CREATED)
+        private set
+
+    private var hasLoadedWaypointsFromDisk = false
+
+    // MARK: - Waypoint Derived Properties
+
+    val allWaypoints: List<Waypoint>
+        get() {
+            val ownedIds = waypoints.map { it.id }.toSet()
+            val crewOnly = crewWaypoints
+                .filter { it.waypoint.id !in ownedIds }
+                .map { it.waypoint }
+            return waypoints + crewOnly
+        }
+
+    val ownedWaypointIds: Set<String>
+        get() = waypoints.map { it.id }.toSet()
+
+    val groupedWaypoints: List<WaypointSection>
+        get() {
+            val sorted = sortWaypoints(allWaypoints)
+            return when (waypointSortOption) {
+                WaypointSortOption.DATE_CREATED -> groupByCreationDate(sorted)
+                WaypointSortOption.SYMBOL -> groupBySymbol(sorted)
+            }
+        }
 
     init {
         loadRegionsAndRestoreSelection()
@@ -696,6 +769,158 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 signOut()
             }
             Log.d(TAG, "Account deletion requested for user $userId")
+        }
+    }
+
+    // MARK: - Waypoint Loading
+
+    fun loadWaypoints() {
+        if (hasLoadedWaypointsFromDisk) return
+        hasLoadedWaypointsFromDisk = true
+        waypointLoadingState = LoadingState.LOADING
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val loaded = WaypointStorage.load(context)
+            withContext(Dispatchers.Main) {
+                waypoints = loaded
+                waypointLoadingState = LoadingState.LOADED
+            }
+            Log.d(TAG, "Loaded ${loaded.size} waypoints from disk")
+        }
+    }
+
+    // MARK: - Waypoint CRUD
+
+    fun createWaypoint(
+        latitude: Double,
+        longitude: Double,
+        name: String? = null,
+        symbol: WaypointSymbol = WaypointSymbol.DOT
+    ): Waypoint {
+        val waypoint = Waypoint(
+            id = UUID.randomUUID().toString(),
+            name = name ?: generateDefaultName(),
+            symbol = symbol,
+            latitude = latitude,
+            longitude = longitude,
+            createdAt = Instant.now().toString()
+        )
+
+        waypoints = waypoints + waypoint
+        persistWaypoints()
+
+        Log.d(TAG, "Created waypoint: ${waypoint.name}")
+        return waypoint
+    }
+
+    fun saveWaypoint(waypoint: Waypoint) {
+        val index = waypoints.indexOfFirst { it.id == waypoint.id }
+        if (index == -1) {
+            Log.w(TAG, "Waypoint not found for save: ${waypoint.id}")
+            return
+        }
+        waypoints = waypoints.toMutableList().also { it[index] = waypoint }
+        persistWaypoints()
+        Log.d(TAG, "Saved waypoint: ${waypoint.name}")
+    }
+
+    fun deleteWaypoint(waypoint: Waypoint) {
+        waypoints = waypoints.filter { it.id != waypoint.id }
+        persistWaypoints()
+        Log.d(TAG, "Deleted waypoint: ${waypoint.name}")
+    }
+
+    private fun persistWaypoints() {
+        val snapshot = waypoints
+        viewModelScope.launch(Dispatchers.IO) {
+            WaypointStorage.save(context, snapshot)
+        }
+    }
+
+    // MARK: - Waypoint Selection
+
+    fun selectWaypoint(id: String, source: WaypointSelectionSource? = null) {
+        // Force re-trigger by clearing if re-selecting same waypoint
+        if (selectedWaypointId == id) {
+            selectedWaypointId = null
+        }
+        selectedWaypointId = id
+    }
+
+    fun deselectWaypoint() {
+        selectedWaypointId = null
+    }
+
+    // MARK: - Waypoint Sheet Management
+
+    fun openWaypointDetails(id: String) {
+        activeWaypointSheet = WaypointSheet.Details(id)
+    }
+
+    fun openWaypointForm(waypoint: Waypoint) {
+        activeWaypointSheet = WaypointSheet.Form(waypoint)
+    }
+
+    fun dismissWaypointSheet() {
+        activeWaypointSheet = null
+    }
+
+    // MARK: - Waypoint Sort
+
+    fun updateWaypointSortOption(option: WaypointSortOption) {
+        waypointSortOption = option
+    }
+
+    // MARK: - Waypoint Naming
+
+    private fun generateDefaultName(): String {
+        val existingNumbers = waypoints.mapNotNull { wp ->
+            wp.name?.let { name ->
+                if (name.startsWith("WPT")) name.removePrefix("WPT").toIntOrNull() else null
+            }
+        }
+        val next = (existingNumbers.maxOrNull() ?: 0) + 1
+        return "WPT%03d".format(next)
+    }
+
+    // MARK: - Waypoint Sorting / Grouping (private helpers)
+
+    private fun sortWaypoints(waypoints: List<Waypoint>): List<Waypoint> {
+        return when (waypointSortOption) {
+            WaypointSortOption.DATE_CREATED ->
+                waypoints.sortedByDescending { it.createdAt }
+            WaypointSortOption.SYMBOL ->
+                waypoints.sortedWith(compareBy<Waypoint> { it.symbol.rawValue }.thenByDescending { it.createdAt })
+        }
+    }
+
+    private fun groupByCreationDate(waypoints: List<Waypoint>): List<WaypointSection> {
+        val formatter = DateTimeFormatter.ofPattern("MMMM yyyy")
+        val grouped = waypoints.groupBy { wp ->
+            try {
+                val instant = Instant.parse(wp.createdAt)
+                formatter.format(instant.atZone(ZoneOffset.UTC))
+            } catch (e: Exception) {
+                "Unknown"
+            }
+        }
+        return grouped.map { (monthYear, wps) ->
+            WaypointSection(id = monthYear, title = monthYear, waypoints = wps)
+        }
+    }
+
+    private fun groupBySymbol(waypoints: List<Waypoint>): List<WaypointSection> {
+        val grouped = waypoints.groupBy { it.symbol }
+        val categoryOrder = listOf(
+            WaypointCategory.GARMIN, WaypointCategory.FISH, WaypointCategory.STRUCTURE,
+            WaypointCategory.NAVIGATION, WaypointCategory.ENVIRONMENT, WaypointCategory.OTHER
+        )
+        val sortedSymbols = WaypointSymbol.sortedByCategory(grouped.keys.toList(), categoryOrder)
+
+        return sortedSymbols.map { symbol ->
+            val wps = grouped[symbol] ?: emptyList()
+            val title = "${symbol.rawValue} (${wps.size})"
+            WaypointSection(id = symbol.rawValue, title = title, waypoints = wps)
         }
     }
 }

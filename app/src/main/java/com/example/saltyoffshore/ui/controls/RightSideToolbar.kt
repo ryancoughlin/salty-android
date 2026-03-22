@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.R
+import androidx.compose.material.icons.filled.Straighten
 import com.example.saltyoffshore.ui.theme.SaltyLayout
 import kotlinx.coroutines.delay
 
@@ -40,6 +41,8 @@ import kotlinx.coroutines.delay
 fun RightSideToolbar(
     onFilterClick: () -> Unit,
     onLayersClick: () -> Unit,
+    onMeasureClick: () -> Unit = {},
+    isMeasureModeActive: Boolean = false,
     shouldHide: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -86,6 +89,16 @@ fun RightSideToolbar(
             hasAppeared = hasAppeared,
             delayMs = 200
         )
+
+        // Measure button (delay 300ms)
+        StaggeredMapButton(
+            icon = Icons.Default.Straighten,
+            onClick = onMeasureClick,
+            contentDescription = "Measure",
+            hasAppeared = hasAppeared,
+            delayMs = 300,
+            isActive = isMeasureModeActive
+        )
     }
 }
 
@@ -99,7 +112,8 @@ private fun StaggeredMapButton(
     onClick: () -> Unit,
     contentDescription: String,
     hasAppeared: Boolean,
-    delayMs: Long
+    delayMs: Long,
+    isActive: Boolean = false
 ) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(hasAppeared) {
@@ -120,19 +134,26 @@ private fun StaggeredMapButton(
         label = "btn_scale_$contentDescription"
     )
 
+    val activeBg = if (isActive) MaterialTheme.colorScheme.primary else null
+    val activeTint = if (isActive) MaterialTheme.colorScheme.onPrimary else null
+
     if (icon != null) {
         RoundedMapButton(
             icon = icon,
             onClick = onClick,
             contentDescription = contentDescription,
-            modifier = Modifier.alpha(alpha).scale(scale)
+            modifier = Modifier.alpha(alpha).scale(scale),
+            backgroundColor = activeBg,
+            iconTint = activeTint
         )
     } else if (iconResId != null) {
         RoundedMapButton(
             iconResId = iconResId,
             onClick = onClick,
             contentDescription = contentDescription,
-            modifier = Modifier.alpha(alpha).scale(scale)
+            modifier = Modifier.alpha(alpha).scale(scale),
+            backgroundColor = activeBg,
+            iconTint = activeTint
         )
     }
 }

@@ -57,14 +57,23 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalDensity
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.waypoint.SharedWaypoint
+import com.example.saltyoffshore.data.waypoint.Waypoint
+import com.example.saltyoffshore.data.waypoint.WaypointSelectionSource
+import com.example.saltyoffshore.data.waypoint.WaypointSheet
+import com.example.saltyoffshore.ui.measurement.MeasurementMapEffect
+import com.example.saltyoffshore.ui.measurement.MeasureModeOverlay
 import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
+import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
+import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import com.example.saltyoffshore.ui.theme.SaltyColors
 import com.example.saltyoffshore.ui.theme.SaltyLayout
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.mapbox.maps.extension.compose.MapEffect
+import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.ScreenCoordinate
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
@@ -127,6 +136,11 @@ fun MapScreen(
         }
     }
 
+    // Load waypoints from disk on first composition
+    LaunchedEffect(Unit) {
+        viewModel.loadWaypoints()
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
@@ -177,6 +191,36 @@ fun MapScreen(
                         isComingSoon = region.status == RegionStatus.COMING_SOON,
                         onClick = { viewModel.onRegionSelected(region.id) }
                     )
+                }
+            }
+
+            // Waypoint annotation layers
+            WaypointLayersEffect(
+                waypoints = viewModel.waypoints,
+                crewWaypoints = viewModel.crewWaypoints,
+                selectedWaypointId = viewModel.selectedWaypointId,
+                ownedWaypointIds = viewModel.ownedWaypointIds,
+                onWaypointTap = { id ->
+                    viewModel.selectWaypoint(id, WaypointSelectionSource.MAP_TAP)
+                }
+            )
+
+            // Measurement layers (lines, points, distance labels)
+            MeasurementMapEffect(
+                measurements = viewModel.measurementState.allMeasurements,
+                distanceUnits = viewModel.currentDistanceUnits
+            )
+
+            // Tap-to-measure: intercept map clicks when measure mode active
+            // Registered once (Unit key) — isActive check gates behavior at runtime
+            MapEffect(Unit) { mapView ->
+                mapView.gestures.addOnMapClickListener { point ->
+                    if (viewModel.measurementState.isActive) {
+                        viewModel.measurementState.addPoint(point)
+                        true
+                    } else {
+                        false
+                    }
                 }
             }
         }
@@ -243,19 +287,46 @@ fun MapScreen(
                 ) {
                     RightSideToolbar(
                         onFilterClick = { showFilterSheet = true },
-                        onLayersClick = { showLayersSheet = true }
+                        onLayersClick = { showLayersSheet = true },
+                        onMeasureClick = {
+                            if (viewModel.measurementState.isActive) {
+                                viewModel.measurementState.exit()
+                            } else {
+                                viewModel.measurementState.enter()
+                            }
+                        },
+                        isMeasureModeActive = viewModel.measurementState.isActive
                     )
                 }
 
                 Spacer(Modifier.height(Spacing.medium))
 
+                // Measurement mode overlay (replaces dataset control when active)
+                if (viewModel.measurementState.isActive) {
+                    MeasureModeOverlay(
+                        totalDistanceMeters = viewModel.measurementState.totalDistanceMeters,
+                        hasMeasurements = viewModel.measurementState.hasMeasurements,
+                        canUndo = viewModel.measurementState.canUndo,
+                        distanceUnits = viewModel.currentDistanceUnits,
+                        onUndo = { viewModel.measurementState.undoLastPoint() },
+                        onClear = { viewModel.measurementState.clearAll() },
+                        onDone = { viewModel.measurementState.exit() }
+                    )
+                }
+
                 // Bottom panel
-                SaltyDatasetControl(
+                if (!viewModel.measurementState.isActive) SaltyDatasetControl(
                     dataset = viewModel.selectedDataset!!,
                     entry = viewModel.selectedEntry,
                     snapshot = viewModel.renderingSnapshot,
                     currentValue = viewModel.currentValue,
+                    isExpanded = viewModel.isDatasetControlCollapsed,
+                    primaryConfig = viewModel.primaryConfig,
+                    onConfigChanged = { viewModel.updatePrimaryConfig(it) },
                     onEntrySelected = { viewModel.selectEntry(it) },
+                    onExpandToggle = {
+                        viewModel.isDatasetControlCollapsed = !viewModel.isDatasetControlCollapsed
+                    },
                     onChange = { showDatasetSheet = true }
                 )
             }
@@ -328,6 +399,18 @@ fun MapScreen(
                 },
                 onDismiss = { showFilterSheet = false }
             )
+        }
+
+        // Waypoint sheets
+        viewModel.activeWaypointSheet?.let { sheet ->
+            when (sheet) {
+                is WaypointSheet.Details -> {
+                    // TODO: WaypointDetailSheet (Phase 5)
+                }
+                is WaypointSheet.Form -> {
+                    // TODO: WaypointFormSheet (Phase 6)
+                }
+            }
         }
     }
 }
@@ -515,6 +598,86 @@ private fun GlobalLayersEffect(
                 loranConfig = currentLoranConfig,
                 selectedTournament = currentTournament,
                 stations = currentStations
+            )
+        }
+    }
+}
+
+/**
+ * Effect that manages waypoint annotation layers (own + shared).
+ * Uses imperative GeoJSON source + SymbolLayer pattern matching StationsLayer.
+ */
+@Composable
+private fun WaypointLayersEffect(
+    waypoints: List<Waypoint>,
+    crewWaypoints: List<SharedWaypoint>,
+    selectedWaypointId: String?,
+    ownedWaypointIds: Set<String>,
+    onWaypointTap: (String) -> Unit
+) {
+    var ownLayer by remember { mutableStateOf<WaypointAnnotationLayer?>(null) }
+    var sharedLayer by remember { mutableStateOf<SharedWaypointAnnotationLayer?>(null) }
+    var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
+
+    // Use rememberUpdatedState for latest values in callbacks
+    val currentWaypoints by androidx.compose.runtime.rememberUpdatedState(waypoints)
+    val currentCrewWaypoints by androidx.compose.runtime.rememberUpdatedState(crewWaypoints)
+    val currentSelectedId by androidx.compose.runtime.rememberUpdatedState(selectedWaypointId)
+    val currentOwnedIds by androidx.compose.runtime.rememberUpdatedState(ownedWaypointIds)
+
+    // Clean up on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            ownLayer?.removeFromMap()
+            ownLayer = null
+            sharedLayer?.removeFromMap()
+            sharedLayer = null
+        }
+    }
+
+    // Get map reference and do initial render
+    MapEffect(Unit) { mapView ->
+        mapboxMapRef = mapView.mapboxMap
+
+        mapView.mapboxMap.getStyle { _ ->
+            if (ownLayer == null) {
+                ownLayer = WaypointAnnotationLayer(mapView.mapboxMap)
+            }
+            if (sharedLayer == null) {
+                sharedLayer = SharedWaypointAnnotationLayer(mapView.mapboxMap)
+            }
+
+            ownLayer?.update(
+                waypoints = currentWaypoints,
+                selectedWaypointId = currentSelectedId,
+                activeCrewId = null // TODO: wire crew state
+            )
+            sharedLayer?.update(
+                sharedWaypoints = currentCrewWaypoints,
+                activeCrewId = null, // TODO: wire crew state
+                ownedWaypointIds = currentOwnedIds,
+                selectedWaypointId = currentSelectedId
+            )
+        }
+
+        // TODO: Handle tap on waypoint features — wire when gesture API is confirmed
+        // Needs: addOnMapClickListener + queryRenderedFeatures for waypoint layer tap detection
+    }
+
+    // Update layers when data changes
+    LaunchedEffect(waypoints, crewWaypoints, selectedWaypointId) {
+        val map = mapboxMapRef ?: return@LaunchedEffect
+        map.getStyle { _ ->
+            ownLayer?.update(
+                waypoints = currentWaypoints,
+                selectedWaypointId = currentSelectedId,
+                activeCrewId = null
+            )
+            sharedLayer?.update(
+                sharedWaypoints = currentCrewWaypoints,
+                activeCrewId = null,
+                ownedWaypointIds = currentOwnedIds,
+                selectedWaypointId = currentSelectedId
             )
         }
     }
