@@ -190,7 +190,7 @@ fun WaypointDetailSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
         containerColor = MaterialTheme.colorScheme.background
     ) {
         Column(

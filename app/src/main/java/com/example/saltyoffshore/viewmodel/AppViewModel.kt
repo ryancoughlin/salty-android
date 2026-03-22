@@ -37,6 +37,8 @@ import com.example.saltyoffshore.data.UserPreferences
 import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.data.scaleMode
 import com.example.saltyoffshore.data.zarrVariable
+import com.example.saltyoffshore.data.waypoint.GPXImportOptions
+import com.example.saltyoffshore.data.waypoint.GPXImportService
 import com.example.saltyoffshore.data.waypoint.LoadingState
 import com.example.saltyoffshore.data.waypoint.SharedWaypoint
 import com.example.saltyoffshore.data.waypoint.Waypoint
@@ -176,6 +178,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var waypointFormState by mutableStateOf(WaypointFormState())
 
     var waypointSortOption by mutableStateOf(WaypointSortOption.DATE_CREATED)
+        private set
+
+    var importResult by mutableStateOf<String?>(null)
         private set
 
     private var hasLoadedWaypointsFromDisk = false
@@ -893,6 +898,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openWaypointForm(waypoint: Waypoint) {
+        waypointFormState = WaypointFormState().setFromWaypoint(waypoint, com.example.saltyoffshore.data.coordinate.GPSFormat.DMM)
         activeWaypointSheet = WaypointSheet.Form(waypoint)
     }
 
@@ -904,6 +910,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateWaypointSortOption(option: WaypointSortOption) {
         waypointSortOption = option
+    }
+
+    fun clearImportResult() {
+        importResult = null
+    }
+
+    fun importGPX(uri: android.net.Uri, context: android.content.Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                    ?: throw Exception("Cannot read file")
+                val result = GPXImportService.parseAndDeduplicate(
+                    inputStream = inputStream,
+                    options = GPXImportOptions(),
+                    existingWaypoints = waypoints
+                )
+                inputStream.close()
+
+                val updatedList = waypoints
+                    .filter { existing -> result.waypointsToRemove.none { it.id == existing.id } }
+                    .plus(result.waypointsToAdd)
+
+                waypoints = updatedList
+                WaypointStorage.save(context, updatedList)
+
+                val count = result.waypointsToAdd.size
+                importResult = if (count > 0) {
+                    "Imported $count waypoint${if (count != 1) "s" else ""}"
+                } else {
+                    "All waypoints already exist"
+                }
+            } catch (e: Exception) {
+                importResult = "Import failed: ${e.message}"
+            }
+        }
     }
 
     // MARK: - Waypoint Naming

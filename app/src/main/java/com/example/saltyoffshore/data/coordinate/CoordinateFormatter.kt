@@ -106,21 +106,24 @@ object CoordinateFormatter {
 
     // MARK: - Unified Parsing (from CoordinateAxisValues)
 
-    fun parse(values: CoordinateAxisValues, format: GPSFormat, isLatitude: Boolean): Double? = when (format) {
-        GPSFormat.DMM -> if (isLatitude) {
-            parseLatitudeDMM(values.segments[0], values.segments[1], values.direction)
-        } else {
-            parseLongitudeDMM(values.segments[0], values.segments[1], values.direction)
-        }
-        GPSFormat.DMS -> if (isLatitude) {
-            parseLatitudeDMS(values.segments[0], values.segments[1], values.segments[2], values.direction)
-        } else {
-            parseLongitudeDMS(values.segments[0], values.segments[1], values.segments[2], values.direction)
-        }
-        GPSFormat.DD -> if (isLatitude) {
-            parseLatitudeDD(values.segments[0], values.direction)
-        } else {
-            parseLongitudeDD(values.segments[0], values.direction)
+    fun parse(values: CoordinateAxisValues, format: GPSFormat, isLatitude: Boolean): Double? {
+        val s = values.segments
+        return when (format) {
+            GPSFormat.DMM -> {
+                if (s.size < 2) return null
+                if (isLatitude) parseLatitudeDMM(s[0], s[1], values.direction)
+                else parseLongitudeDMM(s[0], s[1], values.direction)
+            }
+            GPSFormat.DMS -> {
+                if (s.size < 3) return null
+                if (isLatitude) parseLatitudeDMS(s[0], s[1], s[2], values.direction)
+                else parseLongitudeDMS(s[0], s[1], s[2], values.direction)
+            }
+            GPSFormat.DD -> {
+                if (s.isEmpty()) return null
+                if (isLatitude) parseLatitudeDD(s[0], values.direction)
+                else parseLongitudeDD(s[0], values.direction)
+            }
         }
     }
 

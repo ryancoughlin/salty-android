@@ -9,7 +9,9 @@ import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.extension.style.expressions.dsl.generated.get
+import com.mapbox.maps.extension.style.expressions.dsl.generated.has
 import com.mapbox.maps.extension.style.expressions.dsl.generated.literal
+import com.mapbox.maps.extension.style.expressions.dsl.generated.not
 import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.layers.generated.circleLayer
 import com.mapbox.maps.extension.style.layers.generated.symbolLayer
@@ -103,74 +105,78 @@ class WaypointAnnotationLayer(
     private fun addToMap(featureCollection: FeatureCollection) {
         val style = mapboxMap.style ?: return
 
-        // Source with clustering
-        if (!style.styleSourceExists(sourceId)) {
-            style.addSource(
-                geoJsonSource(sourceId) {
-                    featureCollection(featureCollection)
-                    cluster(true)
-                    clusterRadius(30)
-                    clusterMaxZoom(11)
-                    clusterMinPoints(6)
-                }
-            )
+        try {
+            // Source with clustering
+            if (!style.styleSourceExists(sourceId)) {
+                style.addSource(
+                    geoJsonSource(sourceId) {
+                        featureCollection(featureCollection)
+                        cluster(true)
+                        clusterRadius(30)
+                        clusterMaxZoom(11)
+                        clusterMinPoints(6)
+                    }
+                )
+            }
+
+            // Cluster circles
+            if (!style.styleLayerExists(clusterLayerId)) {
+                style.addLayer(
+                    circleLayer(clusterLayerId, sourceId) {
+                        filter(has { literal("point_count") })
+                        circleRadius(12.0)
+                        circleColor(Color.BLACK)
+                    }
+                )
+            }
+
+            // Cluster count labels
+            if (!style.styleLayerExists(countLayerId)) {
+                style.addLayer(
+                    symbolLayer(countLayerId, sourceId) {
+                        filter(has { literal("point_count") })
+                        textField(get { literal("point_count") })
+                        textSize(9.0)
+                        textColor(Color.WHITE)
+                        textAllowOverlap(true)
+                        textIgnorePlacement(true)
+                    }
+                )
+            }
+
+            // Individual waypoint symbols
+            if (!style.styleLayerExists(layerId)) {
+                style.addLayer(
+                    symbolLayer(layerId, sourceId) {
+                        filter(not { has { literal("point_count") } })
+
+                        // Data-driven icon from "icon" property
+                        iconImage(get { literal("icon") })
+                        iconSize(literal(0.3))
+                        iconAnchor(IconAnchor.CENTER)
+                        iconAllowOverlap(true)
+
+                        // Text label
+                        textField(get { literal("name") })
+                        textFont(listOf("Roboto Bold", "Arial Unicode MS Regular"))
+                        textSize(12.0)
+                        textColor(Color.WHITE)
+                        textHaloColor(Color.BLACK)
+                        textHaloWidth(1.0)
+                        textAnchor(TextAnchor.TOP)
+                        textOffset(listOf(0.0, -1.75))
+                        textAllowOverlap(false)
+
+                        minZoom(4.0)
+                    }
+                )
+            }
+
+            isAdded = true
+            Log.d(TAG, "Added to map with ${featureCollection.features()?.size ?: 0} features")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add waypoint layer: ${e.message}", e)
         }
-
-        // Cluster circles
-        if (!style.styleLayerExists(clusterLayerId)) {
-            style.addLayer(
-                circleLayer(clusterLayerId, sourceId) {
-                    filter(literal(listOf("has", "point_count")))
-                    circleRadius(12.0)
-                    circleColor(Color.BLACK)
-                }
-            )
-        }
-
-        // Cluster count labels
-        if (!style.styleLayerExists(countLayerId)) {
-            style.addLayer(
-                symbolLayer(countLayerId, sourceId) {
-                    filter(literal(listOf("has", "point_count")))
-                    textField(get { literal("point_count") })
-                    textSize(9.0)
-                    textColor(Color.WHITE)
-                    textAllowOverlap(true)
-                    textIgnorePlacement(true)
-                }
-            )
-        }
-
-        // Individual waypoint symbols
-        if (!style.styleLayerExists(layerId)) {
-            style.addLayer(
-                symbolLayer(layerId, sourceId) {
-                    filter(literal(listOf("!", listOf("has", "point_count"))))
-
-                    // Data-driven icon from "icon" property
-                    iconImage(get { literal("icon") })
-                    iconSize(get { literal("iconSize") })
-                    iconAnchor(IconAnchor.CENTER)
-                    iconAllowOverlap(true)
-
-                    // Text label
-                    textField(get { literal("name") })
-                    textFont(listOf("Roboto Bold", "Arial Unicode MS Regular"))
-                    textSize(12.0)
-                    textColor(Color.WHITE)
-                    textHaloColor(Color.BLACK)
-                    textHaloWidth(1.0)
-                    textAnchor(TextAnchor.TOP)
-                    textOffset(listOf(0.0, -1.75))
-                    textAllowOverlap(false)
-
-                    minZoom(4.0)
-                }
-            )
-        }
-
-        isAdded = true
-        Log.d(TAG, "Added to map")
     }
 
     private fun setVisibility(visible: Boolean) {

@@ -9,7 +9,9 @@ import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.extension.style.expressions.dsl.generated.get
+import com.mapbox.maps.extension.style.expressions.dsl.generated.has
 import com.mapbox.maps.extension.style.expressions.dsl.generated.literal
+import com.mapbox.maps.extension.style.expressions.dsl.generated.not
 import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.layers.generated.circleLayer
 import com.mapbox.maps.extension.style.layers.generated.symbolLayer
@@ -142,7 +144,7 @@ class SharedWaypointAnnotationLayer(
         if (!style.styleLayerExists(clusterLayerId)) {
             style.addLayer(
                 circleLayer(clusterLayerId, sourceId) {
-                    filter(literal(listOf("has", "point_count")))
+                    filter(has { literal("point_count") })
                     circleRadius(12.0)
                     circleColor(Color.BLACK)
                 }
@@ -153,7 +155,7 @@ class SharedWaypointAnnotationLayer(
         if (!style.styleLayerExists(countLayerId)) {
             style.addLayer(
                 symbolLayer(countLayerId, sourceId) {
-                    filter(literal(listOf("has", "point_count")))
+                    filter(has { literal("point_count") })
                     textField(get { literal("point_count") })
                     textSize(9.0)
                     textColor(Color.WHITE)
@@ -167,7 +169,7 @@ class SharedWaypointAnnotationLayer(
         if (!style.styleLayerExists(layerId)) {
             style.addLayer(
                 symbolLayer(layerId, sourceId) {
-                    filter(literal(listOf("!", listOf("has", "point_count"))))
+                    filter(not { has { literal("point_count") } })
 
                     // Data-driven icon
                     iconImage(get { literal("icon") })

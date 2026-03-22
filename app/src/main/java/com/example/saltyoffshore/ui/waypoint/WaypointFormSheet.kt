@@ -68,7 +68,7 @@ fun WaypointFormSheet(
 
     var showCancelAlert by remember { mutableStateOf(false) }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     ModalBottomSheet(
         onDismissRequest = {

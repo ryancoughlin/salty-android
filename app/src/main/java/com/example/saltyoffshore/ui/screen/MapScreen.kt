@@ -1,5 +1,7 @@
 package com.example.saltyoffshore.ui.screen
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
@@ -113,6 +119,23 @@ fun MapScreen(
 
     // Waypoint management sheet state
     var showWaypointSheet by remember { mutableStateOf(false) }
+
+    // GPX file picker
+    val context = LocalContext.current
+    val gpxPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.importGPX(it, context) }
+    }
+
+    // Snackbar for import feedback
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel.importResult) {
+        viewModel.importResult?.let { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+            viewModel.clearImportResult()
+        }
+    }
 
     val mapViewportState = rememberMapViewportState {
         setCameraOptions {
@@ -213,13 +236,14 @@ fun MapScreen(
                 }
             )
 
-            // Long-press to create waypoint
+            // Long-press to create waypoint + open form
             MapEffect(Unit) { mapView ->
                 mapView.gestures.addOnMapLongClickListener { point ->
-                    viewModel.createWaypoint(
+                    val waypoint = viewModel.createWaypoint(
                         latitude = point.latitude(),
                         longitude = point.longitude()
                     )
+                    viewModel.openWaypointForm(waypoint)
                     true
                 }
             }
@@ -267,6 +291,14 @@ fun MapScreen(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        // Snackbar host (import feedback)
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 80.dp)
+        )
 
         // Loading overlay
         if (viewModel.appStatus is AppStatus.Loading) {
@@ -479,7 +511,7 @@ fun MapScreen(
                     viewModel.openWaypointDetails(id)
                 },
                 onWaypointDelete = { viewModel.deleteWaypoint(it) },
-                onImportGPX = { /* TODO: wire GPX import */ },
+                onImportGPX = { gpxPickerLauncher.launch(arrayOf("*/*")) },
                 onDismiss = { showWaypointSheet = false }
             )
         }
