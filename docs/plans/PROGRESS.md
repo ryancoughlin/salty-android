@@ -1,127 +1,93 @@
 # iOS → Android Parity: Progress Tracker
 
-> Updated as we go. Check items off, note issues, flag things to revisit.
-
-## Wave 1: Phase 1 — App Shell + DI + Navigation
-
-### Status: CODE COMPLETE — AWAITING BUILD CHECKPOINT
-
-### Tasks
-- [x] 1.1: SaltyApplication subclass + manifest
-- [x] 1.2: AccountButton (gradient circle, press-scale animation)
-- [x] 1.3: TopBar (three-slot Row, appear animation)
-- [x] 1.4: AccountHubSheet (all 11 sections, 2-step delete)
-- [x] 1.5: LoginScreen refactor (email expand animation)
-- [x] 1.6: FTUX region selection (blocking dialog, grouped list)
-- [x] 1.7: AppViewModel additions (auth state, FTUX, foreground refresh)
-- [x] 1.8: MainActivity rewrite (auth state machine, wiring)
-- [x] 1.9: Delete SettingsScreen, remove gear icon from MapScreen
-- [x] 1.10: Final wiring + bug fix (RefreshFailure handling)
-
-### Known Issues / Revisit Later
-- FTUX region thumbnails use placeholder text (Coil not yet added as dependency)
-- Hilt DI deferred — using direct ViewModel construction for now (works, can add Hilt later)
-- RegionStore/DatasetStore extraction deferred — AppViewModel still monolithic (Phase 2 will address)
-- Offline mode indicator not yet implemented (placeholder row in AccountHub)
-
-### Worktree
-- Branch: `worktree-agent-aebef4ae`
-- Path: `.claude/worktrees/agent-aebef4ae`
-- 10 commits, 1714 lines added, 374 removed
-
-### Build Checkpoint (USER: test these)
-- [ ] App builds and runs
-- [ ] Auth flow works (login → map → signout → login)
-- [ ] "Continue with email" expands the form on tap
-- [ ] Map loads regions and datasets as before
-- [ ] Top bar shows with gradient account button (top-right)
-- [ ] Account button has press-scale animation
-- [ ] Account hub opens as bottom sheet with all sections
-- [ ] Units section in account hub works (temperature, depth, distance, speed)
-- [ ] Sign out from account hub returns to login
-- [ ] Delete account shows two confirmation dialogs
-- [ ] FTUX shows on first launch (no saved region)
-- [ ] Selecting a region in FTUX dismisses dialog and loads map
+> Updated: 2026-03-21. Check items off, note issues, flag things to revisit.
 
 ---
 
-## Wave 2: Phases 2 + 7 + 8 (parallel)
+## Phase 1: App Shell + DI + Navigation — COMPLETE
 
-### Status: WAITING (needs Wave 1)
+- [x] SaltyApplication subclass + manifest
+- [x] AccountButton (gradient circle, press-scale animation)
+- [x] TopBar (three-slot Row, appear animation)
+- [x] AccountHubSheet (all 11 sections, 2-step delete)
+- [x] LoginScreen refactor (email expand animation)
+- [x] FTUX region selection (blocking dialog, grouped list)
+- [x] AppViewModel additions (auth state, FTUX, foreground refresh)
+- [x] MainActivity rewrite (auth state machine, wiring)
+- [x] Delete SettingsScreen, remove gear icon from MapScreen
+- [x] Final wiring + bug fix (RefreshFailure handling)
 
-### Phase 2: Rendering Config Pipeline
-- [ ] DatasetRenderConfig type
-- [ ] Wire DatasetStore through config
-- [ ] Inline FilterGradientBar (replaces FilterRangeSheet)
-- [ ] Wire layer controls to config
-- [ ] Status banners (stale, composite, low coverage)
-
-### Phase 7: Measurement Tool
-- [ ] MeasurementTypes
-- [ ] MeasureMode + MeasurementManager
-- [ ] MeasurementLayer (map)
-- [ ] MeasureModeOverlay (UI)
-
-### Phase 8: Announcements
-- [ ] Announcement type
-- [ ] AnnouncementService
-- [ ] AnnouncementSheetView
+**Known gaps:** FTUX thumbnails use placeholder (Coil not added). Hilt DI deferred.
 
 ---
 
-## Wave 3: Phases 3 + 4 (parallel)
+## Phase 2: Rendering Config Pipeline — COMPLETE (build testing)
 
-### Status: WAITING (needs Wave 2)
+- [x] 4 missing colorscales added (Wind, Wave Height, Wave Period, Water Clarity)
+- [x] DatasetRenderConfig (24 properties, factory methods, snapshot())
+- [x] FilterMode, EntryOverride types
+- [x] CheckerboardPattern, LayerSection, LayerOpacityControl composables
+- [x] ViewModel wired through config (updatePrimaryConfig, single StateFlow)
+- [x] FilterGradientBar (dual handles, gradient, 60fps drag)
+- [x] DatasetFilterSheet (modal, pickers, embedded gradient bar)
+- [x] 6 layer controls rewritten for config pattern + ParticlesLayerControl
+- [x] LayersControlSheet simplified (config + onConfigChanged)
+- [x] MapScreen wired to new DatasetFilterSheet
+- [x] Old FilterRangeSheet deleted
+- [x] Build errors fixed (imports, type mismatches, API changes)
 
-### Phase 3: Presets
-- [ ] PresetTypes + COGStatistics
-- [ ] COGStatisticsService
-- [ ] QuickActionsBar + PresetChips
-- [ ] Wire to DatasetStore
-
-### Phase 4: Colorscale + Variables
-- [ ] ColorscalePickerSheet (3-column grid rewrite)
-- [ ] Sweep gradient chip
-- [ ] Missing colorscales (wind, waveHeight, wavePeriod)
-- [ ] Variable selector chips
-- [ ] Expanded/collapsed dataset control
-
----
-
-## Wave 4: Phase 5 — Overlays
-### Status: WAITING (needs Wave 3)
-
-## Wave 5: Phase 6 — Waypoints
-### Status: WAITING (needs Wave 1)
-
-## Wave 6: Phases 9 + 10 (parallel)
-### Status: WAITING (needs Wave 5)
+**Build checkpoint:** Clean + Run needed to verify runtime behavior.
 
 ---
 
-## Critical Bug: ANR on Region/Dataset Selection
+## Critical Bug: ANR on Region Selection — PARTIALLY FIXED
 
-**Root cause:** Cascading Compose recompositions on main thread.
+**Root cause:** Cascading Compose recompositions + main thread blocking.
 
-**Problem chain:**
-1. `selectDataset()` makes 5+ individual `mutableStateOf` mutations → each triggers separate recomposition
-2. Each recomposition re-fires `DatasetLayersEffect` (7 sync Mapbox ops) + `GlobalLayersEffect` (10 sync layer updates with NO change guard)
-3. After Zarr load completes, `loadingState = Ready` triggers another cascade
-4. Total: 20-30+ synchronous Mapbox operations on main thread = 47 second freeze
+**Fixes applied:**
+1. StateFlow refactor (15 mutableStateOf → single MutableStateFlow<MapScreenState>)
+2. IO dispatcher for region loading
+3. ZarrManager moved to Dispatchers.IO
+4. Background frame preloading disabled
 
-**iOS doesn't have this because:**
-- `@Observable` batches property changes into single SwiftUI update
-- GlobalLayers has change guard (`if lastVisibility == visibility { return }`)
-- Separate stores minimize cascading
+**May still need:** Testing on real device (emulator JIT overhead). selectDataset() and refreshData() paths may also need IO dispatcher.
 
-**Fix needed:**
-1. Batch state mutations (use Compose `snapshotFlow` or single state object)
-2. Add change guard to GlobalLayers.update()
-3. Debounce DatasetLayersEffect
-4. Extract RegionStore + DatasetStore (Phase 1.2 task)
+---
 
-## Global Notes
-- iOS is always the source of truth — re-read Swift files when in doubt
-- Phase specs live in `docs/plans/phases/phase-N-*.md`
-- Each wave merges before the next starts
-- Build locally between waves to catch issues early
+## Upcoming Phases
+
+| Phase | Status | Spec |
+|-------|--------|------|
+| 3 — Presets | Not started | `phases/phase-3-presets.md` |
+| 4 — Colorscale + Variables | Not started | `phases/phase-4-colorscale-variables.md` |
+| 5 — Overlay Datasets | Not started | `phases/phase-5-overlay-datasets.md` |
+| 6 — Waypoints | Not started | `phases/phase-6-waypoints.md` |
+| 7 — Measurement | Not started | `phases/phase-7-measurement.md` |
+| 8 — Announcements | Not started | `phases/phase-8-announcements.md` |
+| 9 — Route Recording | Not started | `phases/phase-9-route-recording.md` |
+| 10 — Stations + Weather | Not started | `phases/phase-10-stations-weather.md` |
+
+---
+
+## File Locations
+
+| What | Where | Persists? |
+|------|-------|-----------|
+| **Phase specs** | `docs/plans/phases/phase-N-*.md` | Git (in repo) |
+| **Master plan** | `docs/plans/2026-03-21-ios-parity-phases.md` | Git (in repo) |
+| **This file** | `docs/plans/PROGRESS.md` | Git (in repo) |
+| **Session memory** | `~/.claude/projects/.../memory/` | Claude memory (cross-session) |
+| **Project rules** | `CLAUDE.md` | Git (in repo) |
+
+---
+
+## Lessons Learned
+
+1. **Always use Run, not Build** — Assemble doesn't deploy to emulator
+2. **Sync Now** after changing gradle files
+3. **Clean Project** when changes don't seem to take effect
+4. **No hacks** — follow standard Android patterns from official docs
+5. **Worktree agents can conflict** — when two agents touch the same files, merge one first, skip the other
+6. **StateFlow.update is thread-safe** — no need for withContext(Main) for state updates
+7. **AGP 9.1 has built-in Kotlin** — don't apply kotlin.android plugin separately
+8. **Mapbox 11.16 API changes** — CustomLayer → addStyleCustomLayer, mapboxMap → getMapboxMap(), Projection constructor is internal
