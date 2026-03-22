@@ -236,9 +236,11 @@ Port all 24 properties, factory methods, `snapshot()`, `activeRange()`, `clearFi
 **File:** `data/DatasetRenderingSnapshot.kt`
 Add `particlesEnabled`, `selectedPreset`, `contourFilterRange` computed property.
 
-### Task 2.4: Wire ViewModel through Config
+### Task 2.4: Wire ViewModel through Config — COMPLETE
 **File:** `viewmodel/AppViewModel.kt`
 Add `primaryConfig` to `MapScreenState`. Derive `renderingSnapshot` from `config.snapshot(dataRange)`. Remove individual toggle/opacity methods — replace with `updatePrimaryConfig()`.
+
+**Post-fix (2026-03-22):** `updatePrimaryConfig()` now pushes uniforms to GPU shader via `pushUniformsToShader()` → `zarrManager.setUniforms()` + `setColorscale()` + `repaint()`. Toggle/opacity methods also push to shader. Individual toggle methods kept (not yet removed) for backward compat with layer controls.
 
 ### Task 2.5: Create CheckerboardPattern
 **File:** `ui/components/CheckerboardPattern.kt`

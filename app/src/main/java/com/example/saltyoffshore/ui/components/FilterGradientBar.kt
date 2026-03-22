@@ -50,7 +50,7 @@ import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.DatasetUnit
 import com.example.saltyoffshore.data.TemperatureUnits
-import com.example.saltyoffshore.ui.theme.SaltyColors
+import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.utils.GradientScaleUtil
@@ -257,7 +257,7 @@ private fun GradientBarWithHandles(
                     .background(
                         Brush.horizontalGradient(
                             colors = if (gradientColors.isNotEmpty()) gradientColors
-                            else listOf(Color.Gray, Color.White)
+                            else listOf(MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surface)
                         )
                     )
             )
@@ -337,7 +337,7 @@ private fun DragHandle(
             modifier = Modifier
                 .size(HANDLE_WIDTH, HANDLE_HEIGHT)
                 .shadow(2.dp, RoundedCornerShape(4.dp))
-                .background(Color.White, RoundedCornerShape(4.dp)),
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
@@ -353,7 +353,7 @@ private fun GripLine() {
     Box(
         modifier = Modifier
             .size(width = 1.dp, height = HANDLE_HEIGHT * 0.3f)
-            .background(Color.Gray.copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
     )
 }
 
@@ -387,7 +387,7 @@ private fun FilterValueField(
             value = displayText,
             onValueChange = { editingText = it },
             textStyle = SaltyType.mono(16).copy(
-                color = SaltyColors.textPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = textAlign
             ),
             singleLine = true,
@@ -430,8 +430,8 @@ private fun FilterValueField(
                             .fillMaxWidth()
                             .height(if (isFocused) 2.dp else 1.dp)
                             .background(
-                                if (isFocused) SaltyColors.accent
-                                else SaltyColors.textSecondary.copy(alpha = 0.4f)
+                                if (isFocused) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                             )
                     )
                 }
@@ -440,7 +440,7 @@ private fun FilterValueField(
 
         Text(
             text = apiUnit.displayUnitSuffix(temperatureUnits),
-            style = SaltyType.mono(16).copy(color = SaltyColors.textPrimary)
+            style = SaltyType.mono(16).copy(color = MaterialTheme.colorScheme.onSurface)
         )
     }
 }

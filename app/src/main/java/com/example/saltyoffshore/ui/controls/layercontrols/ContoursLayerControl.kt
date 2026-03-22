@@ -22,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.DatasetRenderConfig
 
 /**
@@ -54,8 +53,8 @@ fun ContoursLayerControl(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "Colors",
-                    fontSize = 12.sp,
-                    color = Color.Black,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.width(54.dp)
                 )
 
@@ -66,7 +65,7 @@ fun ContoursLayerControl(
                             .size(32.dp)
                             .clip(CircleShape)
                             .background(Color(config.contourColor))
-                            .border(1.dp, Color.LightGray.copy(alpha = 0.5f), CircleShape)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                             .clickable { /* TODO: Open color picker */ }
                     )
                 }
@@ -76,8 +75,8 @@ fun ContoursLayerControl(
 
                     Text(
                         text = "Dynamic Colors",
-                        fontSize = 12.sp,
-                        color = Color.Black
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Switch(
@@ -85,10 +84,10 @@ fun ContoursLayerControl(
                         onCheckedChange = { onConfigChanged(config.copy(dynamicContourColoring = it)) },
                         modifier = Modifier.scale(0.8f),
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                             checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                         )
                     )
                 }

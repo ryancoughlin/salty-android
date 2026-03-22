@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -22,10 +22,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.Dataset
 import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.GlobalLayerType
@@ -35,6 +33,8 @@ import com.example.saltyoffshore.data.OverlayCategory
 import com.example.saltyoffshore.data.Tournament
 import com.example.saltyoffshore.ui.controls.layercontrols.DatasetLayerControls
 import com.example.saltyoffshore.ui.controls.layercontrols.OverlayLayerControls
+import androidx.compose.material3.ExperimentalMaterial3Api
+import com.example.saltyoffshore.ui.theme.Spacing
 
 /**
  * Layer controls bottom sheet with Data and Overlays tabs.
@@ -69,7 +69,7 @@ fun LayersControlSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        containerColor = Color(0xFFF5F5F5),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = { SheetDragHandle() }
     ) {
         Column(
@@ -80,17 +80,17 @@ fun LayersControlSheet(
             // Header
             Text(
                 text = "Layers",
-                fontSize = 20.sp,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.Black,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = Spacing.large, vertical = Spacing.small)
             )
 
             // Tab row
             TabRow(
                 selectedTabIndex = selectedTabIndex,
-                containerColor = Color.Transparent,
-                contentColor = Color.Black
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -111,12 +111,11 @@ fun LayersControlSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp, top = 16.dp)
+                    .padding(horizontal = Spacing.large)
+                    .padding(bottom = Spacing.extraLarge, top = Spacing.large)
             ) {
                 when (selectedTabIndex) {
                     0 -> {
-                        // Data tab - existing dataset layer controls
                         DatasetLayerControls(
                             dataset = dataset,
                             config = config,
@@ -125,7 +124,6 @@ fun LayersControlSheet(
                         )
                     }
                     1 -> {
-                        // Overlays tab - global layer controls
                         OverlayLayerControls(
                             layersByCategory = layersByCategory,
                             onToggle = onOverlayToggle,
@@ -140,7 +138,7 @@ fun LayersControlSheet(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(Spacing.large))
             }
         }
     }
@@ -154,7 +152,7 @@ private fun SheetDragHandle() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = Spacing.medium),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
     ) {
         Spacer(
@@ -162,8 +160,8 @@ private fun SheetDragHandle() {
                 .height(4.dp)
                 .fillMaxWidth(0.1f)
                 .background(
-                    Color.Gray.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(2.dp)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    shape = MaterialTheme.shapes.extraSmall
                 )
         )
     }

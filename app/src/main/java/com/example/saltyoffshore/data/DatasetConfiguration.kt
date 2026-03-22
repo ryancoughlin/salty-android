@@ -49,7 +49,7 @@ data class DatasetConfiguration(
                     decimalPlaces = 1
                 )
                 DatasetType.WATER_TYPE -> DatasetConfiguration(
-                    valueKey = "water_type",
+                    valueKey = "label",
                     unit = DatasetUnit.DIMENSIONLESS,
                     decimalPlaces = 0
                 )
@@ -65,7 +65,7 @@ data class DatasetConfiguration(
                 )
                 DatasetType.DISSOLVED_OXYGEN -> DatasetConfiguration(
                     valueKey = "dissolved_oxygen",
-                    unit = DatasetUnit.MMOL_PER_CUBIC_METER,
+                    unit = DatasetUnit.MG_PER_LITER,
                     decimalPlaces = 2
                 )
             }

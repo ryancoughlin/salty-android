@@ -8,13 +8,14 @@ data class RegionMetadata(
     @SerialName("region_id") val id: String,
     val name: String,
     val bounds: List<List<Double>>,
-    val datasets: List<Dataset>,
+    val datasets: List<Dataset> = emptyList(),
     @SerialName("cache_version") val cacheVersion: String? = null,
     @SerialName("last_updated") val lastUpdated: String? = null,
     val status: String = "active"
 ) {
+    /** v2 API returns all datasets (entries loaded lazily per-dataset); show all datasets */
     val activeDatasets: List<Dataset>
-        get() = datasets.filter { it.entries.isNotEmpty() }
+        get() = datasets
 }
 
 @Serializable
@@ -23,16 +24,18 @@ data class Dataset(
     val name: String,
     val type: String,
     @SerialName("source_type") val sourceType: String? = null,
+    val composite: Boolean? = false,
     val metadata: DatasetMetadata? = null,
-    val entries: List<TimeEntry> = emptyList(),
+    val entries: List<TimeEntry>? = null,
     val beta: Boolean? = false,
     @SerialName("supports_depth_selection") val supportsDepthSelection: Boolean? = false,
     @SerialName("available_depths") val availableDepths: List<Int>? = null,
-    @SerialName("zarr_url") val zarrUrl: String? = null
+    @SerialName("zarr_url") val zarrUrl: String? = null,
+    @SerialName("preview_url") val previewUrl: String? = null
 ) {
     /** Most recent entry by timestamp (matches iOS Dataset.mostRecentEntry) */
     val mostRecentEntry: TimeEntry?
-        get() = entries.maxByOrNull { it.timestamp }
+        get() = entries?.maxByOrNull { it.timestamp }
 
     /** Single source of truth for depth UI: show picker when multiple depths available */
     val hasMultipleDepths: Boolean
@@ -41,6 +44,14 @@ data class Dataset(
     /** Depths available for this dataset (defaults to surface) */
     val depths: List<Int>
         get() = availableDepths ?: listOf(0)
+
+    /** Whether this dataset is a composite — dataset-level flag or any composite entry */
+    val isCombinedDataset: Boolean
+        get() = composite == true || entries?.any { it.isComposite } == true
+
+    /** All unique sensors across entries (matches iOS Dataset.uniqueSensors) */
+    val uniqueSensors: List<String>
+        get() = entries?.mapNotNull { it.sourceMetadata?.sensor }?.distinct() ?: emptyList()
 
     // MARK: - Layer Availability (matches iOS Dataset capabilities)
 
@@ -81,7 +92,9 @@ data class DatasetMetadata(
     val lag: String? = null,
     val sensor: String? = null,
     @SerialName("high_resolution") val highResolution: Boolean? = false,
-    @SerialName("processing_delay") val processingDelay: String? = null
+    @SerialName("processing_delay") val processingDelay: String? = null,
+    @SerialName("time_of_day") val timeOfDay: String? = null,
+    @SerialName("temporal_coverage") val temporalCoverage: String? = null
 )
 
 @Serializable

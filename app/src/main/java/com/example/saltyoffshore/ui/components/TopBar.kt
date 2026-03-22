@@ -1,8 +1,7 @@
 package com.example.saltyoffshore.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import com.example.saltyoffshore.ui.theme.SaltyMotion
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -39,27 +38,15 @@ fun TopBar(
     AnimatedVisibility(
         visible = isVisible,
         enter = fadeIn(
-            animationSpec = spring(
-                dampingRatio = 0.85f,
-                stiffness = Spring.StiffnessMediumLow
-            )
+            animationSpec = SaltyMotion.springSnappy()
         ) + slideInVertically(
-            animationSpec = spring(
-                dampingRatio = 0.85f,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = SaltyMotion.springSnappy(),
             initialOffsetY = { offsetPx }
         ),
         exit = fadeOut(
-            animationSpec = spring(
-                dampingRatio = 0.85f,
-                stiffness = Spring.StiffnessMediumLow
-            )
+            animationSpec = SaltyMotion.springSnappy()
         ) + slideOutVertically(
-            animationSpec = spring(
-                dampingRatio = 0.85f,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = SaltyMotion.springSnappy(),
             targetOffsetY = { offsetPx }
         ),
         modifier = modifier

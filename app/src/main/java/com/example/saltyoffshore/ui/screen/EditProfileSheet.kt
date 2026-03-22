@@ -1,17 +1,15 @@
 package com.example.saltyoffshore.ui.screen
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -25,21 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.data.UserPreferences
-
-// Salty design tokens (matching AccountHubSheet)
-private val SaltyBase = Color(0xFF0A0A0F)
-private val SaltySunken = Color(0xFF141419)
-private val SaltyTextPrimary = Color(0xFFFFFFFF)
-private val SaltyTextSecondary = Color(0xFF8A8A9A)
-private val SaltyAccent = Color(0xFF00D4AA)
-private val SaltyBorderSubtle = Color(0x1AFAFEFF)
 
 /**
  * Edit Profile bottom sheet matching iOS EditProfile.swift.
@@ -54,7 +43,6 @@ fun EditProfileSheet(
     onSave: (firstName: String?, lastName: String?, location: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Local form state, pre-filled from current preferences
     var firstName by remember(preferences) {
         mutableStateOf(preferences?.firstName ?: "")
     }
@@ -75,23 +63,23 @@ fun EditProfileSheet(
     val locationFocus = remember { FocusRequester() }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = SaltyTextPrimary,
-        unfocusedTextColor = SaltyTextPrimary,
-        focusedBorderColor = SaltyAccent,
-        unfocusedBorderColor = SaltyBorderSubtle,
-        focusedLabelColor = SaltyAccent,
-        unfocusedLabelColor = SaltyTextSecondary,
-        cursorColor = SaltyAccent,
-        focusedContainerColor = SaltySunken,
-        unfocusedContainerColor = SaltySunken,
-        focusedPlaceholderColor = SaltyTextSecondary,
-        unfocusedPlaceholderColor = SaltyTextSecondary
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        cursorColor = MaterialTheme.colorScheme.primary,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SaltyBase
+        containerColor = MaterialTheme.colorScheme.background
     ) {
         Column(
             modifier = Modifier.padding(24.dp)
@@ -99,8 +87,8 @@ fun EditProfileSheet(
             // Header
             Text(
                 text = "Personal Information",
-                color = SaltyTextPrimary,
-                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
 
@@ -114,7 +102,7 @@ fun EditProfileSheet(
                 placeholder = { Text("First Name") },
                 singleLine = true,
                 colors = textFieldColors,
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Words,
                     imeAction = ImeAction.Next
@@ -135,7 +123,7 @@ fun EditProfileSheet(
                 placeholder = { Text("Last Name") },
                 singleLine = true,
                 colors = textFieldColors,
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Words,
                     imeAction = ImeAction.Next
@@ -158,7 +146,7 @@ fun EditProfileSheet(
                 placeholder = { Text("City, State") },
                 singleLine = true,
                 colors = textFieldColors,
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Words,
                     imeAction = ImeAction.Done
@@ -194,15 +182,15 @@ fun EditProfileSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.large,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SaltyAccent,
-                    disabledContainerColor = SaltyAccent.copy(alpha = 0.3f)
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                 )
             ) {
                 Text(
                     text = if (isSaving) "Saving..." else "Save Changes",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.SemiBold
                 )
             }

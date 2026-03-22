@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,6 +32,13 @@ fun CrosshairView(
     currentValue: CurrentValue,
     modifier: Modifier = Modifier
 ) {
+    val crosshairColor = MaterialTheme.colorScheme.onPrimary
+    val shadowColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    val labelBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+    val noDataColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val loadingColor = MaterialTheme.colorScheme.outline
+    val defaultTextColor = MaterialTheme.colorScheme.onPrimary
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
@@ -41,9 +49,6 @@ fun CrosshairView(
             val lineLength = 12.dp.toPx()
             val gap = 4.dp.toPx()
             val strokeWidth = 2.dp.toPx()
-
-            val crosshairColor = Color.White
-            val shadowColor = Color.Black.copy(alpha = 0.5f)
 
             // Draw shadow first (offset slightly)
             val shadowOffset = 1.dp.toPx()
@@ -131,7 +136,7 @@ fun CrosshairView(
             Box(
                 modifier = Modifier
                     .background(
-                        Color.Black.copy(alpha = 0.7f),
+                        labelBackground,
                         RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -143,9 +148,9 @@ fun CrosshairView(
                         fontWeight = FontWeight.Medium,
                         color = when (currentValue) {
                             is CurrentValue.Land -> Color(0xFFFF9800) // Orange for land
-                            is CurrentValue.NoData -> Color.Gray
-                            is CurrentValue.Loading -> Color.LightGray
-                            else -> Color.White
+                            is CurrentValue.NoData -> noDataColor
+                            is CurrentValue.Loading -> loadingColor
+                            else -> defaultTextColor
                         }
                     )
                 )

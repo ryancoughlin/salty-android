@@ -8,7 +8,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,6 +29,7 @@ import com.example.saltyoffshore.ui.screen.RegionSelectionSheet
 import com.example.saltyoffshore.ui.screen.LoginScreen
 import com.example.saltyoffshore.ui.screen.MapScreen
 import com.example.saltyoffshore.ui.screen.SignUpScreen
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -114,16 +114,22 @@ private fun SaltyApp() {
 }
 
 /**
- * Authenticated content: MapScreen + TopBar overlay + AccountHub sheet + FTUX dialog.
- * Matches iOS ContentView structure.
+ * Tracks which sheet is currently visible.
+ * Only one sheet at a time — Material Design "dismiss then navigate" pattern.
  */
+private enum class SettingsSheet {
+    None, Settings, EditProfile, RegionSelection
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthenticatedContent(viewModel: AppViewModel) {
-    var showingAccountSheet by remember { mutableStateOf(false) }
-    var showingEditProfile by remember { mutableStateOf(false) }
-    var showingRegionSelection by remember { mutableStateOf(false) }
     var hasAppeared by remember { mutableStateOf(false) }
+
+    // Sheet navigation state — only one sheet visible at a time (Material Design pattern).
+    // Sub-pages dismiss the settings sheet first, then open their own sheet.
+    // On sub-page dismiss, settings re-opens.
+    var activeSheet by remember { mutableStateOf<SettingsSheet>(SettingsSheet.None) }
 
     val accountSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val editProfileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -138,12 +144,12 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
         // Map screen (full-screen)
         MapScreen(
             viewModel = viewModel,
-            onSettingsClick = { showingAccountSheet = true }
+            onSettingsClick = { activeSheet = SettingsSheet.Settings }
         )
     }
 
     // AccountHub bottom sheet
-    if (showingAccountSheet) {
+    if (activeSheet == SettingsSheet.Settings) {
         AccountHubSheet(
             sheetState = accountSheetState,
             preferences = viewModel.userPreferences,
@@ -153,36 +159,36 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
             onTemperatureUnitsChanged = viewModel::updateTemperatureUnits,
             onGpsFormatChanged = viewModel::updateGpsFormat,
             onMapThemeChanged = viewModel::updateMapTheme,
-            onEditProfile = { showingEditProfile = true },
-            onPreferredRegion = { showingRegionSelection = true },
+            onEditProfile = { activeSheet = SettingsSheet.EditProfile },
+            onPreferredRegion = { activeSheet = SettingsSheet.RegionSelection },
             onSignOut = { viewModel.signOut() },
             onDeleteAccount = { viewModel.deleteAccount() },
-            onDismiss = { showingAccountSheet = false }
+            onDismiss = { activeSheet = SettingsSheet.None }
         )
     }
 
-    // Edit Profile bottom sheet
-    if (showingEditProfile) {
+    // Edit Profile — opens after settings dismisses, returns to settings on close
+    if (activeSheet == SettingsSheet.EditProfile) {
         EditProfileSheet(
             sheetState = editProfileSheetState,
             preferences = viewModel.userPreferences,
             isSaving = viewModel.isSavingProfile,
             onSave = { firstName, lastName, location ->
                 viewModel.updateProfile(firstName, lastName, location)
-                showingEditProfile = false
+                activeSheet = SettingsSheet.Settings
             },
-            onDismiss = { showingEditProfile = false }
+            onDismiss = { activeSheet = SettingsSheet.Settings }
         )
     }
 
-    // Region Selection bottom sheet
-    if (showingRegionSelection) {
+    // Region Selection — opens after settings dismisses, returns to settings on close
+    if (activeSheet == SettingsSheet.RegionSelection) {
         RegionSelectionSheet(
             sheetState = regionSheetState,
             regionGroups = viewModel.regionGroups,
             selectedRegionId = viewModel.preferredRegionId,
             onRegionSelected = viewModel::updatePreferredRegion,
-            onDismiss = { showingRegionSelection = false }
+            onDismiss = { activeSheet = SettingsSheet.Settings }
         )
     }
 

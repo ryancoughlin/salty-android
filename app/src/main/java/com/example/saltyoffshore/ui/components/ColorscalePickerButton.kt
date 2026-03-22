@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -27,8 +27,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.Colorscale
-import com.example.saltyoffshore.ui.theme.SaltyColors
-import com.example.saltyoffshore.ui.theme.SaltyLayout
+import androidx.compose.material3.ExperimentalMaterial3Api
+
 import com.example.saltyoffshore.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,8 +47,8 @@ fun ColorscalePickerButton(
     Row(
         modifier = Modifier
             .height(28.dp)
-            .clip(RoundedCornerShape(SaltyLayout.controlCornerRadius))
-            .background(Color.Gray.copy(alpha = 0.15f))
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
             .clickable { showPicker = true }
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -64,7 +64,7 @@ fun ColorscalePickerButton(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = SaltyColors.textSecondary,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(14.dp)
         )
     }
@@ -73,7 +73,7 @@ fun ColorscalePickerButton(
         ModalBottomSheet(
             onDismissRequest = { showPicker = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = SaltyColors.base
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             ColorscalePicker(
                 currentSelection = selection,

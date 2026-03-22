@@ -9,7 +9,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,6 +29,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -57,7 +56,6 @@ import com.example.saltyoffshore.R
 import com.example.saltyoffshore.auth.AuthError
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.ValidationHelper
-import com.example.saltyoffshore.ui.theme.SaltyColors
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -70,7 +68,7 @@ import kotlinx.coroutines.launch
  * - AuthSection: "Continue with email" collapsed -> expand animation -> email/password form
  * - FooterSection: "Don't have an account? Sign Up"
  *
- * Now uses SaltyColors theme system for proper light/dark mode support.
+ * Uses MaterialTheme.colorScheme for proper light/dark mode support.
  */
 @Composable
 fun LoginScreen(
@@ -99,7 +97,7 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SaltyColors.base)
+            .background(MaterialTheme.colorScheme.surface)
     ) {
         SubtleGridBackground()
 
@@ -147,7 +145,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(Spacing.medium))
                 Text(
                     text = msg,
-                    color = Color.Red,
+                    color = MaterialTheme.colorScheme.error,
                     style = SaltyType.bodySmall,
                     textAlign = TextAlign.Center
                 )
@@ -162,7 +160,7 @@ fun LoginScreen(
 
 @Composable
 private fun SubtleGridBackground() {
-    val dotColor = SaltyColors.textPrimary.copy(alpha = 0.06f)
+    val dotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     Canvas(modifier = Modifier.fillMaxSize()) {
         val dotSpacing = 24.dp.toPx()
         val dotRadius = 1.dp.toPx()
@@ -199,7 +197,7 @@ private fun HeaderSection() {
         Text(
             text = "Built for pros.\nDesigned for everyone.",
             style = SaltyType.headingLarge,
-            color = SaltyColors.textPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
     }
@@ -243,7 +241,7 @@ private fun AuthSection(
                     if (showEmailError) {
                         Text(
                             text = if (email.isEmpty()) "Email is required" else "Please enter a valid email",
-                            color = Color.Red,
+                            color = MaterialTheme.colorScheme.error,
                             style = SaltyType.caption,
                             modifier = Modifier.padding(top = Spacing.small)
                         )
@@ -264,7 +262,7 @@ private fun AuthSection(
                     if (showPasswordError) {
                         Text(
                             text = "Password is required",
-                            color = Color.Red,
+                            color = MaterialTheme.colorScheme.error,
                             style = SaltyType.caption,
                             modifier = Modifier.padding(top = Spacing.small)
                         )
@@ -278,7 +276,7 @@ private fun AuthSection(
                     ) {
                         Text(
                             text = "Forgot Password?",
-                            color = SaltyColors.textSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = SaltyType.caption,
                             modifier = Modifier.clickable { onForgotPassword() }
                         )
@@ -315,16 +313,16 @@ private fun DividerWithText(text: String) {
     ) {
         HorizontalDivider(
             modifier = Modifier.weight(1f),
-            color = SaltyColors.borderSubtle
+            color = MaterialTheme.colorScheme.outline
         )
         Text(
             text = text,
-            color = SaltyColors.textSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = SaltyType.caption
         )
         HorizontalDivider(
             modifier = Modifier.weight(1f),
-            color = SaltyColors.borderSubtle
+            color = MaterialTheme.colorScheme.outline
         )
     }
 }
@@ -343,7 +341,7 @@ private fun SaltyTextField(
         value = value,
         onValueChange = onValueChange,
         placeholder = {
-            Text(placeholder, color = SaltyColors.textSecondary)
+            Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant)
         },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
@@ -353,15 +351,15 @@ private fun SaltyTextField(
             imeAction = imeAction
         ),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = SaltyColors.textPrimary,
-            unfocusedTextColor = SaltyColors.textPrimary,
-            focusedBorderColor = if (isError) Color.Red else SaltyColors.accent,
-            unfocusedBorderColor = if (isError) Color.Red else SaltyColors.borderSubtle,
-            cursorColor = SaltyColors.accent,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            focusedBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+            cursorColor = MaterialTheme.colorScheme.primary,
             focusedContainerColor = Color.Transparent,
             unfocusedContainerColor = Color.Transparent
         ),
-        shape = RoundedCornerShape(8.dp)
+        shape = MaterialTheme.shapes.large
     )
 }
 
@@ -379,18 +377,18 @@ private fun SaltyPrimaryButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp),
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.large,
         colors = ButtonDefaults.buttonColors(
-            containerColor = SaltyColors.accent,
-            contentColor = SaltyColors.buttonText,
-            disabledContainerColor = SaltyColors.accent.copy(alpha = 0.5f),
-            disabledContentColor = SaltyColors.buttonText.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
         )
     ) {
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = SaltyColors.buttonText,
+                color = MaterialTheme.colorScheme.onPrimary,
                 strokeWidth = 2.dp
             )
         } else {
@@ -415,10 +413,10 @@ private fun SaltySecondaryButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp),
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.large,
         colors = ButtonDefaults.buttonColors(
-            containerColor = SaltyColors.sunken,
-            contentColor = SaltyColors.textPrimary
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         if (icon != null) {
@@ -426,7 +424,7 @@ private fun SaltySecondaryButton(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = SaltyColors.textPrimary
+                tint = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.size(8.dp))
         }
@@ -449,12 +447,12 @@ private fun FooterSection(onSignUp: () -> Unit) {
     ) {
         Text(
             text = "Don't have an account? ",
-            color = SaltyColors.textSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = SaltyType.bodySmall
         )
         Text(
             text = "Sign Up",
-            color = SaltyColors.textPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             style = SaltyType.bodySmall,
             fontWeight = FontWeight.Medium
         )

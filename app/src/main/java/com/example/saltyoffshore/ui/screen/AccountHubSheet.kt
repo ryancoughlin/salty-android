@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -31,9 +30,9 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
@@ -48,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -61,15 +59,8 @@ import com.example.saltyoffshore.data.MapTheme
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.UserPreferences
+import androidx.compose.material3.ExperimentalMaterial3Api
 import kotlinx.coroutines.launch
-
-// Salty design tokens matching iOS Color.base, Color.sunken
-private val SaltyBase = Color(0xFF0A0A0F)
-private val SaltySunken = Color(0xFF141419)
-private val SaltyTextPrimary = Color(0xFFFFFFFF)
-private val SaltyTextSecondary = Color(0xFF8A8A9A)
-private val SaltyDestructive = Color(0xFFDC2626)
-private val SaltyAccent = Color(0xFF00D4AA)
 
 /**
  * AccountHub bottom sheet matching iOS AccountHub.swift.
@@ -109,16 +100,15 @@ fun AccountHubSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SaltyBase,
+        containerColor = MaterialTheme.colorScheme.background,
         dragHandle = {
-            // Standard drag indicator
             Box(
                 modifier = Modifier
                     .padding(vertical = 12.dp)
                     .width(36.dp)
                     .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.3f))
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             )
         }
     ) {
@@ -166,7 +156,6 @@ private fun AccountHubContent(
 ) {
     val scrollState = rememberScrollState()
 
-    // Delete account state
     var showingDeleteConfirmation by remember { mutableStateOf(false) }
     var showingFinalConfirmation by remember { mutableStateOf(false) }
     var confirmationText by remember { mutableStateOf("") }
@@ -186,29 +175,24 @@ private fun AccountHubContent(
         ) {
             Text(
                 text = "Settings",
-                color = SaltyTextPrimary,
-                fontSize = 28.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold
             )
             TextButton(onClick = onDone) {
-                Text("Done", color = SaltyTextPrimary, fontSize = 16.sp)
+                Text("Done", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
             }
         }
 
-        // 1. Welcome Section
         WelcomeSection()
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 2. Account Settings Section
         AccountSettingsSection(
             onEditProfile = onEditProfile,
             onPreferredRegion = onPreferredRegion
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. Units Section
         UnitsSection(
             preferences = preferences,
             onDepthUnitsChanged = onDepthUnitsChanged,
@@ -217,85 +201,71 @@ private fun AccountHubContent(
             onTemperatureUnitsChanged = onTemperatureUnitsChanged,
             onGpsFormatChanged = onGpsFormatChanged
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 5. Map Theme Section
         MapThemeSection(
             preferences = preferences,
             onMapThemeChanged = onMapThemeChanged
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 6. Dataset Information Section
         DatasetInfoSection()
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 7. About Salty Section
         AboutSection()
-
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 8. Sign Out Button
+        // Sign Out Button
         Button(
             onClick = onSignOut,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = MaterialTheme.shapes.large,
             colors = ButtonDefaults.buttonColors(
-                containerColor = SaltyDestructive
+                containerColor = MaterialTheme.colorScheme.error
             )
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                 contentDescription = null,
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Sign Out", color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text("Sign Out", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 9. Delete Account Button
+        // Delete Account Button
         Button(
             onClick = { showingDeleteConfirmation = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = MaterialTheme.shapes.large,
             colors = ButtonDefaults.buttonColors(
-                containerColor = SaltySunken
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         ) {
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = null,
-                tint = SaltyTextSecondary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Delete Account", color = SaltyTextSecondary, fontWeight = FontWeight.Medium)
+            Text("Delete Account", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // 10. Diagnostics Section
         DiagnosticsSection()
-
         Spacer(modifier = Modifier.height(16.dp))
-
-        // 11. Version Footer
         VersionFooter()
-
         Spacer(modifier = Modifier.height(32.dp))
     }
 
-    // Delete account - first confirmation
     if (showingDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showingDeleteConfirmation = false },
@@ -310,7 +280,7 @@ private fun AccountHubContent(
                         showingFinalConfirmation = true
                     }
                 ) {
-                    Text("Continue", color = SaltyDestructive)
+                    Text("Continue", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -321,7 +291,6 @@ private fun AccountHubContent(
         )
     }
 
-    // Delete account - final confirmation with text input
     if (showingFinalConfirmation) {
         AlertDialog(
             onDismissRequest = {
@@ -351,7 +320,7 @@ private fun AccountHubContent(
                     },
                     enabled = confirmationText == "DELETE"
                 ) {
-                    Text("Delete Account", color = if (confirmationText == "DELETE") SaltyDestructive else Color.Gray)
+                    Text("Delete Account", color = if (confirmationText == "DELETE") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             dismissButton = {
@@ -377,15 +346,15 @@ private fun WelcomeSection() {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "Welcome to Salty",
-                color = SaltyTextPrimary,
-                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Thanks for being part of the Salty community. We built this app because we love fishing and wanted better tools for the water.",
-                color = SaltyTextSecondary,
-                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
                 lineHeight = 20.sp
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -397,12 +366,12 @@ private fun WelcomeSection() {
                     context.startActivity(intent)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.large,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SaltySunken
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                Text("Share Feedback", color = SaltyTextPrimary, fontSize = 14.sp)
+                Text("Share Feedback", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -428,7 +397,6 @@ private fun AccountSettingsSection(
             onClick = onEditProfile
         )
         RowDivider()
-        // Placeholder — wiring deferred until Google Play Billing integration
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -438,21 +406,21 @@ private fun AccountSettingsSection(
             Icon(
                 imageVector = Icons.Default.Star,
                 contentDescription = null,
-                tint = SaltyTextSecondary.copy(alpha = 0.4f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = "Subscription",
-                color = SaltyTextSecondary.copy(alpha = 0.4f),
-                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "Coming Soon",
-                color = SaltyTextSecondary.copy(alpha = 0.3f),
-                fontSize = 12.sp
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                style = MaterialTheme.typography.labelMedium
             )
         }
     }
@@ -515,11 +483,10 @@ private fun UnitsSection(
                 GpsFormat.entries.find { it.displayName == displayName }?.let(onGpsFormatChanged)
             }
         )
-        // Show example for selected GPS format
         Text(
             text = currentGpsFormat.example,
-            color = SaltyTextSecondary,
-            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(start = 16.dp, bottom = 12.dp, end = 16.dp)
         )
     }
@@ -536,7 +503,6 @@ private fun MapThemeSection(
     Spacer(modifier = Modifier.height(8.dp))
     SunkenCard {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Segmented buttons: Light | Dark (matching iOS MapThemeRow)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -548,15 +514,15 @@ private fun MapThemeSection(
                         modifier = Modifier
                             .weight(1f)
                             .height(40.dp),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.large,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSelected) SaltyAccent else Color.White.copy(alpha = 0.08f)
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                         )
                     ) {
                         Text(
                             text = theme.displayName,
-                            color = if (isSelected) Color.White else SaltyTextSecondary,
-                            fontSize = 14.sp,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
                         )
                     }
@@ -565,8 +531,8 @@ private fun MapThemeSection(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = selectedTheme.description,
-                color = SaltyTextSecondary,
-                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
                 lineHeight = 16.sp
             )
         }
@@ -641,9 +607,9 @@ private fun DiagnosticsSection() {
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Tile Server", color = SaltyTextSecondary, fontSize = 14.sp)
+            Text("Tile Server", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.weight(1f))
-            Text("OK", color = SaltyAccent, fontSize = 14.sp)
+            Text("OK", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
         }
         RowDivider()
         Row(
@@ -652,9 +618,9 @@ private fun DiagnosticsSection() {
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Map Cache", color = SaltyTextSecondary, fontSize = 14.sp)
+            Text("Map Cache", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.weight(1f))
-            Text("OK", color = SaltyAccent, fontSize = 14.sp)
+            Text("OK", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -674,13 +640,13 @@ private fun VersionFooter() {
     ) {
         Text(
             text = "Version $versionName",
-            color = SaltyTextSecondary,
-            fontSize = 12.sp
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium
         )
         Text(
             text = "Build $versionCode",
-            color = SaltyTextSecondary.copy(alpha = 0.6f),
-            fontSize = 11.sp
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            style = MaterialTheme.typography.labelSmall
         )
     }
 }
@@ -694,8 +660,8 @@ private fun SunkenCard(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(SaltySunken)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         content()
     }
@@ -705,8 +671,8 @@ private fun SunkenCard(content: @Composable () -> Unit) {
 private fun SectionHeader(title: String) {
     Text(
         text = title,
-        color = SaltyTextSecondary,
-        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 1.sp,
         modifier = Modifier.padding(start = 4.dp)
@@ -729,21 +695,21 @@ private fun NavigationRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = SaltyTextPrimary.copy(alpha = 0.75f),
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
-            color = SaltyTextPrimary,
-            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = "\u203A", // right chevron character
-            color = SaltyTextSecondary,
-            fontSize = 20.sp
+            text = "\u203A",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.titleMedium
         )
     }
 }
@@ -768,14 +734,14 @@ private fun UnitPickerRow(
         ) {
             Text(
                 text = label,
-                color = SaltyTextPrimary,
-                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = currentValue,
-                color = SaltyTextSecondary,
-                fontSize = 14.sp
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
             )
         }
 
@@ -800,6 +766,6 @@ private fun UnitPickerRow(
 private fun RowDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(start = 52.dp),
-        color = Color.White.copy(alpha = 0.06f)
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     )
 }

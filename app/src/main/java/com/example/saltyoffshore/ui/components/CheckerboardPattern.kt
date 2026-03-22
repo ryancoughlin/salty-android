@@ -1,11 +1,11 @@
 package com.example.saltyoffshore.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlin.math.ceil
 
@@ -25,8 +25,8 @@ fun CheckerboardPattern(
     size: CheckerboardSize = CheckerboardSize.LARGE,
     modifier: Modifier = Modifier
 ) {
-    val primaryColor = Color.White.copy(alpha = 0.5f)
-    val secondaryColor = Color.Gray.copy(alpha = 0.1f)
+    val primaryColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+    val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
     val cellSizeDp = size.cellDp
 
     Canvas(modifier = modifier) {

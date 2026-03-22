@@ -1,12 +1,9 @@
 package com.example.saltyoffshore.ui.controls
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
@@ -27,8 +24,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.R
+import com.example.saltyoffshore.ui.theme.SaltyMotion
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Straighten
-import com.example.saltyoffshore.ui.theme.SaltyLayout
 import kotlinx.coroutines.delay
 
 /**
@@ -42,6 +40,7 @@ fun RightSideToolbar(
     onFilterClick: () -> Unit,
     onLayersClick: () -> Unit,
     onMeasureClick: () -> Unit = {},
+    onWaypointsClick: () -> Unit = {},
     isMeasureModeActive: Boolean = false,
     shouldHide: Boolean = false,
     modifier: Modifier = Modifier
@@ -56,12 +55,12 @@ fun RightSideToolbar(
     // Hide animation
     val hideAlpha by animateFloatAsState(
         targetValue = if (shouldHide) 0f else 1f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = SaltyMotion.springDefault(),
         label = "toolbar_hide"
     )
     val hideScale by animateFloatAsState(
         targetValue = if (shouldHide) 0.9f else 1f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = SaltyMotion.springDefault(),
         label = "toolbar_scale"
     )
 
@@ -90,13 +89,22 @@ fun RightSideToolbar(
             delayMs = 200
         )
 
-        // Measure button (delay 300ms)
+        // Waypoints button (delay 300ms)
+        StaggeredMapButton(
+            icon = Icons.Default.Place,
+            onClick = onWaypointsClick,
+            contentDescription = "Waypoints",
+            hasAppeared = hasAppeared,
+            delayMs = 300
+        )
+
+        // Measure button (delay 400ms)
         StaggeredMapButton(
             icon = Icons.Default.Straighten,
             onClick = onMeasureClick,
             contentDescription = "Measure",
             hasAppeared = hasAppeared,
-            delayMs = 300,
+            delayMs = 400,
             isActive = isMeasureModeActive
         )
     }
@@ -125,12 +133,12 @@ private fun StaggeredMapButton(
 
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = SaltyMotion.springDefault(),
         label = "btn_alpha_$contentDescription"
     )
     val scale by animateFloatAsState(
         targetValue = if (visible) 1f else 0.8f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = SaltyMotion.springDefault(),
         label = "btn_scale_$contentDescription"
     )
 
@@ -179,7 +187,7 @@ fun RoundedMapButton(
     Surface(
         onClick = onClick,
         modifier = modifier.size(48.dp),
-        shape = RoundedCornerShape(SaltyLayout.cardCornerRadius),
+        shape = MaterialTheme.shapes.extraLarge,
         color = bgColor,
         shadowElevation = 4.dp,
         tonalElevation = 2.dp
@@ -211,7 +219,7 @@ fun RoundedMapButton(
     Surface(
         onClick = onClick,
         modifier = modifier.size(48.dp),
-        shape = RoundedCornerShape(SaltyLayout.cardCornerRadius),
+        shape = MaterialTheme.shapes.extraLarge,
         color = bgColor,
         shadowElevation = 4.dp,
         tonalElevation = 2.dp

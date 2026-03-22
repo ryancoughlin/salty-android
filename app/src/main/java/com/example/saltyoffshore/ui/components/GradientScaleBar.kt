@@ -146,7 +146,7 @@ fun GradientScaleBar(
                         .size(width = 16.dp, height = 8.dp)
                         .shadow(1.dp, RoundedCornerShape(4.dp))
                         .background(pointerColor, RoundedCornerShape(4.dp))
-                        .border(1.dp, Color.White, RoundedCornerShape(4.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(4.dp))
                 )
             }
         }

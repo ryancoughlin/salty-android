@@ -32,6 +32,13 @@ class DatasetLayers(
     private var breaksLayer: BreaksVectorLayer? = null
     private var numbersLayer: NumbersLayer? = null
 
+    // Track current PMTiles URLs to detect when source needs rebuilding
+    private var currentContourPmtilesUrl: String? = null
+    private var currentDataQueryPmtilesUrl: String? = null
+    private var currentCurrentsPmtilesUrl: String? = null
+    private var currentBreaksPmtilesUrl: String? = null
+    private var currentNumbersPmtilesUrl: String? = null
+
     /**
      * Render all dataset layers for current selection.
      */
@@ -166,10 +173,18 @@ class DatasetLayers(
         if (pmtiles == null || !pmtiles.layers.contains("data")) {
             dataQueryLayer?.removeFromMap()
             dataQueryLayer = null
+            currentDataQueryPmtilesUrl = null
             return
         }
 
         val tileUrl = buildPMTilesTileURL(pmtiles.url)
+
+        // Rebuild if URL changed
+        if (currentDataQueryPmtilesUrl != null && currentDataQueryPmtilesUrl != tileUrl) {
+            dataQueryLayer?.removeFromMap()
+            dataQueryLayer = null
+        }
+        currentDataQueryPmtilesUrl = tileUrl
 
         if (dataQueryLayer == null) {
             dataQueryLayer = DataQueryLayer(
@@ -195,10 +210,18 @@ class DatasetLayers(
         if (pmtiles == null || !pmtiles.layers.contains("data") || !snapshot.arrowsEnabled) {
             currentsLayer?.removeFromMap()
             currentsLayer = null
+            currentCurrentsPmtilesUrl = null
             return
         }
 
         val tileUrl = buildPMTilesTileURL(pmtiles.url)
+
+        // Rebuild if URL changed
+        if (currentCurrentsPmtilesUrl != null && currentCurrentsPmtilesUrl != tileUrl) {
+            currentsLayer?.removeFromMap()
+            currentsLayer = null
+        }
+        currentCurrentsPmtilesUrl = tileUrl
 
         if (currentsLayer == null) {
             currentsLayer = CurrentsLayer(
@@ -225,8 +248,7 @@ class DatasetLayers(
     ) {
         val pmtiles = entry.layers.pmtiles
         if (pmtiles == null || !pmtiles.layers.contains("contours") || !snapshot.contourEnabled) {
-            contourLayer?.removeFromMap()
-            contourLayer = null
+            removeContourLayer()
             return
         }
 
@@ -235,7 +257,14 @@ class DatasetLayers(
         val sourceId = "contour-source-$regionId"
         val layerId = "contour-layer-$regionId"
 
-        // Add source if needed
+        // If PMTiles URL changed (new entry or dataset), tear down and rebuild
+        if (currentContourPmtilesUrl != null && currentContourPmtilesUrl != tileUrl) {
+            Log.d(TAG, "Contour PMTiles URL changed, rebuilding layers")
+            removeContourLayer()
+        }
+        currentContourPmtilesUrl = tileUrl
+
+        // Add or update source
         mapboxMap.style?.let { style ->
             if (!style.styleSourceExists(sourceId)) {
                 style.addSource(
@@ -248,9 +277,9 @@ class DatasetLayers(
         }
 
         val state = ContourLayerState(
-            color = type.contourColor,
+            color = android.graphics.Color.BLACK,
             opacity = snapshot.contourOpacity,
-            valueRange = snapshot.contourRange,
+            valueRange = snapshot.contourFilterRange,
             datasetType = type,
             dynamicColoring = false,
             sourceLayer = "contours",
@@ -266,6 +295,23 @@ class DatasetLayers(
         }
     }
 
+    private fun removeContourLayer() {
+        contourLayer?.removeFromMap()
+        contourLayer = null
+        // Also remove the source so it gets recreated with new URL
+        currentContourPmtilesUrl?.let {
+            currentRegionId?.let { regionId ->
+                val sourceId = "contour-source-$regionId"
+                mapboxMap.style?.let { style ->
+                    if (style.styleSourceExists(sourceId)) {
+                        style.removeStyleSource(sourceId)
+                    }
+                }
+            }
+        }
+        currentContourPmtilesUrl = null
+    }
+
     // MARK: - Breaks Layer
 
     private fun renderBreaksLayer(
@@ -277,12 +323,20 @@ class DatasetLayers(
         if (pmtiles == null || !pmtiles.layers.contains("breaks") || !snapshot.breaksEnabled) {
             breaksLayer?.removeFromMap()
             breaksLayer = null
+            currentBreaksPmtilesUrl = null
             return
         }
 
         val tileUrl = buildPMTilesTileURL(pmtiles.url)
         val sourceId = BreaksVectorLayer.sourceId(regionId)
         val layerId = BreaksVectorLayer.layerId(regionId)
+
+        // Rebuild if URL changed
+        if (currentBreaksPmtilesUrl != null && currentBreaksPmtilesUrl != tileUrl) {
+            breaksLayer?.removeFromMap()
+            breaksLayer = null
+        }
+        currentBreaksPmtilesUrl = tileUrl
 
         if (breaksLayer == null) {
             breaksLayer = BreaksVectorLayer(
@@ -312,12 +366,20 @@ class DatasetLayers(
         if (pmtiles == null || !pmtiles.layers.contains("data") || !snapshot.numbersEnabled || datasetType == null) {
             numbersLayer?.removeFromMap()
             numbersLayer = null
+            currentNumbersPmtilesUrl = null
             return
         }
 
         val tileUrl = buildPMTilesTileURL(pmtiles.url)
         val sourceId = NumbersLayer.sourceId(regionId)
         val layerId = NumbersLayer.layerId(regionId)
+
+        // Rebuild if URL changed
+        if (currentNumbersPmtilesUrl != null && currentNumbersPmtilesUrl != tileUrl) {
+            numbersLayer?.removeFromMap()
+            numbersLayer = null
+        }
+        currentNumbersPmtilesUrl = tileUrl
 
         if (numbersLayer == null) {
             numbersLayer = NumbersLayer(
@@ -354,8 +416,7 @@ class DatasetLayers(
         currentsLayer?.removeFromMap()
         currentsLayer = null
 
-        contourLayer?.removeFromMap()
-        contourLayer = null
+        removeContourLayer()
 
         breaksLayer?.removeFromMap()
         breaksLayer = null
@@ -364,6 +425,10 @@ class DatasetLayers(
         numbersLayer = null
 
         currentRegionId = null
+        currentDataQueryPmtilesUrl = null
+        currentCurrentsPmtilesUrl = null
+        currentBreaksPmtilesUrl = null
+        currentNumbersPmtilesUrl = null
     }
 
     /**

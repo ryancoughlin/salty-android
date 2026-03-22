@@ -81,6 +81,21 @@ object MapLayers {
         const val FEATURES_LAYER = "dataset-features-layer"
     }
 
+    // MARK: - Waypoint Layers (user + crew waypoints)
+    object Waypoint {
+        // Own waypoints
+        const val OWN_SOURCE = "waypoints-own-source"
+        const val OWN_LAYER = "waypoints-own-layer"
+        const val OWN_CLUSTER_LAYER = "waypoints-own-cluster-layer"
+        const val OWN_COUNT_LAYER = "waypoints-own-count-layer"
+
+        // Shared (crew) waypoints
+        const val SHARED_SOURCE = "waypoints-shared-source"
+        const val SHARED_LAYER = "waypoints-shared-layer"
+        const val SHARED_CLUSTER_LAYER = "waypoints-shared-cluster-layer"
+        const val SHARED_COUNT_LAYER = "waypoints-shared-count-layer"
+    }
+
     // MARK: - Overlay Layers (user markers, annotations)
     object Overlay {
         const val MARKERS_SOURCE = "overlay-markers-source"

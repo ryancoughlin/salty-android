@@ -89,26 +89,16 @@ enum class DatasetType(val rawValue: String) {
             PHYTOPLANKTON -> "phyc_label"
         }
 
+    /** iOS: only SST has BreaksConfig (thermal fronts from sst_gradient_magnitude) */
     val supportsFronts: Boolean
-        get() = this in listOf(SST, SEA_SURFACE_HEIGHT, SALINITY, MLD)
+        get() = this == SST
 
     /**
      * Default contour line color (Android Color int).
+     * iOS: always .black — contour color is user-editable but defaults to black for all types.
      */
     val contourColor: Int
-        get() = when (this) {
-            SST -> 0xFF000000.toInt()          // Black
-            CURRENTS -> 0xFF1E90FF.toInt()     // Dodger blue
-            CHLOROPHYLL -> 0xFF228B22.toInt()  // Forest green
-            SEA_SURFACE_HEIGHT -> 0xFF000000.toInt() // Black
-            WATER_CLARITY -> 0xFF4169E1.toInt()// Royal blue
-            SALINITY -> 0xFF800080.toInt()     // Purple
-            WATER_TYPE -> 0xFF808080.toInt()   // Gray
-            MLD -> 0xFF000080.toInt()          // Navy
-            FSLE -> 0xFFFF4500.toInt()         // Orange red
-            DISSOLVED_OXYGEN -> 0xFF008B8B.toInt() // Dark cyan
-            PHYTOPLANKTON -> 0xFF228B22.toInt() // Forest green (similar to chlorophyll)
-        }
+        get() = android.graphics.Color.BLACK
 
     /**
      * Default colorscale for this dataset type.
@@ -126,7 +116,7 @@ enum class DatasetType(val rawValue: String) {
             MLD -> Colorscale.CASCADE
             FSLE -> Colorscale.SALTY_VIBES
             DISSOLVED_OXYGEN -> Colorscale.BOUNDARY_FIRE
-            PHYTOPLANKTON -> Colorscale.BLOOM
+            PHYTOPLANKTON -> Colorscale.BLOOM // iOS: .bloom (not chlorophyll)
         }
 
     /**

@@ -35,7 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -46,7 +46,6 @@ import com.example.saltyoffshore.data.DatasetUnit
 import com.example.saltyoffshore.data.FilterMode
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.renderingConfig
-import com.example.saltyoffshore.ui.theme.SaltyColors
 import com.example.saltyoffshore.ui.theme.SaltyLayout
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
@@ -81,7 +80,7 @@ fun DatasetFilterSheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.32f))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
@@ -95,7 +94,7 @@ fun DatasetFilterSheet(
                 .fillMaxWidth()
                 .shadow(8.dp, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            color = SaltyColors.base
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -115,7 +114,7 @@ fun DatasetFilterSheet(
                     Text(
                         text = "Range & Color",
                         style = SaltyType.heading,
-                        color = SaltyColors.textPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Row(
@@ -129,7 +128,7 @@ fun DatasetFilterSheet(
                             }) {
                                 Text(
                                     text = "Reset",
-                                    style = SaltyType.body.copy(color = SaltyColors.accent)
+                                    style = SaltyType.body.copy(color = MaterialTheme.colorScheme.primary)
                                 )
                             }
                         }
@@ -138,14 +137,14 @@ fun DatasetFilterSheet(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = SaltyColors.iconButton,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                     }
                 }
 
-                Divider(color = SaltyColors.borderSubtle)
+                Divider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // ── Top controls ────────────────────────────────────────
                 Row(
@@ -219,7 +218,7 @@ private fun FilterModePicker(
                     text = mode.displayName,
                     style = SaltyType.bodySmall.copy(
                         fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isActive) SaltyColors.accent else SaltyColors.textSecondary
+                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

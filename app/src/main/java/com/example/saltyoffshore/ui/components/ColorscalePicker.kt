@@ -15,10 +15,11 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +31,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.Colorscale
-import com.example.saltyoffshore.ui.theme.SaltyColors
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
 
@@ -53,7 +53,7 @@ fun ColorscalePicker(
             Text(
                 text = "COLORED",
                 style = SaltyType.caption,
-                color = SaltyColors.textSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.large, bottom = Spacing.small)
             )
         }
@@ -76,7 +76,7 @@ fun ColorscalePicker(
             Text(
                 text = "SINGLE COLOR",
                 style = SaltyType.caption,
-                color = SaltyColors.textSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.large, bottom = Spacing.small)
             )
         }
@@ -99,7 +99,7 @@ fun ColorscalePicker(
             Text(
                 text = "NEUTRAL",
                 style = SaltyType.caption,
-                color = SaltyColors.textSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.large, bottom = Spacing.small)
             )
         }
@@ -134,9 +134,9 @@ private fun ColorscaleSwatch(
         modifier = Modifier
             .fillMaxWidth()
             .height(70.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MaterialTheme.shapes.large)
             .then(
-                if (isSelected) Modifier.border(3.dp, Color.White, RoundedCornerShape(8.dp))
+                if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.onPrimary, MaterialTheme.shapes.large)
                 else Modifier
             )
             .background(Brush.horizontalGradient(gradientColors))
@@ -148,8 +148,8 @@ private fun ColorscaleSwatch(
                 .align(Alignment.BottomStart)
                 .offset(x = 6.dp, y = (-6).dp)
                 .background(
-                    Color.Black.copy(alpha = 0.7f),
-                    RoundedCornerShape(4.dp)
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    MaterialTheme.shapes.small
                 )
                 .padding(horizontal = 6.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -158,13 +158,13 @@ private fun ColorscaleSwatch(
             Text(
                 text = colorscale.name,
                 style = SaltyType.mono(10),
-                color = Color.White
+                color = MaterialTheme.colorScheme.onPrimary
             )
             if (isDefault) {
                 Text(
                     text = "Default",
                     style = SaltyType.mono(8),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
@@ -174,7 +174,7 @@ private fun ColorscaleSwatch(
             Icon(
                 imageVector = Icons.Default.CheckCircle,
                 contentDescription = "Selected",
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = (-6).dp, y = 6.dp)

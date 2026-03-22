@@ -11,7 +11,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.saltyoffshore.ui.theme.SaltyColors
 
 /**
  * Reusable opacity slider control.
@@ -34,7 +33,7 @@ fun LayerOpacityControl(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = SaltyColors.textPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.width(54.dp)
         )
 
@@ -54,7 +53,7 @@ fun LayerOpacityControl(
         Text(
             text = "${(opacity * 100).toInt()}%",
             style = MaterialTheme.typography.labelSmall,
-            color = SaltyColors.textPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.End,
             modifier = Modifier.width(36.dp)
         )

@@ -17,9 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -27,20 +27,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.data.RegionGroup
-
-// Salty design tokens (matching AccountHubSheet)
-private val SaltyBase = Color(0xFF0A0A0F)
-private val SaltySunken = Color(0xFF141419)
-private val SaltyTextPrimary = Color(0xFFFFFFFF)
-private val SaltyTextSecondary = Color(0xFF8A8A9A)
-private val SaltyAccent = Color(0xFF00D4AA)
 
 /**
  * Region selection bottom sheet matching iOS RegionSelectionView.swift.
@@ -58,13 +51,13 @@ fun RegionSelectionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SaltyBase
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column {
             // Title
             Text(
                 text = "Preferred Region",
-                color = SaltyTextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -79,9 +72,9 @@ fun RegionSelectionSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = SaltyAccent)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Loading regions...", color = SaltyTextSecondary, fontSize = 14.sp)
+                        Text("Loading regions...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     }
                 }
             } else {
@@ -93,7 +86,7 @@ fun RegionSelectionSheet(
                         item(key = "header_${group.group}") {
                             Text(
                                 text = group.group.uppercase(),
-                                color = SaltyTextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = 1.sp,
@@ -120,7 +113,7 @@ fun RegionSelectionSheet(
                                             RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
                                         ) else Modifier
                                     )
-                                    .background(SaltySunken)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     .clickable {
                                         onRegionSelected(region.id)
                                         onDismiss()
@@ -139,7 +132,7 @@ fun RegionSelectionSheet(
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
                                             .size(40.dp)
-                                            .clip(RoundedCornerShape(6.dp))
+                                            .clip(MaterialTheme.shapes.medium)
                                     )
 
                                     Spacer(modifier = Modifier.width(12.dp))
@@ -147,7 +140,7 @@ fun RegionSelectionSheet(
                                     // Region name
                                     Text(
                                         text = region.name,
-                                        color = SaltyTextPrimary,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.weight(1f)
@@ -158,7 +151,7 @@ fun RegionSelectionSheet(
                                         Icon(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = "Selected",
-                                            tint = SaltyAccent,
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -168,7 +161,7 @@ fun RegionSelectionSheet(
                                 if (!isLast) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(start = 64.dp),
-                                        color = Color.White.copy(alpha = 0.06f)
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                                     )
                                 }
                             }

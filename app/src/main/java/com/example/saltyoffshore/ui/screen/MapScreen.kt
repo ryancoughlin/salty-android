@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -61,6 +60,11 @@ import com.example.saltyoffshore.data.waypoint.SharedWaypoint
 import com.example.saltyoffshore.data.waypoint.Waypoint
 import com.example.saltyoffshore.data.waypoint.WaypointSelectionSource
 import com.example.saltyoffshore.data.waypoint.WaypointSheet
+import com.example.saltyoffshore.data.waypoint.WaypointSource
+import com.example.saltyoffshore.data.coordinate.GPSFormat
+import com.example.saltyoffshore.ui.waypoint.WaypointDetailSheet
+import com.example.saltyoffshore.ui.waypoint.WaypointFormSheet
+import com.example.saltyoffshore.ui.waypoint.WaypointManagementSheet
 import com.example.saltyoffshore.ui.measurement.MeasurementMapEffect
 import com.example.saltyoffshore.ui.measurement.MeasureModeOverlay
 import com.example.saltyoffshore.ui.map.RegionBoundsEffect
@@ -68,7 +72,7 @@ import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
 import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
 import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
-import com.example.saltyoffshore.ui.theme.SaltyColors
+import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.SaltyLayout
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.viewmodel.AppViewModel
@@ -85,6 +89,7 @@ import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.mapbox.maps.extension.compose.style.projection.generated.Projection
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.viewannotation.geometry
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
 
 private const val TAG = "MapScreen"
@@ -105,6 +110,9 @@ fun MapScreen(
 
     // Filter sheet state (fixed-position panel, not ModalBottomSheet)
     var showFilterSheet by remember { mutableStateOf(false) }
+
+    // Waypoint management sheet state
+    var showWaypointSheet by remember { mutableStateOf(false) }
 
     val mapViewportState = rememberMapViewportState {
         setCameraOptions {
@@ -205,6 +213,17 @@ fun MapScreen(
                 }
             )
 
+            // Long-press to create waypoint
+            MapEffect(Unit) { mapView ->
+                mapView.gestures.addOnMapLongClickListener { point ->
+                    viewModel.createWaypoint(
+                        latitude = point.latitude(),
+                        longitude = point.longitude()
+                    )
+                    true
+                }
+            }
+
             // Measurement layers (lines, points, distance labels)
             MeasurementMapEffect(
                 measurements = viewModel.measurementState.allMeasurements,
@@ -240,12 +259,12 @@ fun MapScreen(
                 .align(Alignment.TopEnd)
                 .padding(top = 48.dp, end = Spacing.large)
                 .size(SaltyLayout.topBarElementHeight)
-                .background(SaltyColors.raised.copy(alpha = 0.9f), CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f), CircleShape)
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "Settings",
-                tint = SaltyColors.iconButton
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -255,7 +274,7 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = SaltyColors.accent)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -288,6 +307,7 @@ fun MapScreen(
                     RightSideToolbar(
                         onFilterClick = { showFilterSheet = true },
                         onLayersClick = { showLayersSheet = true },
+                        onWaypointsClick = { showWaypointSheet = true },
                         onMeasureClick = {
                             if (viewModel.measurementState.isActive) {
                                 viewModel.measurementState.exit()
@@ -401,16 +421,67 @@ fun MapScreen(
             )
         }
 
-        // Waypoint sheets
+        // Waypoint detail sheet
         viewModel.activeWaypointSheet?.let { sheet ->
             when (sheet) {
                 is WaypointSheet.Details -> {
-                    // TODO: WaypointDetailSheet (Phase 5)
+                    val waypoint = viewModel.allWaypoints.find { it.id == sheet.waypointId }
+                    if (waypoint != null) {
+                        WaypointDetailSheet(
+                            waypoint = waypoint,
+                            source = WaypointSource.Own,
+                            gpsFormat = GPSFormat.DMM, // TODO: wire from user preferences
+                            onDismiss = { viewModel.dismissWaypointSheet() },
+                            onEdit = { viewModel.openWaypointForm(it) },
+                            onDelete = { viewModel.deleteWaypoint(it) },
+                            onShareToCrew = { /* TODO: wire sharing */ },
+                            onShareGPX = { /* TODO: wire GPX export */ },
+                            onNotesChanged = { notes ->
+                                val updated = waypoint.copy(notes = notes.ifEmpty { null })
+                                viewModel.saveWaypoint(updated)
+                            }
+                        )
+                    }
                 }
                 is WaypointSheet.Form -> {
-                    // TODO: WaypointFormSheet (Phase 6)
+                    WaypointFormSheet(
+                        waypoint = sheet.waypoint,
+                        isNewWaypoint = sheet.waypoint.name == null,
+                        gpsFormat = GPSFormat.DMM, // TODO: wire from user preferences
+                        formState = viewModel.waypointFormState,
+                        onFormStateChange = { viewModel.waypointFormState = it },
+                        onSave = {
+                            val updated = viewModel.waypointFormState.buildWaypoint(
+                                from = sheet.waypoint,
+                                format = GPSFormat.DMM
+                            )
+                            if (updated != null) {
+                                viewModel.saveWaypoint(updated)
+                                viewModel.dismissWaypointSheet()
+                            }
+                        },
+                        onCancel = { viewModel.dismissWaypointSheet() },
+                        onDismiss = { viewModel.dismissWaypointSheet() }
+                    )
                 }
             }
+        }
+
+        // Waypoint management sheet
+        if (showWaypointSheet) {
+            WaypointManagementSheet(
+                sections = viewModel.groupedWaypoints,
+                sortOption = viewModel.waypointSortOption,
+                selectedWaypointId = viewModel.selectedWaypointId,
+                onSortOptionChanged = { viewModel.updateWaypointSortOption(it) },
+                onWaypointTap = { id ->
+                    showWaypointSheet = false
+                    viewModel.openWaypointDetails(id)
+                },
+                onWaypointDelete = { viewModel.deleteWaypoint(it) },
+                onImportGPX = { /* TODO: wire GPX import */ },
+                onDismiss = { showWaypointSheet = false }
+            )
         }
     }
 }

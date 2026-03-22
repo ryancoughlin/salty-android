@@ -8,13 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +41,10 @@ fun ScaleBarView(
         calculateScaleBar(zoom, latitude)
     }
 
+    val lineColor = MaterialTheme.colorScheme.onPrimary
+    val shadowColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    val labelColor = MaterialTheme.colorScheme.onPrimary
+
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(),
@@ -61,7 +65,7 @@ fun ScaleBarView(
 
                 // Main horizontal line
                 drawLine(
-                    color = Color.White,
+                    color = lineColor,
                     start = Offset(0f, size.height / 2),
                     end = Offset(size.width, size.height / 2),
                     strokeWidth = strokeWidth,
@@ -70,7 +74,7 @@ fun ScaleBarView(
 
                 // Left end cap
                 drawLine(
-                    color = Color.White,
+                    color = lineColor,
                     start = Offset(strokeWidth / 2, size.height / 2 - endCapHeight / 2),
                     end = Offset(strokeWidth / 2, size.height / 2 + endCapHeight / 2),
                     strokeWidth = strokeWidth,
@@ -79,7 +83,7 @@ fun ScaleBarView(
 
                 // Right end cap
                 drawLine(
-                    color = Color.White,
+                    color = lineColor,
                     start = Offset(size.width - strokeWidth / 2, size.height / 2 - endCapHeight / 2),
                     end = Offset(size.width - strokeWidth / 2, size.height / 2 + endCapHeight / 2),
                     strokeWidth = strokeWidth,
@@ -89,7 +93,7 @@ fun ScaleBarView(
                 // Shadow
                 val shadowOffset = 1.dp.toPx()
                 drawLine(
-                    color = Color.Black.copy(alpha = 0.5f),
+                    color = shadowColor,
                     start = Offset(shadowOffset, size.height / 2 + shadowOffset),
                     end = Offset(size.width + shadowOffset, size.height / 2 + shadowOffset),
                     strokeWidth = strokeWidth,
@@ -103,7 +107,7 @@ fun ScaleBarView(
                 style = TextStyle(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = labelColor
                 ),
                 modifier = Modifier.padding(top = 24.dp)
             )

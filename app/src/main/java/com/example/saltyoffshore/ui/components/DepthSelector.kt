@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -83,14 +83,14 @@ fun DepthSelector(
             .width(DepthSelectorConstants.controlWidth)
             .shadow(
                 elevation = 8.dp,
-                shape = RoundedCornerShape(DepthSelectorConstants.cornerRadius),
-                spotColor = Color.Black.copy(alpha = 0.1f)
+                shape = MaterialTheme.shapes.extraLarge,
+                spotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
-            .clip(RoundedCornerShape(DepthSelectorConstants.cornerRadius))
+            .clip(MaterialTheme.shapes.extraLarge)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(DepthSelectorConstants.cornerRadius)
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f),
+                shape = MaterialTheme.shapes.extraLarge
             )
             .pointerInput(reversedDepths, depthFilter.selectedDepth) {
                 detectVerticalDragGestures { change, _ ->
@@ -106,7 +106,7 @@ fun DepthSelector(
                 }
             },
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(DepthSelectorConstants.cornerRadius)
+        shape = MaterialTheme.shapes.extraLarge
     ) {
         Column(
             modifier = Modifier.padding(DepthSelectorConstants.padding),
@@ -172,7 +172,7 @@ private fun DepthStop(
         modifier = Modifier
             .fillMaxWidth()
             .height(DepthSelectorConstants.depthStopHeight)
-            .clip(RoundedCornerShape(DepthSelectorConstants.innerCornerRadius))
+            .clip(MaterialTheme.shapes.large)
             .background(backgroundColor)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

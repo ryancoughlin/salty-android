@@ -2,11 +2,9 @@ package com.example.saltyoffshore.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.runtime.collectAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,9 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -50,18 +47,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.auth.AuthError
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.ValidationHelper
+import androidx.compose.material3.ExperimentalMaterial3Api
 import kotlinx.coroutines.launch
-
-// Salty brand colors
-private val SaltyBase = Color(0xFF0A0A0F)
-private val SaltyAccent = Color(0xFF00D4AA)
-private val SaltyBorder = Color(0xFF1A1A24)
-private val SaltyTextPrimary = Color(0xFFFFFFFF)
-private val SaltyTextSecondary = Color(0xFF8A8A9A)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,16 +98,16 @@ fun SignUpScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = SaltyTextPrimary
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SaltyBase
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         },
-        containerColor = SaltyBase
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -180,8 +170,8 @@ fun SignUpScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = msg,
-                    color = Color.Red,
-                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
                 )
             }
@@ -202,21 +192,21 @@ private fun SignUpHeader() {
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(SaltyAccent),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "S",
-                color = SaltyBase,
-                fontSize = 24.sp,
+                color = MaterialTheme.colorScheme.background,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
         }
 
         Text(
             text = "Create your account",
-            color = SaltyTextPrimary,
-            fontSize = 24.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -247,7 +237,6 @@ private fun SignUpForm(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // First name
         FormField(
             value = firstName,
             onValueChange = onFirstNameChange,
@@ -257,7 +246,6 @@ private fun SignUpForm(
             capitalization = KeyboardCapitalization.Words
         )
 
-        // Last name
         FormField(
             value = lastName,
             onValueChange = onLastNameChange,
@@ -267,7 +255,6 @@ private fun SignUpForm(
             capitalization = KeyboardCapitalization.Words
         )
 
-        // Email
         FormField(
             value = email,
             onValueChange = onEmailChange,
@@ -279,7 +266,6 @@ private fun SignUpForm(
             } else null
         )
 
-        // Password
         FormField(
             value = password,
             onValueChange = onPasswordChange,
@@ -290,7 +276,6 @@ private fun SignUpForm(
             helperText = if (!showPasswordLengthError && password.isNotEmpty()) "Minimum 6 characters" else null
         )
 
-        // Confirm password
         FormField(
             value = confirmPassword,
             onValueChange = onConfirmPasswordChange,
@@ -310,25 +295,25 @@ private fun SignUpForm(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = MaterialTheme.shapes.large,
             colors = ButtonDefaults.buttonColors(
-                containerColor = SaltyAccent,
-                contentColor = SaltyBase,
-                disabledContainerColor = SaltyAccent.copy(alpha = 0.5f),
-                disabledContentColor = SaltyBase.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.background,
+                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                disabledContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f)
             )
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = SaltyBase,
+                    color = MaterialTheme.colorScheme.background,
                     strokeWidth = 2.dp
                 )
             } else {
                 Text(
                     text = "Create Account",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
@@ -353,7 +338,7 @@ private fun FormField(
             value = value,
             onValueChange = onValueChange,
             placeholder = {
-                Text(placeholder, color = SaltyTextSecondary)
+                Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant)
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -364,29 +349,29 @@ private fun FormField(
                 capitalization = capitalization
             ),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = SaltyTextPrimary,
-                unfocusedTextColor = SaltyTextPrimary,
-                focusedBorderColor = if (isError) Color.Red else SaltyAccent,
-                unfocusedBorderColor = if (isError) Color.Red else SaltyBorder,
-                cursorColor = SaltyAccent,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                cursorColor = MaterialTheme.colorScheme.primary,
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent
             ),
-            shape = RoundedCornerShape(8.dp)
+            shape = MaterialTheme.shapes.large
         )
 
         if (errorMessage != null) {
             Text(
                 text = errorMessage,
-                color = Color.Red,
-                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(top = 4.dp)
             )
         } else if (helperText != null) {
             Text(
                 text = helperText,
-                color = SaltyTextSecondary,
-                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }

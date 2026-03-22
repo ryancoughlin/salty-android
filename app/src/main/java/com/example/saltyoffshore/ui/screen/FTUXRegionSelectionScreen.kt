@@ -15,15 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,14 +31,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
-
-// Design tokens
-private val SaltyBase = Color(0xFF0A0A0F)
-private val SaltySunken = Color(0xFF141419)
-private val SaltyAccent = Color(0xFF00D4AA)
-private val SaltyTextPrimary = Color(0xFFFFFFFF)
-private val SaltyTextSecondary = Color(0xFF8A8A9A)
-private val SaltyTextTertiary = Color(0xFF5A5A6A)
 
 /**
  * FTUX Region Selection matching iOS FTUXRegionSelectionView.swift.
@@ -68,7 +59,7 @@ fun FTUXRegionSelectionScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SaltyBase)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             if (regionGroups.isEmpty()) {
                 LoadingView()
@@ -97,13 +88,13 @@ private fun LoadingView() {
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(SaltyAccent),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "S",
-                color = SaltyBase,
-                fontSize = 36.sp,
+                color = MaterialTheme.colorScheme.background,
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -112,8 +103,8 @@ private fun LoadingView() {
 
         Text(
             text = "Welcome to Salty Offshore",
-            color = SaltyTextPrimary,
-            fontSize = 24.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -122,15 +113,15 @@ private fun LoadingView() {
 
         Text(
             text = "Loading available regions...",
-            color = SaltyTextSecondary,
-            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
         CircularProgressIndicator(
-            color = SaltyAccent,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(48.dp),
             strokeWidth = 3.dp
         )
@@ -157,8 +148,8 @@ private fun RegionListView(
             item {
                 Text(
                     text = group.group.uppercase(),
-                    color = SaltyTextSecondary,
-                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.sp,
                     modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
@@ -171,8 +162,8 @@ private fun RegionListView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(SaltySunken)
+                        .clip(MaterialTheme.shapes.extraLarge)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     val activeRegions = group.regions.filter {
                         it.status == com.example.saltyoffshore.data.RegionStatus.ACTIVE
@@ -187,7 +178,7 @@ private fun RegionListView(
                         if (index < activeRegions.lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 108.dp),
-                                color = Color.White.copy(alpha = 0.06f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                             )
                         }
                     }
@@ -216,13 +207,13 @@ private fun FTUXHeader() {
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .background(SaltyAccent),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "S",
-                color = SaltyBase,
-                fontSize = 32.sp,
+                color = MaterialTheme.colorScheme.background,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -231,8 +222,8 @@ private fun FTUXHeader() {
 
         Text(
             text = "Welcome to Salty Offshore",
-            color = SaltyTextPrimary,
-            fontSize = 24.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -241,8 +232,8 @@ private fun FTUXHeader() {
 
         Text(
             text = "Choose your home waters for offline access and personalized data",
-            color = SaltyTextSecondary,
-            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             lineHeight = 22.sp
         )
@@ -251,8 +242,8 @@ private fun FTUXHeader() {
 
         Text(
             text = "You can change regions or explore others anytime",
-            color = SaltyTextTertiary,
-            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center
         )
     }
@@ -278,14 +269,14 @@ private fun RegionRow(
             modifier = Modifier
                 .width(80.dp)
                 .height(60.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Gray.copy(alpha = 0.3f)),
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = region.name.take(2).uppercase(),
-                color = SaltyTextSecondary,
-                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -295,8 +286,8 @@ private fun RegionRow(
         // Region name
         Text(
             text = region.name,
-            color = SaltyTextPrimary,
-            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
         )
@@ -304,15 +295,15 @@ private fun RegionRow(
         // Loading indicator or chevron
         if (isLoading) {
             CircularProgressIndicator(
-                color = SaltyAccent,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp),
                 strokeWidth = 2.dp
             )
         } else {
             Text(
                 text = "\u203A",
-                color = SaltyTextSecondary,
-                fontSize = 20.sp
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleMedium
             )
         }
     }

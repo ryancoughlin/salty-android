@@ -7,11 +7,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.Dataset
 import com.example.saltyoffshore.data.DatasetRenderConfig
+import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.EntryOverride
+import com.example.saltyoffshore.data.availableVariables
 
 /**
  * Unified layer controls for primary and overlay datasets.
- * Single source of truth - same toggles available for both.
+ * Renders depth selector, variable selector, then layer toggles.
  * Matches iOS DatasetLayerControls exactly.
+ *
+ * Order: DepthSelector → VariableSelector → Particles → Visual → Contours → Breaks → Arrows → Numbers
+ *
+ * iOS ref: Views/DatasetControls/Components/LayerControls/DatasetLayerControls.swift
  */
 @Composable
 fun DatasetLayerControls(
@@ -21,10 +28,41 @@ fun DatasetLayerControls(
     isPrimary: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val datasetType = DatasetType.fromRawValue(dataset.type)
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // DEPTH SELECTOR (for multi-depth datasets)
+        if (dataset.hasMultipleDepths) {
+            val depths = dataset.availableDepths ?: listOf(0)
+            val selectedDepth = config.entryOverride?.depth ?: 0
+            DepthSelector(
+                depths = depths,
+                selectedDepth = selectedDepth,
+                onDepthSelected = { depth ->
+                    onConfigChanged(
+                        config.copy(
+                            entryOverride = (config.entryOverride ?: EntryOverride()).copy(depth = depth)
+                        )
+                    )
+                }
+            )
+        }
+
+        // VARIABLE SELECTOR (for datasets with multiple variables)
+        if (datasetType != null) {
+            val variables = datasetType.availableVariables
+            VariableSelector(
+                variables = variables,
+                selectedVariableId = config.selectedVariableId,
+                onVariableSelected = { variable ->
+                    onConfigChanged(config.copy(selectedVariableId = variable.id))
+                }
+            )
+        }
+
         // PARTICLES (matches iOS order — particles first)
         if (dataset.hasParticles) {
             ParticlesLayerControl(

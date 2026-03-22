@@ -59,7 +59,7 @@ val DatasetType.renderingConfig: RenderingConfig
 
         DatasetType.PHYTOPLANKTON -> RenderingConfig(
             scaleMode = ScaleMode.LOGARITHMIC,
-            colorscale = Colorscale.CHLOROPHYLL,
+            colorscale = Colorscale.BLOOM,
             domainStrategy = DomainStrategy.Fixed(0.01f..8.0f)
         )
 

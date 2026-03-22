@@ -1,6 +1,57 @@
+# STOP — Requirements Before Code
+
+Before ANY code exploration, file reading, or implementation:
+
+1. **State the requirement** — What does the user need to accomplish?
+2. **Describe the UX** — What will the user see, tap, experience?
+3. **List acceptance criteria** — How do we know it works?
+
+Only AFTER stating these clearly should you explore code or propose solutions.
+
+If you cannot articulate the requirement in one sentence, ASK the user.
+
+---
+
 # Salty Android
 
 > Safety-critical ocean data tools for offshore fishermen navigating remote, dangerous conditions.
+
+## UX Philosophy
+
+**Glanceable, not readable.** Think Android Auto, not Settings. Widgets, not walls of text.
+
+**Undo over confirm.** Let them do it, let them reverse it. No "Are you sure?" dialogs.
+
+**Show state, not spinners.** User always knows what the app is doing.
+
+**Every interruption costs.** Modals, alerts, toasts — justify every one.
+
+---
+
+## Simplicity Mandate
+
+**Every line of code must justify its existence.**
+
+1. **Delete dead code immediately.** Unused functions, unreachable branches, commented-out blocks — remove on sight.
+2. **Write lean code.** No defensive null checks or `?.let` chains "just in case." Trust the types.
+3. **Minimize branching.** Flatten logic. Straight-line code: do the thing, return the result.
+4. **No imperative observation.** Let `LaunchedEffect(key)` + `StateFlow` do the work. No `DisposableEffect` workarounds, no RxJava.
+5. **Kill unnecessary abstractions.** Interfaces with one implementation, wrappers that just forward calls — delete them.
+6. **One path through the code.** Pick one way to do something and delete the other.
+7. **Modern Kotlin only.** Coroutines, not callbacks. Declarative, never imperative.
+
+---
+
+## Working Principles
+
+1. **Plan mode default** — Enter planning for any task with 3+ steps or architectural decisions.
+2. **Parallel research** — Spawn multiple Explore agents to investigate different parts of the codebase simultaneously. Never search sequentially.
+3. **Parallel execution** — When the plan has independent tasks, spawn multiple agents to implement them at once. One agent per file/feature.
+4. **Verification before done** — Never mark complete without proving it works.
+5. **Autonomous bug fixing** — When given a bug, just fix it. Zero hand-holding.
+6. **Self-improvement** — After any correction, add to `.claude/rules/lessons.md`.
+7. **Start with user impact** — What will the user experience? Let that drive the technical approach.
+8. **Ask when ambiguous** — If a request could go multiple directions, ask.
 
 ---
 
@@ -50,19 +101,7 @@ Before writing ANY Android code:
 
 ---
 
-## User Persona
-
-Commercial fishing vessels making safety-critical decisions on spotty satellite internet. Multi-day expeditions in remote locations where crashes or data loss could mean disaster.
-
-**UX Requirements:** Instant loading (< 1s), state persistence across restarts, fresh data for browsed regions, offline capability for preferred region, seamless timeline scrubbing with zero delay.
-
----
-
-## Core Architecture
-
-- Never write defensively or have fallbacks unless explicitly stated.
-
-### Kotlin/Compose Architecture
+## Architecture
 
 ```
 UI Layer (Composables)
@@ -90,9 +129,7 @@ Data (data classes)
 - Single source of truth per feature
 - Derived state via computed properties (`val isActive: Boolean get() = ...`)
 
----
-
-## Compose Recomposition Pitfall
+### Compose Recomposition Pitfall
 
 ```kotlin
 // ❌ BAD: Recomposes on ANY state change
@@ -112,27 +149,80 @@ fun MapScreen(viewModel: SaltyViewModel) {
 
 ---
 
-## Styling
+## Design
 
-- Use `Theme.kt` and `Color.kt` for consistent theming
-- Follow Material 3 design patterns
-- Dark mode first (fishing at night/dawn)
+All styles from `Theme.kt`. Dark mode first (fishing at night/dawn).
+
+**Visual hierarchy:**
+- One primary action per view
+- Max 3 type styles per screen
+- Data gets color; chrome stays neutral
+
+**Information density:**
+- One number per glance — don't stack values
+- Labels only when meaning isn't obvious
+- Progressive disclosure — summary first, detail on tap
+
+**Consistency:**
+- All spacing from Theme scale (no magic numbers)
+- Material Icons only, one weight per context
+- Same interaction = same visual treatment
+
+**State:**
+- Every control shows its current state
+- Selected vs unselected must be obvious
+- Loading shows skeleton, not spinner
+
+**Data visualization:**
+- Consistent color mapping across app (warm water = warm colors)
+- Legend always accessible, never blocking data
+
+---
 
 ## Testing
 
+Test user flows, not units. If a user can't break it, don't test it.
+
+**What to test:**
+- User journeys: select overlay → scrub timeline → see data update
+- Data flow: API response → ViewModel → View renders correctly
+- Persistence: state survives app restart
+- Safety-critical calculations (distance, contour generation, coordinate transforms)
+- Production edge cases (race conditions, network failures, offline transitions)
+
+**What NOT to test:**
+- Internal state changes
+- UI layout or styling
+- Private functions
+- Mocks of internal code
+
+**Pattern:**
+- Given (setup) → When (action) → Then (outcome)
+- 5 flow tests > 20 unit tests
+
 **Golden Rule:** "If I delete this code, would this test fail?" If no → delete the test.
 
-**Never test:** Tautologies, language guarantees, framework internals, implementation details.
+---
 
-**Always test:**
-1. Critical user paths (region selection, offline caching, waypoint sharing)
-2. Data loss scenarios (preference persistence, state restoration)
-3. Safety-critical calculations (distance, contour generation, coordinate transforms)
-4. Production edge cases (race conditions, network failures, offline transitions)
+## Build & Test Commands
 
-## Building Project
+```bash
+# Build debug APK
+./gradlew assembleDebug
 
-Do NOT build the project to test work.
+# Run all tests
+./gradlew test
+
+# Run single test class
+./gradlew test --tests "com.example.saltyoffshore.SomeTestClass"
+
+# Install on connected device
+./gradlew installDebug
+```
+
+Do NOT build the project to test work during development.
+
+---
 
 ## Debugging with Supabase
 
@@ -148,12 +238,16 @@ Use Supabase MCP to query backend tables:
 | `device_tokens` | Push notification FCM tokens |
 | `announcement` | App announcements |
 
+---
+
 ## Git Workflow
 
 - **`main`** — release trunk, never work here directly
 - **Feature branches** — short-lived branches off main
 
 **Commits:** No co-author lines. Atomic and frequent. One logical change per commit.
+
+---
 
 ## Zarr Data Formats
 
@@ -163,6 +257,8 @@ All Zarr implementations MUST match exact structures in iOS `docs/DATA_STRUCTURE
 **Forecast data:** 3D `(time, lat, lon)` EPSG:4326, chunks vary by model
 
 No fallbacks. No defensive coding around data structure.
+
+---
 
 ## Tech Stack
 

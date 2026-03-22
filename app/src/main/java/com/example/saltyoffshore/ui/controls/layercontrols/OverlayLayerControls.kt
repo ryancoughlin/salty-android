@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -18,7 +17,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,15 +28,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.saltyoffshore.data.GlobalLayerType
 import com.example.saltyoffshore.data.LayerState
 import com.example.saltyoffshore.data.LoranRegionConfig
 import com.example.saltyoffshore.data.OverlayCategory
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.data.Tournament
 
 /**
@@ -94,9 +94,9 @@ private fun LayerCategorySection(
         // Category header
         Text(
             text = category.displayName,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Medium,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -146,21 +146,29 @@ private fun LayerToggleRow(
                 painter = painterResource(id = layerState.type.iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = if (layerState.isEnabled) Color.Black else Color.Gray
+                tint = if (layerState.isEnabled) MaterialTheme.colorScheme.onSurface
+                       else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
                 text = layerState.type.displayName,
-                fontSize = 16.sp,
-                color = if (layerState.isEnabled) Color.Black else Color.Gray,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (layerState.isEnabled) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
             )
 
             Switch(
                 checked = layerState.isEnabled,
-                onCheckedChange = { onToggle() }
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                )
             )
         }
 
@@ -174,8 +182,8 @@ private fun LayerToggleRow(
             ) {
                 Text(
                     text = "Opacity",
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Slider(
@@ -183,13 +191,18 @@ private fun LayerToggleRow(
                     onValueChange = { onOpacityChange(it.toDouble()) },
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = 8.dp),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outline
+                    )
                 )
 
                 Text(
                     text = "${(layerState.opacity * 100).toInt()}%",
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -252,8 +265,8 @@ private fun TournamentPicker(
     if (tournaments.isEmpty()) {
         Text(
             text = "No tournaments available",
-            fontSize = 12.sp,
-            color = Color.Gray,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier
         )
         return

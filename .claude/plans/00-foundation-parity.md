@@ -105,77 +105,18 @@ suspend fun migrateLocalPreferencesToRemote(userId: String, local: AppPreference
 
 ---
 
-## Task 0.2: DatasetType Completion
+## Task 0.2: DatasetType Completion — COMPLETE
 
-**iOS Source:** `SaltyOffshore/Models/DatasetCategory.swift`
+**Status:** All 11 dataset types exist with complete properties.
 
-### 0.2.1 Add Missing Case
+**Parity fixes applied (2026-03-22):**
+- `supportsFronts` → SST only (iOS only has `BreaksConfig` on SST, not SSH/Salinity/MLD)
+- `contourColor` → always `Color.BLACK` (iOS defaults all contour colors to black; user-editable)
+- Phytoplankton `defaultColorscale` → `BLOOM` (was incorrectly `CHLOROPHYLL`)
+- dissolved_oxygen unit → `mg/L` (was `mmol/m³`)
+- water_type `valueKey` → `"label"` (was `"water_type"`)
 
-**File:** `data/DatasetType.kt`
-
-```kotlin
-enum class DatasetType(val rawValue: String) {
-    // ... existing cases
-    PHYTOPLANKTON("phytoplankton"),  // ADD THIS
-}
-```
-
-### 0.2.2 Add Layer Capabilities
-
-**iOS Source:** `DatasetType.capabilities` property
-
-**New File:** `data/LayerCapabilities.kt`
-
-```kotlin
-data class LayerCapabilities(
-    val hasVisualLayer: Boolean = false,
-    val hasContours: Boolean = false,
-    val hasArrows: Boolean = false,
-    val hasParticles: Boolean = false,
-    val hasBreaks: Boolean = false,
-    val hasNumbers: Boolean = false,
-    val hasDepthSelection: Boolean = false,
-    val hasEntrySelection: Boolean = false
-)
-
-// Add to DatasetType
-val DatasetType.capabilities: LayerCapabilities
-    get() = when (this) {
-        SST -> LayerCapabilities(hasVisualLayer = true, hasContours = true, hasBreaks = true, hasNumbers = true)
-        CURRENTS -> LayerCapabilities(hasVisualLayer = true, hasArrows = true, hasParticles = true)
-        CHLOROPHYLL -> LayerCapabilities(hasVisualLayer = true, hasContours = true, hasNumbers = true)
-        // ... etc
-    }
-```
-
-### 0.2.3 Add Dataset Defaults
-
-**iOS Source:** `DatasetType.defaults` property
-
-**New File:** `data/DatasetDefaults.kt`
-
-```kotlin
-data class DatasetDefaults(
-    val contourEnabled: Boolean = false,
-    val contourOpacity: Double = 1.0,
-    val visualOpacity: Double = 1.0,
-    val arrowsEnabled: Boolean = false,
-    val arrowsOpacity: Double = 1.0,
-    val particlesEnabled: Boolean = false,
-    val breaksEnabled: Boolean = false,
-    val breaksOpacity: Double = 1.0,
-    val numbersEnabled: Boolean = false,
-    val numbersOpacity: Double = 1.0
-)
-
-val DatasetType.defaults: DatasetDefaults
-    get() = when (this) {
-        SST -> DatasetDefaults(contourEnabled = false, visualOpacity = 1.0)
-        CURRENTS -> DatasetDefaults(particlesEnabled = true, arrowsEnabled = false)
-        EDDYS -> DatasetDefaults(contourEnabled = true) // SSH shows contours by default
-        // ... etc
-    }
-```
+**Files:** `data/DatasetType.kt`, `data/LayerCapabilities.kt`, `data/DatasetDefaults.kt`, `data/DatasetConfiguration.kt`
 
 ---
 

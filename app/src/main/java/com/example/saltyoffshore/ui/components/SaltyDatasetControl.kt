@@ -1,5 +1,12 @@
 package com.example.saltyoffshore.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import com.example.saltyoffshore.ui.theme.SaltyMotion
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,9 +15,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,23 +34,23 @@ import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
 import com.example.saltyoffshore.data.DatasetConfiguration
+import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.TimeEntry
-import com.example.saltyoffshore.ui.theme.SaltyLayout
+import com.example.saltyoffshore.ui.controls.layercontrols.DatasetLayerControls
+
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
 
 /**
- * Bottom dataset control panel matching iOS MapControlsContainer bottom controls.
- * Uses Material 3 Surface with tonal elevation for native dark-mode appearance.
+ * Bottom dataset control panel matching iOS DatasetControl.
+ * Supports collapsed (compact) and expanded (full layer controls) modes.
  *
- * Layout:
- * - Row 1: Dataset name + Change/Collapse buttons
- * - Row 2: GradientScaleBar (color ramp, min/max labels, current value pointer)
- * - Row 3: TimelineControl (scrubber with time display)
+ * Collapsed: Dataset name + gradient bar + timeline
+ * Expanded: + DatasetLayerControls inline
  *
- * iOS ref: Map/Controls/MapControlsContainer.swift → bottomControls()
+ * iOS ref: Views/DatasetControls/DatasetControl.swift
  */
 @Composable
 fun SaltyDatasetControl(
@@ -50,8 +58,11 @@ fun SaltyDatasetControl(
     entry: TimeEntry?,
     snapshot: DatasetRenderingSnapshot,
     currentValue: CurrentValue = CurrentValue.None,
+    isExpanded: Boolean = false,
+    primaryConfig: DatasetRenderConfig? = null,
+    onConfigChanged: ((DatasetRenderConfig) -> Unit)? = null,
     onEntrySelected: (TimeEntry) -> Unit,
-    onExpand: () -> Unit = {},
+    onExpandToggle: () -> Unit = {},
     onChange: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -62,7 +73,7 @@ fun SaltyDatasetControl(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.large),
-        shape = RoundedCornerShape(SaltyLayout.cardCornerRadius),
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 2.dp,
         shadowElevation = 6.dp
@@ -70,7 +81,10 @@ fun SaltyDatasetControl(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.medium),
+                .padding(Spacing.medium)
+                .animateContentSize(
+                    animationSpec = SaltyMotion.springMedium()
+                ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Row 1: Dataset name + buttons
@@ -93,7 +107,7 @@ fun SaltyDatasetControl(
                     TextButton(onClick = onChange) {
                         Icon(
                             Icons.Default.SwapVert,
-                            contentDescription = "Change",
+                            contentDescription = "Change dataset",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
@@ -104,17 +118,18 @@ fun SaltyDatasetControl(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onExpand) {
+                    IconButton(onClick = onExpandToggle) {
                         Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Collapse",
+                            if (isExpanded) Icons.Default.KeyboardArrowDown
+                            else Icons.Default.KeyboardArrowUp,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // Row 2: Gradient scale bar with current value pointer
+            // Row 2: Gradient scale bar
             entry?.let { currentEntry ->
                 val rangeKey = datasetType?.rangeKey ?: dataset.type
                 val range = currentEntry.ranges?.get(rangeKey)
@@ -122,10 +137,8 @@ fun SaltyDatasetControl(
                     ?: datasetType?.defaultColorscale
 
                 if (colorscale != null) {
-                    // Extract numeric value from crosshair reading
                     val pointerValue = (currentValue as? CurrentValue.Value)?.value
 
-                    // Filter range from snapshot
                     val filterRange = if (snapshot.isFilterActive) {
                         snapshot.filterMin..snapshot.filterMax
                     } else null
@@ -153,6 +166,30 @@ fun SaltyDatasetControl(
                 selectedEntry = entry,
                 onEntrySelected = onEntrySelected
             )
+
+            // Expanded: Layer controls inline (matches iOS ExpandedDatasetView)
+            AnimatedVisibility(
+                visible = isExpanded && primaryConfig != null && onConfigChanged != null,
+                enter = expandVertically(
+                    animationSpec = SaltyMotion.springMedium()
+                ) + fadeIn(),
+                exit = shrinkVertically(
+                    animationSpec = SaltyMotion.springMedium()
+                ) + fadeOut()
+            ) {
+                if (primaryConfig != null && onConfigChanged != null) {
+                    Column(
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        DatasetLayerControls(
+                            dataset = dataset,
+                            config = primaryConfig,
+                            onConfigChanged = onConfigChanged,
+                            isPrimary = true
+                        )
+                    }
+                }
+            }
         }
     }
 }

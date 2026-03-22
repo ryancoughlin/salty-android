@@ -1,8 +1,7 @@
 package com.example.saltyoffshore.ui.components
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import com.example.saltyoffshore.ui.theme.SaltyMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,7 +38,7 @@ fun RegionAnnotationView(
 ) {
     val animatedScale by animateFloatAsState(
         targetValue = scale,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+        animationSpec = SaltyMotion.springSlow(),
         label = "scale"
     )
 
@@ -55,7 +54,7 @@ fun RegionAnnotationView(
                     shape = RoundedCornerShape(28.dp),
                     clip = false
                 )
-                .background(Color.White, RoundedCornerShape(28.dp))
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp))
                 .clickable(onClick = onClick)
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -65,7 +64,7 @@ fun RegionAnnotationView(
                 text = region.name,
                 style = TextStyle(
                     fontSize = 14.sp,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium
                 )
             )
@@ -73,7 +72,7 @@ fun RegionAnnotationView(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
-                    tint = Color.Black,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -84,13 +83,13 @@ fun RegionAnnotationView(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 4.dp, y = (-4).dp)
-                    .background(Color(0xFF007AFF), RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = "COMING SOON",
                     style = TextStyle(
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold
                     )

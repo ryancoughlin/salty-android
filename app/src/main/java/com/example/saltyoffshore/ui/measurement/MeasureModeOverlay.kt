@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -32,8 +32,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.DistanceUnits
 import com.example.saltyoffshore.data.measurement.formatDistance
-import com.example.saltyoffshore.ui.theme.SaltyColors
-import com.example.saltyoffshore.ui.theme.SaltyLayout
+
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
 
@@ -63,7 +62,7 @@ fun MeasureModeOverlay(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.large),
-        shape = RoundedCornerShape(SaltyLayout.cardCornerRadius),
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 2.dp,
         shadowElevation = 6.dp
@@ -93,9 +92,9 @@ fun MeasureModeOverlay(
                     enabled = canUndo,
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = SaltyColors.textPrimary,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                         disabledContainerColor = MaterialTheme.colorScheme.surface,
-                        disabledContentColor = SaltyColors.textSecondary
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier
                         .size(40.dp)
@@ -110,9 +109,9 @@ fun MeasureModeOverlay(
                     enabled = hasMeasurements,
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = SaltyColors.textPrimary,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                         disabledContainerColor = MaterialTheme.colorScheme.surface,
-                        disabledContentColor = SaltyColors.textSecondary
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier
                         .size(40.dp)
@@ -130,7 +129,7 @@ fun MeasureModeOverlay(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
-                    shape = RoundedCornerShape(SaltyLayout.controlCornerRadius)
+                    shape = MaterialTheme.shapes.medium
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -152,13 +151,13 @@ private fun StatusPill(
     val hasDistance = hasMeasurements && totalDistanceMeters > 0
 
     Surface(
-        shape = RoundedCornerShape(SaltyLayout.controlCornerRadius),
+        shape = MaterialTheme.shapes.medium,
         color = if (hasDistance)
             MaterialTheme.colorScheme.primary
         else
             MaterialTheme.colorScheme.surfaceVariant,
         border = if (!hasDistance)
-            BorderStroke(1.dp, SaltyColors.borderSubtle)
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
         else
             null
     ) {
@@ -175,7 +174,7 @@ private fun StatusPill(
                 tint = if (hasDistance)
                     MaterialTheme.colorScheme.onPrimary
                 else
-                    SaltyColors.textSecondary,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
@@ -188,7 +187,7 @@ private fun StatusPill(
                 color = if (hasDistance)
                     MaterialTheme.colorScheme.onPrimary
                 else
-                    SaltyColors.textSecondary
+                    MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

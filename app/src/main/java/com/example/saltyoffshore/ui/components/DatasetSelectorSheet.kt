@@ -15,11 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -30,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -41,8 +41,8 @@ import com.example.saltyoffshore.data.DatasetGroup
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.TimeEntry
 import com.example.saltyoffshore.data.group
-import com.example.saltyoffshore.ui.theme.SaltyColors
 import com.example.saltyoffshore.ui.theme.SaltyLayout
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
 
@@ -72,7 +72,7 @@ fun DatasetSelectorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SaltyColors.overlay,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = null
     ) {
         Column(
@@ -90,17 +90,16 @@ fun DatasetSelectorSheet(
             ) {
                 Text(
                     text = "Change Dataset",
-                    style = SaltyType.heading.copy(
+                    style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 18.sp,
-                        color = SaltyColors.textPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = SaltyColors.iconButton
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -143,9 +142,9 @@ fun DatasetSelectorSheet(
 private fun CategoryHeader(title: String) {
     Text(
         text = title,
-        style = SaltyType.caption.copy(
+        style = MaterialTheme.typography.labelMedium.copy(
             fontWeight = FontWeight.SemiBold,
-            color = SaltyColors.textSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.sp
         ),
         modifier = Modifier.padding(horizontal = Spacing.large, vertical = Spacing.small)
@@ -165,8 +164,8 @@ private fun DatasetListItem(
     onSelect: () -> Unit
 ) {
     val isLocked = !isSelected && !isPremium
-    val backgroundColor = if (isSelected) SaltyColors.textPrimary else Color.Transparent
-    val textColor = if (isSelected) SaltyColors.base else SaltyColors.textPrimary
+    val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
@@ -183,7 +182,7 @@ private fun DatasetListItem(
                 modifier = Modifier
                     .width(120.dp)
                     .height(80.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(MaterialTheme.shapes.medium)
             ) {
                 AsyncImage(
                     model = dataset.previewUrl,
@@ -197,13 +196,13 @@ private fun DatasetListItem(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.8f)),
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.8f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Lock,
                             contentDescription = "Locked",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.inverseOnSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -241,13 +240,13 @@ private fun DatasetListItem(
 private fun BetaBadge() {
     Text(
         text = "BETA",
-        style = SaltyType.captionSmall.copy(
+        style = MaterialTheme.typography.labelSmall.copy(
             fontSize = 8.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onTertiary
         ),
         modifier = Modifier
-            .background(Color(0xFFFF9500).copy(alpha = 0.8f), RoundedCornerShape(2.dp))
+            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f), MaterialTheme.shapes.extraSmall)
             .padding(horizontal = Spacing.small, vertical = 2.dp)
     )
 }

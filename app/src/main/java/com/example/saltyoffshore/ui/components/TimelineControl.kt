@@ -149,7 +149,7 @@ fun TimelineControl(
                     .shadow(
                         elevation = 2.dp,
                         shape = RoundedCornerShape(3.dp),
-                        ambientColor = Color.Black.copy(alpha = 0.6f)
+                        ambientColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     .background(capsuleColor, RoundedCornerShape(3.dp))
             )

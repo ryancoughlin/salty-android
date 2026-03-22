@@ -24,10 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.saltyoffshore.ui.theme.SaltyColors
-import com.example.saltyoffshore.ui.theme.SaltyLayout
 
 /**
  * Reusable section component for layer controls.
@@ -53,10 +50,13 @@ fun LayerSection(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (enabled) SaltyColors.raised else Color.Transparent)
+            .background(
+                if (enabled) MaterialTheme.colorScheme.surfaceContainerHigh
+                else MaterialTheme.colorScheme.surfaceContainerLow
+            )
             .border(
                 width = 1.dp,
-                color = SaltyColors.borderSubtle,
+                color = MaterialTheme.colorScheme.outline,
                 shape = shape
             )
     ) {
@@ -71,7 +71,7 @@ fun LayerSection(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodySmall,
-                color = SaltyColors.textPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -80,10 +80,10 @@ fun LayerSection(
                 checked = enabled,
                 onCheckedChange = onEnabledChanged,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                     checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = SaltyColors.borderSubtle
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                 )
             )
         }
@@ -97,7 +97,7 @@ fun LayerSection(
             Column {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = internalPadding),
-                    color = SaltyColors.borderSubtle
+                    color = MaterialTheme.colorScheme.outline
                 )
                 Box(modifier = Modifier.padding(internalPadding)) {
                     content()

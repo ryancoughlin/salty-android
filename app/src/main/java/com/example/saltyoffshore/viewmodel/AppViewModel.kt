@@ -330,13 +330,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Update depth filter state from dataset
         updateDepthFilterForDataset(firstDataset)
 
-        // Load Zarr data if available
-        loadZarrForDataset(firstDataset)
-
         appStatus = AppStatus.Idle
 
-        // Fetch entries lazily (v2 API returns datasets with entries: null)
-        // iOS ref: DatasetStore calls OceanDataService.fetchDatasetEntries on demand
+        // Fetch entries first, then load Zarr with populated entries
+        // iOS ref: DatasetStore.selectDataset() fetches entries, THEN calls zarrManager.load()
         loadEntriesForDataset(firstDataset, region)
     }
 
@@ -359,6 +356,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             Log.d(TAG, "Selected entry: ${entry.timestamp}")
                             updateRenderingSnapshotForEntry(entry, datasetWithEntries)
                         }
+                        // Now load Zarr with populated entries
+                        loadZarrForDataset(datasetWithEntries)
                     }
                 }
             } catch (e: Exception) {
@@ -525,6 +524,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Derive snapshot from config for backward compatibility
         val dataRange = renderingSnapshot.dataMin..renderingSnapshot.dataMax
         renderingSnapshot = config.snapshot(dataRange)
+
+        // Push visual uniforms to GPU shader
+        pushUniformsToShader(config, renderingSnapshot)
+    }
+
+    /**
+     * Push config changes to the Zarr GPU shader.
+     * iOS ref: DatasetStore.updateConfig() pushes uniforms to ZarrShaderHost immediately.
+     */
+    private fun pushUniformsToShader(config: DatasetRenderConfig, snapshot: DatasetRenderingSnapshot) {
+        val filterMin = if (snapshot.isFilterActive) snapshot.filterMin.toFloat() else 0f
+        val filterMax = if (snapshot.isFilterActive) snapshot.filterMax.toFloat() else 0f
+        val filterMode = config.filterMode.ordinal
+
+        zarrManager.setUniforms(
+            opacity = config.visualOpacity.toFloat(),
+            filterMin = filterMin,
+            filterMax = filterMax,
+            filterMode = filterMode,
+            scaleMode = 0, // LINEAR
+            blendFactor = 1.0f
+        )
+
+        // Update colorscale if set
+        config.colorscale?.let { colorscale ->
+            zarrManager.setColorscale(colorscale)
+        }
+
+        repaint?.invoke()
     }
 
     // MARK: - Rendering Snapshot Updates (legacy — will be removed in Task 2.4)
@@ -533,6 +561,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         renderingSnapshot = renderingSnapshot.copy(
             visualEnabled = !renderingSnapshot.visualEnabled
         )
+        // Push visibility to shader
+        zarrManager.setUniforms(
+            opacity = if (renderingSnapshot.visualEnabled) renderingSnapshot.visualOpacity.toFloat() else 0f
+        )
+        repaint?.invoke()
     }
 
     fun toggleContourLayer() {
@@ -561,6 +594,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateVisualOpacity(opacity: Double) {
         renderingSnapshot = renderingSnapshot.copy(visualOpacity = opacity)
+        zarrManager.setUniforms(opacity = opacity.toFloat())
+        repaint?.invoke()
     }
 
     fun updateContourOpacity(opacity: Double) {
