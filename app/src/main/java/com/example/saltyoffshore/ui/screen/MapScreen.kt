@@ -35,6 +35,7 @@ import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
 import com.example.saltyoffshore.ui.components.DatasetFilterSheet
+import com.example.saltyoffshore.ui.components.QuickActionsBar
 import com.example.saltyoffshore.ui.components.RegionAnnotationView
 import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
@@ -57,6 +58,9 @@ import androidx.compose.ui.platform.LocalDensity
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.displayVariables
+import com.example.saltyoffshore.data.hasMultipleVariables
+import com.example.saltyoffshore.data.primaryVariable
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.waypoint.SharedWaypoint
 import com.example.saltyoffshore.data.waypoint.Waypoint
@@ -346,6 +350,37 @@ fun MapScreen(
                         onUndo = { viewModel.measurementState.undoLastPoint() },
                         onClear = { viewModel.measurementState.clearAll() },
                         onDone = { viewModel.measurementState.exit() }
+                    )
+                }
+
+                // Quick actions bar (presets, variables, depth)
+                if (!viewModel.measurementState.isActive) {
+                    val dataset = viewModel.selectedDataset!!
+                    val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
+                    val entry = viewModel.selectedEntry
+                    val rangeKey = datasetType.rangeKey
+                    val rangeData = entry?.ranges?.get(rangeKey)
+                    val valueRange = if (rangeData?.min != null && rangeData.max != null) {
+                        rangeData.min..rangeData.max
+                    } else {
+                        0.0..1.0
+                    }
+                    val config = viewModel.primaryConfig
+
+                    QuickActionsBar(
+                        datasetType = datasetType,
+                        variables = datasetType.displayVariables,
+                        selectedVariable = config?.selectedVariable(dataset) ?: datasetType.primaryVariable,
+                        onVariableSelected = { viewModel.selectVariable(it) },
+                        availableDepths = dataset.availableDepths ?: listOf(0),
+                        selectedDepth = viewModel.depthFilterState.selectedDepth,
+                        onDepthSelected = { viewModel.onDepthSelected(it) },
+                        allPresets = viewModel.allPresets,
+                        selectedPreset = config?.selectedPreset,
+                        currentValue = viewModel.primaryValue.value,
+                        valueRange = valueRange,
+                        isLoadingPresets = viewModel.isLoadingPresets,
+                        onPresetSelected = { viewModel.applyPreset(it) }
                     )
                 }
 

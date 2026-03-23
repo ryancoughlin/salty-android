@@ -45,7 +45,6 @@ data class DatasetRenderConfig(
 
     // PRESET SUPPORT
     val selectedPreset: DatasetPreset? = null,
-    val cogStatistics: Any? = null,
 
     // FILTER MODE
     val filterMode: FilterMode = FilterMode.SQUASH,
@@ -144,7 +143,6 @@ data class DatasetRenderConfig(
                 numbersEnabled = false,
                 numbersOpacity = 1.0,
                 selectedPreset = null,
-                cogStatistics = null,
                 filterMode = FilterMode.SQUASH,
                 selectedVariableId = null
             )
@@ -174,7 +172,6 @@ data class DatasetRenderConfig(
                 numbersEnabled = false,
                 numbersOpacity = 1.0,
                 selectedPreset = null,
-                cogStatistics = null,
                 filterMode = FilterMode.HIDE_SHOW,
                 selectedVariableId = null
             )

@@ -12,18 +12,23 @@ import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.LoadOperation
 import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationManager
+import com.example.saltyoffshore.data.COGStatisticsResponse
+import com.example.saltyoffshore.data.COGStatisticsService
 import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetPreset
 import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.DatasetVariable
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
 import com.example.saltyoffshore.data.measurement.MeasurementState
 import com.example.saltyoffshore.data.GpsFormat
 import com.example.saltyoffshore.data.MapTheme
+import com.example.saltyoffshore.data.PresetConfiguration
 import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
@@ -64,7 +69,11 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -151,6 +160,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Depth filter state
     var depthFilterState by mutableStateOf(DepthFilterState())
         private set
+
+    // Preset state
+    var cogStatistics: COGStatisticsResponse? by mutableStateOf(null)
+        private set
+    var dynamicPresets: List<DatasetPreset> by mutableStateOf(emptyList())
+        private set
+    var isLoadingPresets: Boolean by mutableStateOf(false)
+        private set
+
+    /** All presets for current dataset: static + dynamic merged */
+    val allPresets: List<DatasetPreset>
+        get() {
+            val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return emptyList()
+            val config = PresetConfiguration.configuration(datasetType) ?: return emptyList()
+            return config.staticPresets + dynamicPresets
+        }
 
     // Crosshair state
     var primaryValue by mutableStateOf(CurrentValue())
@@ -376,6 +401,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         // Now load Zarr with populated entries
                         loadZarrForDataset(datasetWithEntries)
                         notificationManager.finishLoading(LoadOperation.Dataset)
+                        // Refresh COG statistics for dynamic presets
+                        loadCOGStatistics()
                     }
                 }
             } catch (e: Exception) {
@@ -397,6 +424,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         // Show frame in Zarr renderer
         zarrManager.showFrame(entry.id)
+
+        // Refresh COG statistics for dynamic presets
+        loadCOGStatistics()
     }
 
     fun selectDataset(dataset: Dataset) {
@@ -428,6 +458,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             // Entries already exist — zarr load started, finish loading indicator
             notificationManager.finishLoading(LoadOperation.Dataset)
+            loadCOGStatistics()
         }
     }
 
@@ -715,6 +746,101 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateCameraState(zoom: Double, latitude: Double) {
         currentZoom = zoom
         currentLatitude = latitude
+    }
+
+    // MARK: - Preset / Variable Selection
+
+    fun applyPreset(preset: DatasetPreset) {
+        val config = primaryConfig ?: return
+
+        // Toggle off if same preset
+        if (config.selectedPreset?.id == preset.id) {
+            updatePrimaryConfig(config.clearFilter())
+            return
+        }
+
+        // Calculate range — break presets need crosshair value
+        val currentValue = primaryValue.value
+        val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return
+        val entry = selectedEntry
+        val rangeKey = datasetType.rangeKey
+        val rangeData = entry?.ranges?.get(rangeKey)
+        val valueRange = if (rangeData?.min != null && rangeData.max != null) {
+            rangeData.min..rangeData.max
+        } else {
+            0.0..1.0
+        }
+
+        val range = preset.calculateRange(currentValue, valueRange) ?: return
+
+        updatePrimaryConfig(config.copy(
+            customRange = range,
+            selectedPreset = preset
+        ))
+    }
+
+    fun selectVariable(variable: DatasetVariable) {
+        val config = primaryConfig ?: return
+        updatePrimaryConfig(config.clearFilter().copy(
+            selectedVariableId = variable.id
+        ))
+    }
+
+    // MARK: - COG Statistics (Dynamic Presets)
+
+    private var cogStatsJob: Job? = null
+
+    private fun loadCOGStatistics() {
+        cogStatsJob?.cancel()
+
+        val cogUrl = selectedEntry?.layers?.cog ?: run {
+            cogStatistics = null
+            dynamicPresets = emptyList()
+            isLoadingPresets = false
+            return
+        }
+
+        val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return
+        val presetConfig = PresetConfiguration.configuration(datasetType)
+
+        // Only fetch if this dataset supports dynamic presets
+        if (presetConfig?.supportsDynamicPresets != true) {
+            cogStatistics = null
+            dynamicPresets = emptyList()
+            isLoadingPresets = false
+            return
+        }
+
+        isLoadingPresets = true
+
+        cogStatsJob = viewModelScope.launch {
+            delay(600) // 600ms debounce matching iOS
+
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    COGStatisticsService.fetchStatistics(cogUrl)
+                }
+                ensureActive()
+
+                val stats = response.primaryBandStatistics()
+                val builtPresets = if (stats != null) {
+                    presetConfig.dynamicBuilder?.invoke(stats) ?: emptyList()
+                } else {
+                    emptyList()
+                }
+
+                cogStatistics = response
+                dynamicPresets = builtPresets
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "COG stats fetch failed: ${e.message}")
+                cogStatistics = null
+                dynamicPresets = emptyList()
+            } finally {
+                isLoadingPresets = false
+            }
+        }
     }
 
     val isDataLayerActive: Boolean
