@@ -1,4 +1,6 @@
-# Phase 3: Presets
+# Phase 3: Presets — COMPLETE
+
+> Committed `53eb441` on 2026-03-22. 10 files, 658 insertions.
 
 > **iOS is the source of truth.** Always read the Swift files before writing Android code.
 
@@ -173,7 +175,36 @@ Timeline entry changes (showEntry)
             → PresetQuickActions rebuilds with dynamic presets from builder(stats.b1)
 ```
 
-## Tasks
+## Implementation Status
+
+All tasks complete. Files created/modified:
+
+| File | Status |
+|------|--------|
+| `data/COGStatisticsService.kt` | **Created** — Ktor service + COGStatisticsResponse + custom serializer |
+| `data/PresetTypes.kt` | **Modified** — expanded COGBandStatistics, @Serializable, camelCase percentile fields |
+| `data/DatasetRenderConfig.kt` | **Modified** — removed dead cogStatistics: Any? field |
+| `ui/components/QuickActionChip.kt` | **Created** — M3 FilterChip, white alpha two-state styling |
+| `ui/components/PresetQuickActions.kt` | **Created** — preset chips with range text + loading indicator |
+| `ui/components/VariableQuickActions.kt` | **Created** — variable chips for multi-variable datasets |
+| `ui/components/DepthQuickAction.kt` | **Created** — depth cycle chip |
+| `ui/components/QuickActionsBar.kt` | **Modified** — wired all three sections with dividers |
+| `ui/screen/MapScreen.kt` | **Modified** — QuickActionsBar placed above SaltyDatasetControl |
+| `viewmodel/AppViewModel.kt` | **Modified** — applyPreset, selectVariable, loadCOGStatistics, preset state |
+
+### Remaining gaps (not blocking)
+- Stagger entrance animation (iOS 0.03s per chip)
+- Spring selection animation (iOS spring response 0.5)
+- Edge fade mask on scroll
+- Haptic feedback on chip tap
+- Break preset toast/snackbar
+- Pro/preview mode gating
+- COG statistics caching (currently re-fetches, debounced)
+- Overlay preset support
+
+---
+
+## Original Tasks (reference)
 
 1. **Create preset type definitions** — `app/.../models/PresetTypes.kt`
    - `PresetType` sealed class: `FixedRange`, `MicroBreak`, `CurrentValueRange`

@@ -121,13 +121,47 @@ Three critical disconnects fixed + six iOS parity corrections.
 
 ---
 
+## Phase 3: Presets + Variables + Quick Actions — COMPLETE
+
+- [x] `COGStatisticsService` — Ktor service fetching band statistics from TiTiler, custom KSerializer for dynamic band JSON
+- [x] `COGStatisticsResponse` — `@Serializable` with dynamic band names, `primaryBandStatistics()`, convenience accessors
+- [x] `COGBandStatistics` expanded — added all iOS fields (majority, minority, count, sum, unique, validPercent, maskedPixels, validPixels), `@SerialName` for snake_case JSON mapping
+- [x] `QuickActionChip` — M3 FilterChip with two-state white alpha styling: active (solid white/black text) vs inactive (white@20%/white@70% text)
+- [x] `PresetQuickActions` — preset chip row with range text, loading indicator, break preset disabling
+- [x] `VariableQuickActions` — variable chips, only renders for multi-variable datasets
+- [x] `DepthQuickAction` — depth cycle chip (tap cycles through available depths)
+- [x] `QuickActionsBar` — wired all three sections with vertical dividers, horizontalScroll, 44dp height
+- [x] `AppViewModel.applyPreset()` — toggle on/off, calculates range from crosshair + entry data
+- [x] `AppViewModel.selectVariable()` — switches variable, clears active filter
+- [x] `AppViewModel.loadCOGStatistics()` — 600ms debounced, cancel-and-replace, `Dispatchers.IO` for network, state writes on Main
+- [x] `allPresets` computed property — merges static + dynamic presets
+- [x] COG stats wired to entry changes — `loadCOGStatistics()` called from `selectEntry()`, `loadEntriesForDataset()`, `selectDataset()`
+- [x] `DatasetRenderConfig` cleanup — removed dead `cogStatistics: Any?` field
+- [x] `MapScreen` placement — QuickActionsBar positioned above SaltyDatasetControl
+
+**Commit:** `53eb441` — 10 files, 658 insertions
+
+**Design decision:** White alpha chips (active=solid white, inactive=white@20%) over M3 surface containers. M3 surfaces are opaque and designed for app chrome — on a satellite map they'd look like dark blobs. White alpha is the closest Android equivalent to iOS `.ultraThinMaterial` for map overlays. Google Maps uses the same approach.
+
+**Remaining gaps (not blocking, future work):**
+- [ ] **Stagger entrance animation**: iOS delays each chip by 0.03s. Android chips appear instantly.
+- [ ] **Spring selection animation**: iOS uses spring(response=0.5, damping=0.9). Android uses default M3 chip animation.
+- [ ] **Edge fade mask**: iOS QuickActionsBar has `.edgeFadeMask()`. Android has no equivalent modifier.
+- [ ] **Haptic feedback**: iOS fires haptic on chip tap. Android has none.
+- [ ] **Break preset toast**: iOS shows snackbar when tapping break preset without crosshair value. Android disables the chip but shows no message.
+- [ ] **Pro/preview mode gating**: iOS dims chips for non-premium users. Android skips subscription gating entirely.
+- [ ] **Statistics caching by COG URL**: iOS caches in DatasetActor. Android fetches every time (debounced but no cache).
+- [ ] **Overlay preset support**: iOS has `applyOverlayPreset()`. Android only supports primary dataset presets.
+
+---
+
 ## Upcoming Phases
 
 | Phase | Status | Spec |
 |-------|--------|------|
 | 2.5 — Data Viz Pipeline | **Fixed** | See "Data Visualization Pipeline Fix" above |
-| 3 — Presets | Not started | `phases/phase-3-presets.md` |
-| 4 — Colorscale + Variables | Not started | `phases/phase-4-colorscale-variables.md` |
+| 3 — Presets | **Complete** | `phases/phase-3-presets.md` |
+| 4 — Colorscale + Variables | Partially done (variables done, colorscale picker remaining) | `phases/phase-4-colorscale-variables.md` |
 | 5 — Overlay Datasets | Not started | `phases/phase-5-overlay-datasets.md` |
 | 6 — Waypoints | Phase 1 complete | `phases/phase-6-waypoints.md` |
 | 7 — Measurement | **Complete** | `phases/phase-7-measurement.md` |
