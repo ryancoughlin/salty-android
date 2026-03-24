@@ -80,7 +80,9 @@ import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
 import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.Spacing
+import com.example.saltyoffshore.ui.station.StationDetailsView
 import com.example.saltyoffshore.viewmodel.AppViewModel
+import com.example.saltyoffshore.viewmodel.StationDetailViewModel
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.ScreenCoordinate
@@ -192,12 +194,24 @@ fun MapScreen(
                 visualSource = viewModel.visualSource
             )
 
+            // Load stations when layer is enabled (deferred — matches iOS)
+            val stationsEnabled = viewModel.globalLayerManager.isEnabled(
+                com.example.saltyoffshore.data.GlobalLayerType.STATIONS
+            )
+            LaunchedEffect(stationsEnabled) {
+                if (stationsEnabled) viewModel.loadStationsIfNeeded()
+            }
+
             // Global overlay layers (bathymetry, shipping lanes, etc.)
             GlobalLayersEffect(
                 visibility = viewModel.globalLayerManager.visibility,
                 loranConfig = viewModel.globalLayerManager.selectedLoranConfig,
                 selectedTournament = viewModel.globalLayerManager.selectedTournament,
-                stations = emptyList() // TODO: Wire up stations from API
+                stations = viewModel.stations,
+                onStationTap = { stationId ->
+                    Log.d(TAG, "Station tapped: $stationId")
+                    viewModel.openStationDetail(stationId)
+                }
             )
 
             // Crosshair feature query on camera changes
@@ -391,6 +405,7 @@ fun MapScreen(
                     snapshot = viewModel.renderingSnapshot,
                     primaryValue = viewModel.primaryValue,
                     isExpanded = viewModel.isDatasetControlCollapsed,
+                    selectedDepth = viewModel.depthFilterState.selectedDepth,
                     primaryConfig = viewModel.primaryConfig,
                     onConfigChanged = { viewModel.updatePrimaryConfig(it) },
                     onEntrySelected = { viewModel.selectEntry(it) },
@@ -533,6 +548,24 @@ fun MapScreen(
                 onDismiss = { showWaypointSheet = false }
             )
         }
+
+        // Station detail sheet
+        viewModel.selectedStationId?.let { stationId ->
+            val stationDetailViewModel: StationDetailViewModel = viewModel(
+                key = "stationDetail",
+                factory = androidx.lifecycle.ViewModelProvider.NewInstanceFactory()
+            )
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissStationDetail() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                StationDetailsView(
+                    stationId = stationId,
+                    viewModel = stationDetailViewModel
+                )
+            }
+        }
     }
 }
 
@@ -655,7 +688,8 @@ private fun GlobalLayersEffect(
     visibility: GlobalLayerVisibility,
     loranConfig: LoranRegionConfig?,
     selectedTournament: Tournament?,
-    stations: List<Station>
+    stations: List<Station>,
+    onStationTap: (String) -> Unit = {}
 ) {
     var globalLayers by remember { mutableStateOf<GlobalLayers?>(null) }
     var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
@@ -665,6 +699,7 @@ private fun GlobalLayersEffect(
     val currentLoranConfig by androidx.compose.runtime.rememberUpdatedState(loranConfig)
     val currentTournament by androidx.compose.runtime.rememberUpdatedState(selectedTournament)
     val currentStations by androidx.compose.runtime.rememberUpdatedState(stations)
+    val currentOnStationTap by androidx.compose.runtime.rememberUpdatedState(onStationTap)
 
     // Clean up on dispose
     DisposableEffect(Unit) {
@@ -679,11 +714,32 @@ private fun GlobalLayersEffect(
         Log.d(TAG, "GlobalLayersEffect: MapEffect triggered")
         mapboxMapRef = mapView.mapboxMap
 
+        // Station marker tap detection via queryRenderedFeatures
+        mapView.mapboxMap.let { map ->
+            mapView.gestures.addOnMapClickListener { point ->
+                val screenPoint = map.pixelForCoordinate(point)
+                val geometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
+                val options = com.mapbox.maps.RenderedQueryOptions(
+                    listOf(com.example.saltyoffshore.config.MapLayers.Global.STATIONS_LAYER),
+                    null
+                )
+                map.queryRenderedFeatures(geometry, options) { expected ->
+                    expected.value?.firstOrNull()?.let { feature ->
+                        val stationId = feature.queriedFeature.feature.getStringProperty("id")
+                        if (stationId != null) {
+                            currentOnStationTap(stationId)
+                        }
+                    }
+                }
+                false // Don't consume — let other listeners also handle
+            }
+        }
+
         // Subscribe to style loaded events for initial render
         mapView.mapboxMap.subscribeStyleLoaded { _ ->
             Log.d(TAG, "GlobalLayersEffect: Style loaded event received")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.mapboxMap)
+                globalLayers = GlobalLayers(mapView.context, mapView.mapboxMap)
             }
             globalLayers?.update(
                 visibility = currentVisibility,
@@ -697,7 +753,7 @@ private fun GlobalLayersEffect(
         mapView.mapboxMap.getStyle { _ ->
             Log.d(TAG, "GlobalLayersEffect: getStyle callback - style available")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.mapboxMap)
+                globalLayers = GlobalLayers(mapView.context, mapView.mapboxMap)
             }
             globalLayers?.update(
                 visibility = currentVisibility,
@@ -708,8 +764,8 @@ private fun GlobalLayersEffect(
         }
     }
 
-    // Update layers when visibility changes (after initial setup)
-    LaunchedEffect(visibility, loranConfig, selectedTournament) {
+    // Update layers when visibility or stations change (after initial setup)
+    LaunchedEffect(visibility, loranConfig, selectedTournament, stations) {
         val map = mapboxMapRef ?: return@LaunchedEffect
         map.getStyle { _ ->
             globalLayers?.update(

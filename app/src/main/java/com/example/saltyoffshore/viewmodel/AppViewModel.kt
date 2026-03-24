@@ -33,7 +33,9 @@ import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.SaltyApi
+import com.example.saltyoffshore.data.Station
 import com.example.saltyoffshore.data.ScaleMode
+import com.example.saltyoffshore.data.StationListService
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.TimeEntry
@@ -217,6 +219,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     private var hasLoadedWaypointsFromDisk = false
+
+    // MARK: - Station State
+
+    var stations by mutableStateOf<List<Station>>(emptyList())
+        private set
+
+    private var hasLoadedStations = false
+
+    /** Station detail sheet — set to a stationId to show detail sheet. */
+    var selectedStationId by mutableStateOf<String?>(null)
+        private set
+
+    fun openStationDetail(stationId: String) {
+        selectedStationId = stationId
+    }
+
+    fun dismissStationDetail() {
+        selectedStationId = null
+    }
+
+    /** Deferred loading — only fetches when stations layer is first enabled. Matches iOS StationsViewModel. */
+    fun loadStationsIfNeeded() {
+        if (hasLoadedStations) return
+        hasLoadedStations = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val loaded = StationListService.fetchStations(context)
+                withContext(Dispatchers.Main) {
+                    stations = loaded
+                }
+                Log.d(TAG, "Loaded ${loaded.size} stations")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load stations", e)
+            }
+        }
+    }
 
     // MARK: - Waypoint Derived Properties
 

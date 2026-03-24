@@ -1,6 +1,9 @@
 package com.example.saltyoffshore.ui.map.globallayers
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import com.example.saltyoffshore.R
 import com.example.saltyoffshore.config.MapLayers
 import com.example.saltyoffshore.data.Station
 import com.mapbox.bindgen.Value
@@ -8,7 +11,9 @@ import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.extension.style.expressions.dsl.generated.get
+import com.mapbox.maps.extension.style.expressions.dsl.generated.has
 import com.mapbox.maps.extension.style.expressions.dsl.generated.literal
+import com.mapbox.maps.extension.style.expressions.dsl.generated.not
 import com.mapbox.maps.extension.style.layers.addLayer
 import com.mapbox.maps.extension.style.layers.generated.circleLayer
 import com.mapbox.maps.extension.style.layers.generated.symbolLayer
@@ -23,6 +28,7 @@ import com.mapbox.maps.extension.style.sources.getSourceAs
  * Matches iOS StationsLayer.
  */
 class StationsLayer(
+    private val context: Context,
     private val mapboxMap: MapboxMap,
     private var opacity: Double = 1.0
 ) {
@@ -34,6 +40,12 @@ class StationsLayer(
 
     fun addToMap(stations: List<Station>) {
         val style = mapboxMap.style ?: return
+
+        // Load marker image from drawable resource (same PNG as iOS)
+        if (!style.hasStyleImage(MARKER_IMAGE_ID)) {
+            val bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.marker_station)
+            style.addImage(MARKER_IMAGE_ID, bitmap)
+        }
 
         // Create GeoJSON from stations
         val features = stations.map { station ->
@@ -56,7 +68,6 @@ class StationsLayer(
                 }
             )
         } else {
-            // Update existing source
             style.getSourceAs<GeoJsonSource>(sourceId)?.featureCollection(
                 FeatureCollection.fromFeatures(features)
             )
@@ -66,7 +77,7 @@ class StationsLayer(
         if (!style.styleLayerExists(MapLayers.Global.STATIONS_CLUSTER_LAYER)) {
             style.addLayer(
                 circleLayer(MapLayers.Global.STATIONS_CLUSTER_LAYER, sourceId) {
-                    filter(literal(listOf("has", "point_count")))
+                    filter(has { literal("point_count") })
                     circleRadius(8.0)
                     circleColor(Color.BLACK)
                     circleOpacity(opacity)
@@ -78,7 +89,7 @@ class StationsLayer(
         if (!style.styleLayerExists(MapLayers.Global.STATIONS_COUNT_LAYER)) {
             style.addLayer(
                 symbolLayer(MapLayers.Global.STATIONS_COUNT_LAYER, sourceId) {
-                    filter(literal(listOf("has", "point_count")))
+                    filter(has { literal("point_count") })
                     textField(get { literal("point_count") })
                     textSize(8.0)
                     textColor(Color.WHITE)
@@ -93,7 +104,7 @@ class StationsLayer(
         if (!style.styleLayerExists(MapLayers.Global.STATIONS_LAYER)) {
             style.addLayer(
                 symbolLayer(MapLayers.Global.STATIONS_LAYER, sourceId) {
-                    filter(literal(listOf("!", listOf("has", "point_count"))))
+                    filter(not { has { literal("point_count") } })
                     iconImage(MARKER_IMAGE_ID)
                     iconSize(0.14)
                     iconAnchor(IconAnchor.BOTTOM)
