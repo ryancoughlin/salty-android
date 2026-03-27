@@ -10,6 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.Announcement
+import com.example.saltyoffshore.data.sharelink.ShareLinkLayerConfig
+import com.example.saltyoffshore.data.sharelink.ShareLinkPayload
+import com.example.saltyoffshore.data.sharelink.ShareLinkService
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.LoadOperation
 import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationManager
@@ -233,6 +236,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val isAnnouncementVisible: Boolean
         get() = announcement?.isActive == true
 
+    // MARK: - Share Link State
+
+    var shareLinkUrl by mutableStateOf<String?>(null)
+        private set
+
+    var isCreatingShareLink by mutableStateOf(false)
+        private set
+
     // MARK: - Station State
 
     var stations by mutableStateOf<List<Station>>(emptyList())
@@ -345,6 +356,61 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         announcement = null
         showAnnouncementSheet = false
+    }
+
+    // MARK: - Share Link Methods
+
+    /**
+     * Capture current map state as a ShareLinkPayload and create a share link.
+     */
+    fun createShareLink() {
+        val region = selectedRegion ?: return
+        val dataset = selectedDataset ?: return
+        val entry = selectedEntry ?: return
+        val config = primaryConfig
+
+        isCreatingShareLink = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val payload = ShareLinkPayload(
+                    regionId = region.id,
+                    datasetId = dataset.id,
+                    entryId = entry.id,
+                    timestamp = entry.timestamp,
+                    view = null, // TODO: capture camera position
+                    primaryConfig = config?.let { cfg ->
+                        ShareLinkLayerConfig(
+                            datasetId = dataset.id,
+                            colorscaleId = cfg.colorscale?.id,
+                            customRangeMin = cfg.customRange?.start,
+                            customRangeMax = cfg.customRange?.endInclusive,
+                            filterMode = cfg.filterMode.rawValue,
+                            visualEnabled = cfg.visual.isEnabled,
+                            visualOpacity = cfg.visual.opacity.toDouble(),
+                            contourEnabled = cfg.contour.isEnabled,
+                            contourOpacity = cfg.contour.opacity.toDouble(),
+                            selectedDepth = cfg.selectedDepth
+                        )
+                    }
+                )
+
+                val response = ShareLinkService.createShareLink(payload)
+                withContext(Dispatchers.Main) {
+                    shareLinkUrl = response.url
+                    isCreatingShareLink = false
+                }
+                Log.d(TAG, "Share link created: ${response.url}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create share link", e)
+                withContext(Dispatchers.Main) {
+                    isCreatingShareLink = false
+                }
+            }
+        }
+    }
+
+    fun dismissShareLink() {
+        shareLinkUrl = null
     }
 
     private fun loadRegionsAndRestoreSelection() {

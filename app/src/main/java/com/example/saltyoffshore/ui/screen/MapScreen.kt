@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
 import com.example.saltyoffshore.ui.controls.MapToolBar
+import com.example.saltyoffshore.ui.sharelink.ShareLinkSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.RegionStatus
@@ -616,7 +617,7 @@ fun MapScreen(
                     },
                     onShare = {
                         showToolsSheet = false
-                        // TODO: Create share link
+                        viewModel.createShareLink()
                     },
                     onWaypoints = {
                         showToolsSheet = false
@@ -627,6 +628,25 @@ fun MapScreen(
                         // TODO: Open dataset guide
                     },
                     onDismiss = { showToolsSheet = false }
+                )
+            }
+        }
+
+        // Share link preview sheet
+        viewModel.shareLinkUrl?.let { url ->
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissShareLink() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                ShareLinkSheet(
+                    url = url,
+                    regionName = viewModel.selectedRegion?.name ?: "Unknown",
+                    datasetName = viewModel.selectedDataset?.let {
+                        DatasetType.fromRawValue(it.type)?.displayName ?: it.type
+                    } ?: "Unknown",
+                    timestamp = viewModel.selectedEntry?.timestamp ?: "",
+                    onDismiss = { viewModel.dismissShareLink() }
                 )
             }
         }
