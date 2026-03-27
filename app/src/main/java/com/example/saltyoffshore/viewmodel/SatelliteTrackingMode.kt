@@ -68,7 +68,7 @@ class SatelliteTrackingMode {
         selectedPassId = null
     }
 
-    fun setMode(newMode: SatelliteMode) {
+    fun switchMode(newMode: SatelliteMode) {
         if (newMode == mode || !isActive) return
         mode = newMode
     }

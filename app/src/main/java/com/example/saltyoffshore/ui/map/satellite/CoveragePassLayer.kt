@@ -25,6 +25,7 @@ import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
 import com.mapbox.maps.extension.style.sources.getSourceAs
+import com.mapbox.maps.plugin.gestures.gestures
 
 // Source/Layer IDs — match iOS CoveragePassLayer
 private const val SELECTED_SOURCE = "coverage-selected-source"
@@ -47,9 +48,9 @@ val COVERAGE_PASS_SOURCE_IDS = listOf(
 )
 
 // Status colors — green for success, gray for running, dark for unavailable
-private val COLOR_SUCCESS = Color.rgb(76, 175, 80)
-private val COLOR_RUNNING = Color.rgb(158, 158, 158)
-private val COLOR_UNAVAILABLE = Color.rgb(66, 66, 66)
+private const val COLOR_SUCCESS = "#4CAF50"
+private const val COLOR_RUNNING = "#9E9E9E"
+private const val COLOR_UNAVAILABLE = "#424242"
 
 /**
  * Coverage mode map layers.

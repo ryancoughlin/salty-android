@@ -427,7 +427,6 @@ fun MapScreen(
                     snapshot = viewModel.renderingSnapshot,
                     primaryValue = viewModel.primaryValue,
                     isExpanded = viewModel.isDatasetControlCollapsed,
-                    selectedDepth = viewModel.depthFilterState.selectedDepth,
                     primaryConfig = viewModel.primaryConfig,
                     onConfigChanged = { viewModel.updatePrimaryConfig(it) },
                     onEntrySelected = { viewModel.selectEntry(it) },

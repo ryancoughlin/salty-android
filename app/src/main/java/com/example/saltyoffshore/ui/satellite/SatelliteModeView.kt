@@ -239,7 +239,7 @@ private fun ModeToggle(trackingMode: SatelliteTrackingMode) {
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(bgColor)
-                    .clickable { trackingMode.setMode(mode) }
+                    .clickable { trackingMode.switchMode(mode) }
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
