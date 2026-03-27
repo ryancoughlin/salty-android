@@ -48,7 +48,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +79,7 @@ fun ShareLinkSheet(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     var hasCopied by remember { mutableStateOf(false) }
 
@@ -198,7 +201,7 @@ fun ShareLinkSheet(
                     )
                     Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        text = timestamp,
+                        text = formatTimestamp(timestamp),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -241,6 +244,7 @@ fun ShareLinkSheet(
                 onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("Salty Share Link", url))
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     hasCopied = true
                     scope.launch {
                         delay(1500)
@@ -278,6 +282,16 @@ fun ShareLinkSheet(
                 Text("Share")
             }
         }
+    }
+}
+
+private fun formatTimestamp(iso: String): String {
+    return try {
+        val instant = java.time.Instant.parse(iso)
+        val zoned = instant.atZone(java.time.ZoneId.systemDefault())
+        java.time.format.DateTimeFormatter.ofPattern("h:mm a").format(zoned)
+    } catch (e: Exception) {
+        iso
     }
 }
 

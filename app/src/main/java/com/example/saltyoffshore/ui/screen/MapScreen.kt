@@ -357,7 +357,6 @@ fun MapScreen(
                     RightSideToolbar(
                         onFilterClick = { showFilterSheet = true },
                         onLayersClick = { showLayersSheet = true },
-                        onWaypointsClick = { showWaypointSheet = true },
                         onToolsClick = { showToolsSheet = true },
                         onMeasureClick = {
                             if (viewModel.measurementState.isActive) {
@@ -365,8 +364,7 @@ fun MapScreen(
                             } else {
                                 viewModel.measurementState.enter()
                             }
-                        },
-                        isMeasureModeActive = viewModel.measurementState.isActive
+                        }
                     )
                 }
 
@@ -573,29 +571,59 @@ fun MapScreen(
                 androidx.compose.material3.ModalBottomSheet(
                     onDismissRequest = { viewModel.markAnnouncementAsSeen() },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    dragHandle = null
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
                             .padding(bottom = 32.dp)
                     ) {
+                        // Header with close button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Announcement",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.weight(1f))
+                            androidx.compose.material3.IconButton(
+                                onClick = { viewModel.markAnnouncementAsSeen() }
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        // Title
                         Text(
                             text = ann.title,
                             style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                         Spacer(Modifier.height(12.dp))
+                        // Message
                         Text(
                             text = ann.formattedMessage,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                         Spacer(Modifier.height(24.dp))
-                        androidx.compose.material3.FilledTonalButton(
+                        // OK button — primary filled (not tonal)
+                        androidx.compose.material3.Button(
                             onClick = { viewModel.markAnnouncementAsSeen() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
                         ) {
                             Text("OK")
                         }

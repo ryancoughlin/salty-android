@@ -6,17 +6,20 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * Orange announcement badge button - shows in TopBar when announcement is active.
- * Matches iOS AnnouncementButton.swift - orange circle with megaphone icon.
+ * Orange announcement badge button — shows in TopBar when announcement active.
+ * Matches iOS: hardcoded orange circle, white icon, shadow.
  *
  * iOS ref: Views/Common/AnnouncementButton.swift
  */
+private val AnnouncementOrange = Color(0xFFFF9500)
+
 @Composable
 fun AnnouncementButton(
     onClick: () -> Unit,
@@ -24,10 +27,17 @@ fun AnnouncementButton(
 ) {
     FilledIconButton(
         onClick = onClick,
-        modifier = modifier.size(36.dp),
+        modifier = modifier
+            .size(36.dp)
+            .shadow(
+                elevation = 4.dp,
+                shape = androidx.compose.foundation.shape.CircleShape,
+                ambientColor = Color.Black.copy(alpha = 0.2f),
+                spotColor = Color.Black.copy(alpha = 0.2f)
+            ),
         colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+            containerColor = AnnouncementOrange,
+            contentColor = Color.White
         )
     ) {
         Icon(

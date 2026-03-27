@@ -5,8 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.FilledIconButton
@@ -43,9 +42,7 @@ fun RightSideToolbar(
     onFilterClick: () -> Unit,
     onLayersClick: () -> Unit,
     onMeasureClick: () -> Unit = {},
-    onWaypointsClick: () -> Unit = {},
     onToolsClick: () -> Unit = {},
-    isMeasureModeActive: Boolean = false,
     shouldHide: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -91,24 +88,15 @@ fun RightSideToolbar(
 
         StaggeredMapButton(hasAppeared, 300) {
             MapControlButton(
-                icon = Icons.Default.Place,
-                contentDescription = "Waypoints",
-                onClick = onWaypointsClick
+                icon = Icons.Default.Straighten,
+                contentDescription = "Measure",
+                onClick = onMeasureClick
             )
         }
 
         StaggeredMapButton(hasAppeared, 400) {
             MapControlButton(
-                icon = Icons.Default.Straighten,
-                contentDescription = "Measure",
-                onClick = onMeasureClick,
-                isActive = isMeasureModeActive
-            )
-        }
-
-        StaggeredMapButton(hasAppeared, 500) {
-            MapControlButton(
-                icon = Icons.Default.Settings,
+                icon = Icons.Default.MoreVert,
                 contentDescription = "Tools",
                 onClick = onToolsClick
             )

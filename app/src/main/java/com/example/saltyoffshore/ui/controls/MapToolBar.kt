@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
@@ -77,14 +76,9 @@ fun MapToolBar(
                 .padding(innerPadding)
                 .navigationBarsPadding(),
             contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // -- Tools Section --
-            item(span = { GridItemSpan(3) }) {
-                SectionHeader("Tools")
-            }
-
             item {
                 MapToolButton(
                     icon = Icons.Default.Place,
@@ -129,15 +123,6 @@ fun MapToolBar(
                     onClick = onWaypoints
                 )
             }
-            item(span = { GridItemSpan(3) }) {
-                SecondaryToolButton(
-                    icon = Icons.Default.Bookmark,
-                    title = "Saved Maps",
-                    subtitle = "Your saved map configurations",
-                    onClick = { /* TODO: Saved maps */ }
-                )
-            }
-
             // -- More Section --
             item(span = { GridItemSpan(3) }) {
                 Spacer(Modifier.height(8.dp))
