@@ -81,8 +81,11 @@ import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.ui.station.StationDetailsView
+import com.example.saltyoffshore.ui.satellite.SatelliteModeView
+import com.example.saltyoffshore.ui.map.satellite.SatelliteLayersEffect
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.example.saltyoffshore.viewmodel.StationDetailViewModel
+import com.mapbox.maps.MapView
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.ScreenCoordinate
@@ -281,6 +284,17 @@ fun MapScreen(
                     }
                 }
             }
+
+            // Satellite tracking layers — capture MapView via MapEffect
+            var satelliteMapView by remember { mutableStateOf<MapView?>(null) }
+            MapEffect(Unit) { mapView -> satelliteMapView = mapView }
+            satelliteMapView?.let { mv ->
+                SatelliteLayersEffect(
+                    mapView = mv,
+                    trackingMode = viewModel.satelliteTrackingMode,
+                    store = viewModel.satelliteStore
+                )
+            }
         }
 
         // Crosshair overlay
@@ -348,7 +362,15 @@ fun MapScreen(
                                 viewModel.measurementState.enter()
                             }
                         },
-                        isMeasureModeActive = viewModel.measurementState.isActive
+                        onSatelliteClick = {
+                            if (viewModel.satelliteTrackingMode.isActive) {
+                                viewModel.satelliteTrackingMode.exit()
+                            } else {
+                                viewModel.satelliteTrackingMode.enter()
+                            }
+                        },
+                        isMeasureModeActive = viewModel.measurementState.isActive,
+                        isSatelliteModeActive = viewModel.satelliteTrackingMode.isActive
                     )
                 }
 
@@ -565,6 +587,15 @@ fun MapScreen(
                     viewModel = stationDetailViewModel
                 )
             }
+        }
+
+        // Satellite mode overlay (full-screen, on top of map)
+        if (viewModel.satelliteTrackingMode.isActive) {
+            SatelliteModeView(
+                trackingMode = viewModel.satelliteTrackingMode,
+                store = viewModel.satelliteStore,
+                onDismiss = { viewModel.satelliteTrackingMode.exit() }
+            )
         }
     }
 }

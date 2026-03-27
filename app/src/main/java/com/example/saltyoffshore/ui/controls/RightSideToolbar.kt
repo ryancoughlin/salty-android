@@ -43,7 +43,9 @@ fun RightSideToolbar(
     onLayersClick: () -> Unit,
     onMeasureClick: () -> Unit = {},
     onWaypointsClick: () -> Unit = {},
+    onSatelliteClick: () -> Unit = {},
     isMeasureModeActive: Boolean = false,
+    isSatelliteModeActive: Boolean = false,
     shouldHide: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -101,6 +103,15 @@ fun RightSideToolbar(
                 contentDescription = "Measure",
                 onClick = onMeasureClick,
                 isActive = isMeasureModeActive
+            )
+        }
+
+        StaggeredMapButton(hasAppeared, 500) {
+            MapControlButton(
+                iconResId = R.drawable.ic_satellite,
+                contentDescription = "Satellites",
+                onClick = onSatelliteClick,
+                isActive = isSatelliteModeActive
             )
         }
     }
