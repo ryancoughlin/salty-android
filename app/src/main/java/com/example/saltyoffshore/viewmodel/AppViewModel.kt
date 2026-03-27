@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
+import com.example.saltyoffshore.data.Announcement
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.LoadOperation
 import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationManager
@@ -71,6 +72,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -220,6 +222,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private var hasLoadedWaypointsFromDisk = false
 
+    // MARK: - Announcement State
+
+    var announcement by mutableStateOf<Announcement?>(null)
+        private set
+
+    var showAnnouncementSheet by mutableStateOf(false)
+
+    /** True when announcement is active and unseen by user */
+    val isAnnouncementVisible: Boolean
+        get() = announcement?.isActive == true
+
     // MARK: - Station State
 
     var stations by mutableStateOf<List<Station>>(emptyList())
@@ -282,6 +295,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadRegionsAndRestoreSelection()
         loadUserPreferences()
+        checkForAnnouncements()
     }
 
     private fun loadUserPreferences() {
@@ -293,6 +307,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.d(TAG, "Loaded user preferences: ${prefs != null}")
         }
+    }
+
+    // MARK: - Announcement Methods
+
+    private fun checkForAnnouncements() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = SupabaseClientProvider.client
+                    .from("announcement")
+                    .select {
+                        filter { eq("id", "singleton") }
+                    }
+                    .decodeSingleOrNull<Announcement>()
+
+                if (result != null && result.isActive) {
+                    val lastSeen = AppPreferencesDataStore
+                        .getLastAnnouncementVersion(context)
+                        .first()
+                    if (result.version > lastSeen) {
+                        withContext(Dispatchers.Main) {
+                            announcement = result
+                        }
+                    }
+                }
+                Log.d(TAG, "Announcement check: ${result?.title ?: "none"}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check announcements", e)
+            }
+        }
+    }
+
+    fun markAnnouncementAsSeen() {
+        val version = announcement?.version ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setLastAnnouncementVersion(context, version)
+        }
+        announcement = null
+        showAnnouncementSheet = false
     }
 
     private fun loadRegionsAndRestoreSelection() {

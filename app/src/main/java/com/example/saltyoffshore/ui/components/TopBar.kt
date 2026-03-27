@@ -8,8 +8,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +32,8 @@ import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationC
 fun TopBar(
     isVisible: Boolean,
     notifications: List<AppNotification>,
+    showAnnouncement: Boolean = false,
+    onAnnouncementTap: () -> Unit = {},
     onAccountTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -71,11 +75,16 @@ fun TopBar(
                 UnifiedNotificationCenter(notifications = notifications)
             }
 
-            // RIGHT slot: Account button
-            Box(
+            // RIGHT slot: Announcement badge + Account button
+            Row(
                 modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterEnd
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                if (showAnnouncement) {
+                    AnnouncementButton(onClick = onAnnouncementTap)
+                    Spacer(Modifier.width(8.dp))
+                }
                 AccountButton(onClick = onAccountTap)
             }
         }

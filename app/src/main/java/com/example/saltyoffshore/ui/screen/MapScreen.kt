@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -297,10 +298,12 @@ fun MapScreen(
             isDataLayerActive = viewModel.isDataLayerActive
         )
 
-        // Top bar: left (crew/future) | center (loading/error capsules) | right (account)
+        // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
             isVisible = !viewModel.measurementState.isActive,
             notifications = viewModel.notificationManager.notifications,
+            showAnnouncement = viewModel.isAnnouncementVisible,
+            onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
             onAccountTap = onSettingsClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -552,6 +555,43 @@ fun MapScreen(
                 onImportGPX = { gpxPickerLauncher.launch(arrayOf("*/*")) },
                 onDismiss = { showWaypointSheet = false }
             )
+        }
+
+        // Announcement sheet
+        if (viewModel.showAnnouncementSheet) {
+            viewModel.announcement?.let { ann ->
+                androidx.compose.material3.ModalBottomSheet(
+                    onDismissRequest = { viewModel.markAnnouncementAsSeen() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 32.dp)
+                    ) {
+                        Text(
+                            text = ann.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = ann.formattedMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        androidx.compose.material3.FilledTonalButton(
+                            onClick = { viewModel.markAnnouncementAsSeen() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("OK")
+                        }
+                    }
+                }
+            }
         }
 
         // Tools menu sheet
