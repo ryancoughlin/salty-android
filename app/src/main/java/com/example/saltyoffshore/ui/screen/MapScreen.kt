@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
+import com.example.saltyoffshore.ui.controls.MapToolBar
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.RegionStatus
@@ -120,6 +121,9 @@ fun MapScreen(
 
     // Waypoint management sheet state
     var showWaypointSheet by remember { mutableStateOf(false) }
+
+    // Tools menu sheet state
+    var showToolsSheet by remember { mutableStateOf(false) }
 
     // GPX file picker
     val context = LocalContext.current
@@ -341,6 +345,7 @@ fun MapScreen(
                         onFilterClick = { showFilterSheet = true },
                         onLayersClick = { showLayersSheet = true },
                         onWaypointsClick = { showWaypointSheet = true },
+                        onToolsClick = { showToolsSheet = true },
                         onMeasureClick = {
                             if (viewModel.measurementState.isActive) {
                                 viewModel.measurementState.exit()
@@ -547,6 +552,43 @@ fun MapScreen(
                 onImportGPX = { gpxPickerLauncher.launch(arrayOf("*/*")) },
                 onDismiss = { showWaypointSheet = false }
             )
+        }
+
+        // Tools menu sheet
+        if (showToolsSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showToolsSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                MapToolBar(
+                    onAddWaypoint = {
+                        showToolsSheet = false
+                        // TODO: Open waypoint creation at map center
+                    },
+                    onSatellites = {
+                        showToolsSheet = false
+                        // TODO: Open satellite tracking
+                    },
+                    onMyLocation = {
+                        showToolsSheet = false
+                        // TODO: Fly to user location
+                    },
+                    onShare = {
+                        showToolsSheet = false
+                        // TODO: Create share link
+                    },
+                    onWaypoints = {
+                        showToolsSheet = false
+                        showWaypointSheet = true
+                    },
+                    onDatasetGuide = {
+                        showToolsSheet = false
+                        // TODO: Open dataset guide
+                    },
+                    onDismiss = { showToolsSheet = false }
+                )
+            }
         }
 
         // Station detail sheet
