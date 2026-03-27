@@ -194,6 +194,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var currentLatitude by mutableStateOf(30.0)
         private set
 
+    var currentLongitude by mutableStateOf(-60.0)
+        private set
+
     // Dataset control state (matches iOS DatasetControlState)
     var isDatasetControlCollapsed by mutableStateOf(false)
     var isDatasetSelectorExpanded by mutableStateOf(false)
@@ -241,8 +244,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var shareLinkUrl by mutableStateOf<String?>(null)
         private set
 
+    var shareLinkSnapshot by mutableStateOf<android.graphics.Bitmap?>(null)
+        private set
+
     var isCreatingShareLink by mutableStateOf(false)
         private set
+
+    /** Callback set by MapScreen to capture map bitmap on demand */
+    var captureMapSnapshot: (() -> Unit)? = null
 
     // MARK: - Station State
 
@@ -369,6 +378,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val entry = selectedEntry ?: return
         val config = primaryConfig
 
+        // Capture map snapshot before creating link
+        captureMapSnapshot?.invoke()
+
         isCreatingShareLink = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -411,6 +423,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissShareLink() {
         shareLinkUrl = null
+        shareLinkSnapshot = null
+    }
+
+    fun setMapSnapshot(bitmap: android.graphics.Bitmap?) {
+        shareLinkSnapshot = bitmap
     }
 
     private fun loadRegionsAndRestoreSelection() {
@@ -899,9 +916,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         primaryValue = value
     }
 
-    fun updateCameraState(zoom: Double, latitude: Double) {
+    fun updateCameraState(zoom: Double, latitude: Double, longitude: Double) {
         currentZoom = zoom
         currentLatitude = latitude
+        currentLongitude = longitude
     }
 
     // MARK: - Preset / Variable Selection

@@ -188,6 +188,15 @@ fun MapScreen(
             // Wire up repaint callback for Zarr frame updates
             ZarrRepaintEffect(viewModel = viewModel)
 
+            // Wire map snapshot capture for share links
+            MapEffect(Unit) { mapView ->
+                viewModel.captureMapSnapshot = {
+                    mapView.snapshot { bitmap ->
+                        viewModel.setMapSnapshot(bitmap)
+                    }
+                }
+            }
+
             // Region bounds outline
             RegionBoundsEffect(region = viewModel.selectedRegion)
 
@@ -225,7 +234,7 @@ fun MapScreen(
                 isDataLayerActive = viewModel.isDataLayerActive,
                 datasetType = viewModel.currentDatasetType,
                 onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
-                onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
+                onCameraChanged = { zoom, lat, lon -> viewModel.updateCameraState(zoom, lat, lon) }
             )
 
             // Region annotations — hide the active region (matches iOS guard)
@@ -632,20 +641,24 @@ fun MapScreen(
             }
         }
 
-        // Share link preview sheet
+        // Share link preview sheet — full-screen style matching iOS
         viewModel.shareLinkUrl?.let { url ->
             androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = { viewModel.dismissShareLink() },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
-                containerColor = MaterialTheme.colorScheme.surface
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = null
             ) {
                 ShareLinkSheet(
                     url = url,
+                    mapSnapshot = viewModel.shareLinkSnapshot,
                     regionName = viewModel.selectedRegion?.name ?: "Unknown",
                     datasetName = viewModel.selectedDataset?.let {
                         DatasetType.fromRawValue(it.type)?.displayName ?: it.type
                     } ?: "Unknown",
                     timestamp = viewModel.selectedEntry?.timestamp ?: "",
+                    latitude = viewModel.currentLatitude,
+                    longitude = viewModel.currentLongitude,
                     onDismiss = { viewModel.dismissShareLink() }
                 )
             }
@@ -740,7 +753,7 @@ private fun CrosshairQueryEffect(
     isDataLayerActive: Boolean,
     datasetType: DatasetType?,
     onPrimaryValueChanged: (CurrentValue) -> Unit,
-    onCameraChanged: (zoom: Double, latitude: Double) -> Unit
+    onCameraChanged: (zoom: Double, latitude: Double, longitude: Double) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -758,8 +771,9 @@ private fun CrosshairQueryEffect(
             val zoom = cameraState.zoom
             val center = cameraState.center
             val latitude = center.latitude()
+            val longitude = center.longitude()
 
-            onCameraChanged(zoom, latitude)
+            onCameraChanged(zoom, latitude, longitude)
 
             if (isDataLayerActive) {
                 val screenCenterX = mapView.width / 2.0
