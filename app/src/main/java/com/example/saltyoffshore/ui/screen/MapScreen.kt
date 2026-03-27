@@ -366,6 +366,9 @@ fun MapScreen(
                             if (viewModel.satelliteTrackingMode.isActive) {
                                 viewModel.satelliteTrackingMode.exit()
                             } else {
+                                showLayersSheet = false
+                                showDatasetSheet = false
+                                showWaypointSheet = false
                                 viewModel.satelliteTrackingMode.enter()
                             }
                         },

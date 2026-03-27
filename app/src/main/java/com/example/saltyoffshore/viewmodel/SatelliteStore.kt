@@ -74,33 +74,34 @@ class SatelliteStore(private val client: HttpClient) {
     suspend fun loadCoverage(regionId: String) = coroutineScope {
         isLoading = true
         error = null
-
-        val passesDeferred = async { SatelliteService.fetchCoverage(client, regionId) }
-        val predictionsDeferred = async { SatelliteService.fetchSatelliteCoverage(client, regionId) }
-
-        // Passes are required — failure is an error
         try {
-            val coverageResponse = passesDeferred.await()
-            summary = coverageResponse.summary
-            passes = coverageResponse.passes
-            Log.d(TAG, "Loaded ${passes.size} regional passes")
-        } catch (e: Exception) {
-            error = e.message
-            summary = null
-            passes = emptyList()
-            Log.e(TAG, "Failed to load passes: ${e.message}")
-        }
+            val passesDeferred = async { SatelliteService.fetchCoverage(client, regionId) }
+            val predictionsDeferred = async { SatelliteService.fetchSatelliteCoverage(client, regionId) }
 
-        // Predictions are supplemental — log but don't fail overall load
-        try {
-            predictions = predictionsDeferred.await()
-            Log.d(TAG, "Loaded predictions for $regionId")
-        } catch (e: Exception) {
-            predictions = null
-            Log.w(TAG, "Failed to load predictions: ${e.message}")
-        }
+            // Passes are required — failure is an error
+            try {
+                val coverageResponse = passesDeferred.await()
+                summary = coverageResponse.summary
+                passes = coverageResponse.passes
+                Log.d(TAG, "Loaded ${passes.size} regional passes")
+            } catch (e: Exception) {
+                error = e.message
+                summary = null
+                passes = emptyList()
+                Log.e(TAG, "Failed to load passes: ${e.message}")
+            }
 
-        isLoading = false
+            // Predictions are supplemental — log but don't fail overall load
+            try {
+                predictions = predictionsDeferred.await()
+                Log.d(TAG, "Loaded predictions for $regionId")
+            } catch (e: Exception) {
+                predictions = null
+                Log.w(TAG, "Failed to load predictions: ${e.message}")
+            }
+        } finally {
+            isLoading = false
+        }
     }
 
     /** Clear all data */

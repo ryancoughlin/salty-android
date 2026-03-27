@@ -78,7 +78,10 @@ fun SatelliteModeView(
                 val regionId = trackingMode.regionId ?: return@LaunchedEffect
                 store.loadCoverage(regionId)
                 if (trackingMode.selectedPassId == null) {
-                    visiblePasses.firstOrNull()?.let { trackingMode.selectPass(it.id) }
+                    val firstVisible = store.passes.firstOrNull {
+                        trackingMode.showNightPasses || it.dayNight != DayNight.NIGHT
+                    }
+                    firstVisible?.let { trackingMode.selectPass(it.id) }
                 }
             }
         }

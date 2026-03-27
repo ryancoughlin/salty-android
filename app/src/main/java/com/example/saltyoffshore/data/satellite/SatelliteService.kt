@@ -6,6 +6,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import kotlinx.serialization.json.Json
 
 /**
@@ -42,7 +43,8 @@ object SatelliteService {
      */
     suspend fun fetchCoverage(client: HttpClient, regionId: String): CoverageResponse {
         Log.d(TAG, "Fetching coverage for region: $regionId")
-        val response: String = client.get("${AppConstants.apiBaseURL}/satellites/coverage?region_id=$regionId") {
+        val response: String = client.get("${AppConstants.apiBaseURL}/satellites/coverage") {
+            parameter("region_id", regionId)
             header("Cache-Control", "no-cache, no-store")
             header("Pragma", "no-cache")
         }.body()
