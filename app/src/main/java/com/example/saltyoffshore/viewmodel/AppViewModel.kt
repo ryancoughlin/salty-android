@@ -10,7 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.Announcement
-import com.example.saltyoffshore.data.sharelink.ShareLinkLayerConfig
+import com.example.saltyoffshore.data.sharelink.ShareLinkCameraView
+import com.example.saltyoffshore.data.sharelink.ShareLinkDatasetConfig
 import com.example.saltyoffshore.data.sharelink.ShareLinkPayload
 import com.example.saltyoffshore.data.sharelink.ShareLinkService
 import com.example.saltyoffshore.data.AppStatus
@@ -385,23 +386,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val payload = ShareLinkPayload(
-                    regionId = region.id,
-                    datasetId = dataset.id,
                     entryId = entry.id,
-                    timestamp = entry.timestamp,
-                    view = null, // TODO: capture camera position
+                    regionId = region.id,
+                    view = ShareLinkCameraView.from(
+                        longitude = currentLongitude,
+                        latitude = currentLatitude,
+                        zoom = currentZoom
+                    ),
                     primaryConfig = config?.let { cfg ->
-                        ShareLinkLayerConfig(
+                        ShareLinkDatasetConfig(
                             datasetId = dataset.id,
                             colorscaleId = cfg.colorscale?.id,
-                            customRangeMin = cfg.customRange?.start,
-                            customRangeMax = cfg.customRange?.endInclusive,
+                            customRange = cfg.customRange?.let { listOf(it.start, it.endInclusive) },
                             filterMode = cfg.filterMode.rawValue,
-                            visualEnabled = cfg.visual.isEnabled,
-                            visualOpacity = cfg.visual.opacity.toDouble(),
-                            contourEnabled = cfg.contour.isEnabled,
-                            contourOpacity = cfg.contour.opacity.toDouble(),
-                            selectedDepth = cfg.selectedDepth
+                            visualEnabled = cfg.visualEnabled,
+                            visualOpacity = cfg.visualOpacity,
+                            contourEnabled = cfg.contourEnabled,
+                            contourOpacity = cfg.contourOpacity,
+                            contourColor = String.format("#%06X", 0xFFFFFF and cfg.contourColor.toInt()),
+                            dynamicContourColoring = cfg.dynamicContourColoring,
+                            arrowsEnabled = cfg.arrowsEnabled,
+                            arrowsOpacity = cfg.arrowsOpacity,
+                            breaksEnabled = cfg.breaksEnabled,
+                            breaksOpacity = cfg.breaksOpacity,
+                            numbersEnabled = cfg.numbersEnabled,
+                            numbersOpacity = cfg.numbersOpacity,
+                            particlesEnabled = cfg.particlesEnabled,
+                            selectedDepth = depthFilterState.selectedDepth
                         )
                     }
                 )
@@ -416,6 +427,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "Failed to create share link", e)
                 withContext(Dispatchers.Main) {
                     isCreatingShareLink = false
+                    notificationManager.showError("Failed to create share link")
                 }
             }
         }
