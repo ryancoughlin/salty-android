@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.saltyoffshore.data.Announcement
+import com.example.saltyoffshore.ui.theme.SaltyType
 
 /**
  * Announcement bottom sheet — header, scrollable content, OK button.
@@ -85,7 +86,7 @@ fun AnnouncementSheetView(
                 if (announcement.title.isNotEmpty()) {
                     Text(
                         text = announcement.title,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = SaltyType.heading,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(horizontal = 24.dp)
                     )

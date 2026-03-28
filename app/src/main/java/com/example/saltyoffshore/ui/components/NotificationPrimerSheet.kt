@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.saltyoffshore.ui.theme.SaltyType
 
 /**
  * Permission primer sheet matching iOS NotificationPrimerSheet.swift.
@@ -87,8 +88,7 @@ fun NotificationPrimerSheet(
             Text(
                 text = "Stay Connected",
                 color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
+                style = SaltyType.heading
             )
 
             Spacer(modifier = Modifier.height(8.dp))

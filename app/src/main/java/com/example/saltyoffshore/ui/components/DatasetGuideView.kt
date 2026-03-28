@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
 import com.example.saltyoffshore.data.DatasetGuideService
+import com.example.saltyoffshore.ui.theme.SaltyType
 
 /**
  * Dataset Guide screen matching iOS DatasetGuideView.swift.
@@ -168,7 +169,7 @@ private fun ContentView(content: DatasetGuideService.GuideContent) {
             ) {
                 Text(
                     text = "Dataset Guide for Fishermen",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = SaltyType.heading,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -212,7 +213,7 @@ private fun DatasetInfoSection(
         // Title
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineSmall,
+            style = SaltyType.heading,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
