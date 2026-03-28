@@ -15,6 +15,7 @@ import com.mapbox.maps.MapboxMap
  * Matches iOS pattern where symbols reference style images by name.
  */
 object WaypointIconRegistrar {
+    private const val TAG = "WaypointIconRegistrar"
 
     /**
      * Ensure all symbols used by the given waypoints are registered in the style.
@@ -23,13 +24,20 @@ object WaypointIconRegistrar {
     fun ensureRegistered(mapboxMap: MapboxMap, symbols: Set<WaypointSymbol>) {
         val style = mapboxMap.style ?: return
 
+        android.util.Log.d(TAG, "ensureRegistered() checking ${symbols.size} symbols")
+
         for (symbol in symbols) {
             val imageName = symbol.imageName
-            if (style.hasStyleImage(imageName)) continue
+            val exists = style.hasStyleImage(imageName)
+            android.util.Log.d(TAG, "  $imageName: exists=$exists")
+
+            if (exists) continue
 
             // Generate a simple fallback circle bitmap
+            android.util.Log.d(TAG, "  Generating fallback for $imageName")
             val bitmap = generateFallbackBitmap(symbol)
             style.addImage(imageName, bitmap)
+            android.util.Log.d(TAG, "  Added fallback image for $imageName")
         }
     }
 
