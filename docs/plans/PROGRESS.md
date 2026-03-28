@@ -176,9 +176,9 @@ From `main` branch merge (`ad47c34`):
 
 ---
 
-## Satellite Tracker Mode — COMPLETE
+## Satellite Tracker Mode — IN PROGRESS
 
-Full port of iOS satellite tracking feature with 1:1 parity.
+Satellite tracking UI, state, and API fully ported. Map layer rendering not yet working.
 
 **Plan:** `docs/plans/2026-03-27-satellite-tracker.md`
 
@@ -230,6 +230,11 @@ Full port of iOS satellite tracking feature with 1:1 parity.
 - `ui/controls/RightSideToolbar.kt` — resolved merge conflict (tools menu from main)
 - `data/SaltyApi.kt` — made client internal for SatelliteStore access
 
+### Blocking: Map Layer Rendering
+
+- [ ] **SatelliteTrackLayer polygons/trails/labels not rendering on map** — UI panel works, API returns data, camera animates to satellites, but Mapbox GeoJSON layers don't appear. Investigated: thread safety (subscribeStyleLoaded dispatches to main), style reload survival (subscribeStyleLoaded + getStyle pattern), MapEffect composition timing. Debug logging added. Needs further investigation — check Logcat `SatelliteLayers` tag.
+- [ ] **CoveragePassLayer pins/polygons not rendering** — same root cause as tracker layers
+
 ### Remaining Gaps (cosmetic, not blocking)
 
 - [ ] **Foreground color animation on TrackerCard**: iOS animates both bg and text color; Android animates bg only, text snaps
@@ -254,7 +259,7 @@ Full port of iOS satellite tracking feature with 1:1 parity.
 | 10 — Stations + Weather | **Complete** | `phases/phase-10-stations-weather.md` |
 | — Tools Menu | **Complete** (merged from main) | MapToolBar grid layout |
 | — Share Links | **Complete** (merged from main) | Create + preview shareable map links |
-| — Satellite Tracker | **Complete** | `plans/2026-03-27-satellite-tracker.md` |
+| — Satellite Tracker | **In Progress** (UI done, map layers not rendering) | `plans/2026-03-27-satellite-tracker.md` |
 
 ---
 
