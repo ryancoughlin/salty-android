@@ -1068,11 +1068,12 @@ private fun WaypointLayersEffect(
         }
     }
 
-    // Get map reference and do initial render
+    // Get map reference and subscribe to style reloads
     MapEffect(Unit) { mapView ->
         mapboxMapRef = mapView.mapboxMap
 
-        mapView.mapboxMap.getStyle { _ ->
+        // Re-add layers after every style reload (matches GlobalLayersEffect pattern)
+        mapView.mapboxMap.subscribeStyleLoaded { _ ->
             if (ownLayer == null) {
                 ownLayer = WaypointAnnotationLayer(mapView.mapboxMap)
             }

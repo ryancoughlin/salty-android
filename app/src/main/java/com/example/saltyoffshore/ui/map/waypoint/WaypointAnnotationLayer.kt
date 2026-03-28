@@ -90,7 +90,8 @@ class WaypointAnnotationLayer(
         val featureCollection = FeatureCollection.fromFeatures(features)
         val waypointIds = waypoints.map { it.id }.toSet()
 
-        if (!isAdded) {
+        // Always check if source exists (survives style reloads)
+        if (!style.styleSourceExists(sourceId)) {
             addToMap(featureCollection)
         } else {
             // Update GeoJSON data
@@ -98,7 +99,7 @@ class WaypointAnnotationLayer(
                 ?.featureCollection(featureCollection)
         }
 
-        if (isAdded) setVisibility(true)
+        setVisibility(true)
         lastWaypointIds = waypointIds
     }
 

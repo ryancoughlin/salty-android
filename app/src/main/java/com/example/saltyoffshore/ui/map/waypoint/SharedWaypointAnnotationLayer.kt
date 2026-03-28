@@ -114,14 +114,15 @@ class SharedWaypointAnnotationLayer(
 
         val featureCollection = FeatureCollection.fromFeatures(features)
 
-        if (!isAdded) {
+        // Always check if source exists (survives style reloads)
+        if (!style.styleSourceExists(sourceId)) {
             addToMap(featureCollection)
         } else {
             style.getSourceAs<GeoJsonSource>(sourceId)
                 ?.featureCollection(featureCollection)
         }
 
-        if (isAdded) setVisibility(true)
+        setVisibility(true)
     }
 
     private fun addToMap(featureCollection: FeatureCollection) {
