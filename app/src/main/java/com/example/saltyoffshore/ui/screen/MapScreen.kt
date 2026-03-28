@@ -86,8 +86,11 @@ import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.ui.station.StationDetailsView
+import com.example.saltyoffshore.ui.satellite.SatelliteModeView
+import com.example.saltyoffshore.ui.map.satellite.SatelliteLayersEffect
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.example.saltyoffshore.viewmodel.StationDetailViewModel
+import com.mapbox.maps.MapView
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.ScreenCoordinate
@@ -128,6 +131,9 @@ fun MapScreen(
 
     // Tools menu sheet state
     var showToolsSheet by remember { mutableStateOf(false) }
+
+    // Special mode: hides normal controls when in satellite, measurement, etc.
+    val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
 
     // GPX file picker
     val context = LocalContext.current
@@ -181,11 +187,88 @@ fun MapScreen(
         viewModel.loadWaypoints()
     }
 
+    // ── Satellite mode viewport animations (iOS: MapModeModifier.swift) ──
+
+    // Fly to globe on enter, back to region on exit
+    LaunchedEffect(viewModel.satelliteTrackingMode.isActive) {
+        if (viewModel.satelliteTrackingMode.isActive) {
+            mapViewportState.flyTo(
+                cameraOptions = CameraOptions.Builder()
+                    .center(Point.fromLngLat(-40.0, 20.0))  // Atlantic midpoint
+                    .zoom(0.0)
+                    .bearing(0.0)
+                    .pitch(0.0)
+                    .build(),
+                animationOptions = MapAnimationOptions.Builder().duration(1500L).build()
+            )
+        } else {
+            // Fly back to region on exit
+            viewModel.selectedRegion?.let { region ->
+                val bounds = region.bounds
+                val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
+                val centerLat = (bounds[0][1] + bounds[1][1]) / 2.0
+                mapViewportState.flyTo(
+                    cameraOptions = CameraOptions.Builder()
+                        .center(Point.fromLngLat(centerLon, centerLat))
+                        .zoom(AppConstants.mapDefaultZoom)
+                        .bearing(0.0)
+                        .pitch(0.0)
+                        .build(),
+                    animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
+                )
+            }
+        }
+    }
+
+    // Fly to selected track (zoom 2.0)
+    LaunchedEffect(viewModel.satelliteTrackingMode.selectedTrackId) {
+        val id = viewModel.satelliteTrackingMode.selectedTrackId ?: return@LaunchedEffect
+        val track = viewModel.satelliteStore.tracks.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val (lat, lon) = track.center
+        mapViewportState.flyTo(
+            cameraOptions = CameraOptions.Builder()
+                .center(Point.fromLngLat(lon, lat))
+                .zoom(2.0)
+                .bearing(0.0)
+                .pitch(0.0)
+                .build(),
+            animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
+        )
+    }
+
+    // Fly to selected pass (zoom 3.0)
+    LaunchedEffect(viewModel.satelliteTrackingMode.selectedPassId) {
+        val id = viewModel.satelliteTrackingMode.selectedPassId ?: return@LaunchedEffect
+        val pass = viewModel.satelliteStore.passes.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val (lat, lon) = pass.center
+        mapViewportState.flyTo(
+            cameraOptions = CameraOptions.Builder()
+                .center(Point.fromLngLat(lon, lat))
+                .zoom(3.0)
+                .bearing(0.0)
+                .pitch(0.0)
+                .build(),
+            animationOptions = MapAnimationOptions.Builder().duration(800L).build()
+        )
+    }
+
+    // ── Map style: switch projection & theme for satellite mode ──
+    val mapStyleUri = if (viewModel.satelliteTrackingMode.isActive) {
+        AppConstants.darkMapStyleURI
+    } else {
+        AppConstants.lightMapStyleURI
+    }
+    val mapProjection = if (viewModel.satelliteTrackingMode.isActive) {
+        Projection.GLOBE
+    } else {
+        Projection.MERCATOR
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
-            style = { MapStyle(style = AppConstants.lightMapStyleURI, projection = Projection.MERCATOR) }
+            style = { MapStyle(style = mapStyleUri, projection = mapProjection) }
         ) {
             // Wire up repaint callback for Zarr frame updates
             ZarrRepaintEffect(viewModel = viewModel)
@@ -197,6 +280,18 @@ fun MapScreen(
                         viewModel.setMapSnapshot(bitmap)
                     }
                 }
+            }
+
+            // Zoom constraints: cap at 4.0 in satellite mode (iOS: cameraBounds)
+            MapEffect(viewModel.satelliteTrackingMode.isActive) { mapView ->
+                val bounds = if (viewModel.satelliteTrackingMode.isActive) {
+                    com.mapbox.maps.CameraBoundsOptions.Builder()
+                        .minZoom(0.0).maxZoom(4.0).build()
+                } else {
+                    com.mapbox.maps.CameraBoundsOptions.Builder()
+                        .minZoom(1.0).maxZoom(24.0).build()
+                }
+                mapView.mapboxMap.setBounds(bounds)
             }
 
             // Region bounds outline
@@ -239,8 +334,8 @@ fun MapScreen(
                 onCameraChanged = { zoom, lat, lon -> viewModel.updateCameraState(zoom, lat, lon) }
             )
 
-            // Region annotations — hide the active region (matches iOS guard)
-            viewModel.regions
+            // Region annotations — hide during satellite mode + hide the active region
+            if (!viewModel.satelliteTrackingMode.isActive) viewModel.regions
                 .filter { it.id != viewModel.selectedRegion?.id }
                 .forEach { region ->
                 ViewAnnotation(
@@ -298,6 +393,12 @@ fun MapScreen(
                     }
                 }
             }
+
+            // Satellite tracking layers — uses MapEffect internally for style reload survival
+            SatelliteLayersEffect(
+                trackingMode = viewModel.satelliteTrackingMode,
+                store = viewModel.satelliteStore
+            )
         }
 
         // Crosshair overlay
@@ -312,7 +413,7 @@ fun MapScreen(
 
         // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
-            isVisible = !viewModel.measurementState.isActive,
+            isVisible = !isInSpecialMode,
             notifications = viewModel.notificationManager.notifications,
             showAnnouncement = viewModel.isAnnouncementVisible,
             onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
@@ -342,7 +443,8 @@ fun MapScreen(
         }
 
         // Bottom controls column — matches iOS MapControlsContainer VStack
-        if (viewModel.selectedDataset != null) {
+        // Hidden in special modes (satellite, measurement replaces with its own overlay)
+        if (viewModel.selectedDataset != null && !viewModel.satelliteTrackingMode.isActive) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -647,7 +749,9 @@ fun MapScreen(
                     },
                     onSatellites = {
                         showToolsSheet = false
-                        // TODO: Open satellite tracking
+                        showLayersSheet = false
+                        showDatasetSheet = false
+                        viewModel.satelliteTrackingMode.enter()
                     },
                     onMyLocation = {
                         showToolsSheet = false
@@ -709,6 +813,15 @@ fun MapScreen(
                     viewModel = stationDetailViewModel
                 )
             }
+        }
+
+        // Satellite mode overlay (full-screen, on top of map)
+        if (viewModel.satelliteTrackingMode.isActive) {
+            SatelliteModeView(
+                trackingMode = viewModel.satelliteTrackingMode,
+                store = viewModel.satelliteStore,
+                onDismiss = { viewModel.satelliteTrackingMode.exit() }
+            )
         }
     }
 }

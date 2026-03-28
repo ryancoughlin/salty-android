@@ -155,6 +155,90 @@ Three critical disconnects fixed + six iOS parity corrections.
 
 ---
 
+## Phase 10: Stations + Weather — COMPLETE
+
+- [x] `StationListService` — fetch station list from API
+- [x] `StationDetailViewModel` — individual station detail (observations, forecasts)
+- [x] `StationDetailsView` — bottom sheet with forecast charts, weather data
+- [x] Station markers on map via `GlobalLayers`
+
+**Commit:** `5a6071b`
+
+---
+
+## Tools Menu + Announcements + Share Links — COMPLETE (merged from main)
+
+From `main` branch merge (`ad47c34`):
+
+- [x] **Map Tools Menu** — grid layout bottom sheet matching iOS MapToolBar (waypoints, satellites, my location, share, dataset guide)
+- [x] **Announcements** — fetch from Supabase, display sheet, dismiss tracking
+- [x] **Share Links** — create shareable map links with camera/layers/region state, preview sheet with map snapshot
+
+---
+
+## Satellite Tracker Mode — COMPLETE
+
+Full port of iOS satellite tracking feature with 1:1 parity.
+
+**Plan:** `docs/plans/2026-03-27-satellite-tracker.md`
+
+### What's Done
+
+- [x] **Data models** — 16 types: TrackerResponse, SatelliteTrack, RegionalPass, SatelliteCoverage, enums (SatelliteDatasetType, OrbitDirection, DayNight, PassStatus, SkipReason, DataFreshness, GeoJSONPolygon)
+- [x] **SatelliteService** — 3 API endpoints: /satellites/swaths, /satellites/coverage, /region/{id}/satellite-coverage
+- [x] **SatelliteTrackingMode** — mode state: isActive, mode (tracker/coverage), selections, night filter
+- [x] **SatelliteStore** — data state: tracks, passes, predictions, parallel loading
+- [x] **SatelliteModeView** — full-screen overlay: mode toggle pill, data loading via LaunchedEffect, auto-select
+- [x] **TrackerPanel** — HorizontalPager carousel with satellite cards, bidirectional sync, page dots
+- [x] **CoveragePanel** — pass list with status indicators, night toggle, yesterday header, auto-scroll
+- [x] **PassPredictionPanel** — NextPassRow + ModalBottomSheet with freshness dots, countdown
+- [x] **DayNightBadge** — day/night/both badge composable
+- [x] **SatelliteTrackLayer** — Mapbox layers: unselected outlines, selected fill+glow, trail with fading opacity, labels
+- [x] **CoveragePassLayer** — selected polygon + tappable circle pins with status colors
+- [x] **SatelliteLayers** — router with cross-mode cleanup
+- [x] **Globe viewport** — fly animation to 20°N/40°W zoom 0 on enter, fly back to region on exit
+- [x] **Globe projection** — Mercator → Globe when active, dark theme forced
+- [x] **Zoom constraints** — 0-4 in satellite mode (vs 1-24 normal)
+- [x] **Selection camera** — fly to track (zoom 2.0) and pass (zoom 3.0) on selection
+- [x] **Region annotations** — hidden during satellite mode
+- [x] **Tools menu wiring** — satellite mode launches from map tools menu
+- [x] **Sheet dismissal** — all sheets close on satellite mode entry
+
+### Files Created (14)
+
+| File | Lines |
+|------|-------|
+| `data/satellite/SatelliteModels.kt` | ~350 |
+| `data/satellite/SatelliteService.kt` | ~65 |
+| `viewmodel/SatelliteTrackingMode.kt` | ~80 |
+| `viewmodel/SatelliteStore.kt` | ~120 |
+| `ui/satellite/SatelliteModeView.kt` | ~250 |
+| `ui/satellite/TrackerPanel.kt` | ~200 |
+| `ui/satellite/CoveragePanel.kt` | ~370 |
+| `ui/satellite/PassPredictionPanel.kt` | ~280 |
+| `ui/satellite/DayNightBadge.kt` | ~50 |
+| `ui/map/satellite/SatelliteTrackLayer.kt` | ~250 |
+| `ui/map/satellite/CoveragePassLayer.kt` | ~230 |
+| `ui/map/satellite/SatelliteLayers.kt` | ~80 |
+| `res/drawable/ic_satellite.xml` | vector drawable |
+| `docs/plans/2026-03-27-satellite-tracker.md` | implementation plan |
+
+### Files Modified (4)
+
+- `viewmodel/AppViewModel.kt` — added satelliteTrackingMode + satelliteStore
+- `ui/screen/MapScreen.kt` — viewport animations, projection, zoom bounds, overlay, tools wiring
+- `ui/controls/RightSideToolbar.kt` — resolved merge conflict (tools menu from main)
+- `data/SaltyApi.kt` — made client internal for SatelliteStore access
+
+### Remaining Gaps (cosmetic, not blocking)
+
+- [ ] **Foreground color animation on TrackerCard**: iOS animates both bg and text color; Android animates bg only, text snaps
+- [ ] **Duplicate Mapbox helpers**: `toMapboxFeature`, `addOrUpdateSource`, etc. copied in both track/coverage layers (could extract to shared file)
+- [ ] **CoveragePanel date formatter**: has its own ISO parser instead of reusing SatelliteModels helpers
+- [ ] **Pin icons**: iOS uses custom coverage-pin-success/pending/unavailable drawables; Android uses CircleLayer (functional but less polished)
+
+---
+
 ## Upcoming Phases
 
 | Phase | Status | Spec |
@@ -165,9 +249,12 @@ Three critical disconnects fixed + six iOS parity corrections.
 | 5 — Overlay Datasets | Not started | `phases/phase-5-overlay-datasets.md` |
 | 6 — Waypoints | Phase 1 complete | `phases/phase-6-waypoints.md` |
 | 7 — Measurement | **Complete** | `phases/phase-7-measurement.md` |
-| 8 — Announcements | Not started | `phases/phase-8-announcements.md` |
+| 8 — Announcements | **Complete** (merged from main) | `phases/phase-8-announcements.md` |
 | 9 — Route Recording | Not started | `phases/phase-9-route-recording.md` |
-| 10 — Stations + Weather | Not started | `phases/phase-10-stations-weather.md` |
+| 10 — Stations + Weather | **Complete** | `phases/phase-10-stations-weather.md` |
+| — Tools Menu | **Complete** (merged from main) | MapToolBar grid layout |
+| — Share Links | **Complete** (merged from main) | Create + preview shareable map links |
+| — Satellite Tracker | **Complete** | `plans/2026-03-27-satellite-tracker.md` |
 
 ---
 

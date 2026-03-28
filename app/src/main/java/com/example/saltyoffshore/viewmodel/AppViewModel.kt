@@ -96,6 +96,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Measurement state
     val measurementState = MeasurementState()
 
+    // Satellite tracking
+    val satelliteTrackingMode = SatelliteTrackingMode()
+    val satelliteStore = SatelliteStore(SaltyApi.client)
+
     val currentDistanceUnits: DistanceUnits
         get() = DistanceUnits.fromRawValue(userPreferences?.distanceUnits) ?: DistanceUnits.NAUTICAL_MILES
 
@@ -314,6 +318,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
     init {
+        satelliteTrackingMode.selectedRegionIdProvider = { selectedRegion?.id }
         loadRegionsAndRestoreSelection()
         loadUserPreferences()
         checkForAnnouncements()
