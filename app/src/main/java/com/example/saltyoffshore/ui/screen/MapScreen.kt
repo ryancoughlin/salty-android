@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -27,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
+import com.example.saltyoffshore.ui.controls.MapToolBar
+import com.example.saltyoffshore.ui.sharelink.ShareLinkSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.RegionStatus
@@ -124,6 +129,9 @@ fun MapScreen(
     // Waypoint management sheet state
     var showWaypointSheet by remember { mutableStateOf(false) }
 
+    // Tools menu sheet state
+    var showToolsSheet by remember { mutableStateOf(false) }
+
     // GPX file picker
     val context = LocalContext.current
     val gpxPickerLauncher = rememberLauncherForActivityResult(
@@ -176,14 +184,112 @@ fun MapScreen(
         viewModel.loadWaypoints()
     }
 
+    // ── Satellite mode viewport animations (iOS: MapModeModifier.swift) ──
+
+    // Fly to globe on enter, back to region on exit
+    LaunchedEffect(viewModel.satelliteTrackingMode.isActive) {
+        if (viewModel.satelliteTrackingMode.isActive) {
+            mapViewportState.flyTo(
+                cameraOptions = CameraOptions.Builder()
+                    .center(Point.fromLngLat(-40.0, 20.0))  // Atlantic midpoint
+                    .zoom(0.0)
+                    .bearing(0.0)
+                    .pitch(0.0)
+                    .build(),
+                animationOptions = MapAnimationOptions.Builder().duration(1500L).build()
+            )
+        } else {
+            // Fly back to region on exit
+            viewModel.selectedRegion?.let { region ->
+                val bounds = region.bounds
+                val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
+                val centerLat = (bounds[0][1] + bounds[1][1]) / 2.0
+                mapViewportState.flyTo(
+                    cameraOptions = CameraOptions.Builder()
+                        .center(Point.fromLngLat(centerLon, centerLat))
+                        .zoom(AppConstants.mapDefaultZoom)
+                        .bearing(0.0)
+                        .pitch(0.0)
+                        .build(),
+                    animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
+                )
+            }
+        }
+    }
+
+    // Fly to selected track (zoom 2.0)
+    LaunchedEffect(viewModel.satelliteTrackingMode.selectedTrackId) {
+        val id = viewModel.satelliteTrackingMode.selectedTrackId ?: return@LaunchedEffect
+        val track = viewModel.satelliteStore.tracks.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val (lat, lon) = track.center
+        mapViewportState.flyTo(
+            cameraOptions = CameraOptions.Builder()
+                .center(Point.fromLngLat(lon, lat))
+                .zoom(2.0)
+                .bearing(0.0)
+                .pitch(0.0)
+                .build(),
+            animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
+        )
+    }
+
+    // Fly to selected pass (zoom 3.0)
+    LaunchedEffect(viewModel.satelliteTrackingMode.selectedPassId) {
+        val id = viewModel.satelliteTrackingMode.selectedPassId ?: return@LaunchedEffect
+        val pass = viewModel.satelliteStore.passes.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val (lat, lon) = pass.center
+        mapViewportState.flyTo(
+            cameraOptions = CameraOptions.Builder()
+                .center(Point.fromLngLat(lon, lat))
+                .zoom(3.0)
+                .bearing(0.0)
+                .pitch(0.0)
+                .build(),
+            animationOptions = MapAnimationOptions.Builder().duration(800L).build()
+        )
+    }
+
+    // ── Map style: switch projection & theme for satellite mode ──
+    val mapStyleUri = if (viewModel.satelliteTrackingMode.isActive) {
+        AppConstants.darkMapStyleURI
+    } else {
+        AppConstants.lightMapStyleURI
+    }
+    val mapProjection = if (viewModel.satelliteTrackingMode.isActive) {
+        Projection.GLOBE
+    } else {
+        Projection.MERCATOR
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
-            style = { MapStyle(style = AppConstants.lightMapStyleURI, projection = Projection.MERCATOR) }
+            style = { MapStyle(style = mapStyleUri, projection = mapProjection) }
         ) {
             // Wire up repaint callback for Zarr frame updates
             ZarrRepaintEffect(viewModel = viewModel)
+
+            // Wire map snapshot capture for share links
+            MapEffect(Unit) { mapView ->
+                viewModel.captureMapSnapshot = {
+                    mapView.snapshot { bitmap ->
+                        viewModel.setMapSnapshot(bitmap)
+                    }
+                }
+            }
+
+            // Zoom constraints: cap at 4.0 in satellite mode (iOS: cameraBounds)
+            MapEffect(viewModel.satelliteTrackingMode.isActive) { mapView ->
+                val bounds = if (viewModel.satelliteTrackingMode.isActive) {
+                    com.mapbox.maps.CameraBoundsOptions.Builder()
+                        .minZoom(0.0).maxZoom(4.0).build()
+                } else {
+                    com.mapbox.maps.CameraBoundsOptions.Builder()
+                        .minZoom(1.0).maxZoom(24.0).build()
+                }
+                mapView.mapboxMap.setBounds(bounds)
+            }
 
             // Region bounds outline
             RegionBoundsEffect(region = viewModel.selectedRegion)
@@ -222,11 +328,11 @@ fun MapScreen(
                 isDataLayerActive = viewModel.isDataLayerActive,
                 datasetType = viewModel.currentDatasetType,
                 onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
-                onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
+                onCameraChanged = { zoom, lat, lon -> viewModel.updateCameraState(zoom, lat, lon) }
             )
 
-            // Region annotations — hide the active region (matches iOS guard)
-            viewModel.regions
+            // Region annotations — hide during satellite mode + hide the active region
+            if (!viewModel.satelliteTrackingMode.isActive) viewModel.regions
                 .filter { it.id != viewModel.selectedRegion?.id }
                 .forEach { region ->
                 ViewAnnotation(
@@ -307,10 +413,12 @@ fun MapScreen(
             isDataLayerActive = viewModel.isDataLayerActive
         )
 
-        // Top bar: left (crew/future) | center (loading/error capsules) | right (account)
+        // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
             isVisible = !viewModel.measurementState.isActive,
             notifications = viewModel.notificationManager.notifications,
+            showAnnouncement = viewModel.isAnnouncementVisible,
+            onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
             onAccountTap = onSettingsClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -354,26 +462,14 @@ fun MapScreen(
                     RightSideToolbar(
                         onFilterClick = { showFilterSheet = true },
                         onLayersClick = { showLayersSheet = true },
-                        onWaypointsClick = { showWaypointSheet = true },
+                        onToolsClick = { showToolsSheet = true },
                         onMeasureClick = {
                             if (viewModel.measurementState.isActive) {
                                 viewModel.measurementState.exit()
                             } else {
                                 viewModel.measurementState.enter()
                             }
-                        },
-                        onSatelliteClick = {
-                            if (viewModel.satelliteTrackingMode.isActive) {
-                                viewModel.satelliteTrackingMode.exit()
-                            } else {
-                                showLayersSheet = false
-                                showDatasetSheet = false
-                                showWaypointSheet = false
-                                viewModel.satelliteTrackingMode.enter()
-                            }
-                        },
-                        isMeasureModeActive = viewModel.measurementState.isActive,
-                        isSatelliteModeActive = viewModel.satelliteTrackingMode.isActive
+                        }
                     )
                 }
 
@@ -573,6 +669,135 @@ fun MapScreen(
             )
         }
 
+        // Announcement sheet
+        if (viewModel.showAnnouncementSheet) {
+            viewModel.announcement?.let { ann ->
+                androidx.compose.material3.ModalBottomSheet(
+                    onDismissRequest = { viewModel.markAnnouncementAsSeen() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    dragHandle = null
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 32.dp)
+                    ) {
+                        // Header with close button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Announcement",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.weight(1f))
+                            androidx.compose.material3.IconButton(
+                                onClick = { viewModel.markAnnouncementAsSeen() }
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        // Title
+                        Text(
+                            text = ann.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        // Message
+                        Text(
+                            text = ann.formattedMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        // OK button — primary filled (not tonal)
+                        androidx.compose.material3.Button(
+                            onClick = { viewModel.markAnnouncementAsSeen() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
+                        ) {
+                            Text("OK")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tools menu sheet
+        if (showToolsSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showToolsSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                MapToolBar(
+                    onAddWaypoint = {
+                        showToolsSheet = false
+                        // TODO: Open waypoint creation at map center
+                    },
+                    onSatellites = {
+                        showToolsSheet = false
+                        showLayersSheet = false
+                        showDatasetSheet = false
+                        viewModel.satelliteTrackingMode.enter()
+                    },
+                    onMyLocation = {
+                        showToolsSheet = false
+                        // TODO: Fly to user location
+                    },
+                    onShare = {
+                        showToolsSheet = false
+                        viewModel.createShareLink()
+                    },
+                    onWaypoints = {
+                        showToolsSheet = false
+                        showWaypointSheet = true
+                    },
+                    onDatasetGuide = {
+                        showToolsSheet = false
+                        // TODO: Open dataset guide
+                    },
+                    onDismiss = { showToolsSheet = false }
+                )
+            }
+        }
+
+        // Share link preview sheet — full-screen style matching iOS
+        viewModel.shareLinkUrl?.let { url ->
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissShareLink() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = null
+            ) {
+                ShareLinkSheet(
+                    url = url,
+                    mapSnapshot = viewModel.shareLinkSnapshot,
+                    regionName = viewModel.selectedRegion?.name ?: "Unknown",
+                    datasetName = viewModel.selectedDataset?.let {
+                        DatasetType.fromRawValue(it.type)?.shortName ?: it.type
+                    } ?: "Unknown",
+                    timestamp = viewModel.selectedEntry?.timestamp ?: "",
+                    latitude = viewModel.currentLatitude,
+                    longitude = viewModel.currentLongitude,
+                    onDismiss = { viewModel.dismissShareLink() }
+                )
+            }
+        }
+
         // Station detail sheet
         viewModel.selectedStationId?.let { stationId ->
             val stationDetailViewModel: StationDetailViewModel = viewModel(
@@ -671,7 +896,7 @@ private fun CrosshairQueryEffect(
     isDataLayerActive: Boolean,
     datasetType: DatasetType?,
     onPrimaryValueChanged: (CurrentValue) -> Unit,
-    onCameraChanged: (zoom: Double, latitude: Double) -> Unit
+    onCameraChanged: (zoom: Double, latitude: Double, longitude: Double) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -689,8 +914,9 @@ private fun CrosshairQueryEffect(
             val zoom = cameraState.zoom
             val center = cameraState.center
             val latitude = center.latitude()
+            val longitude = center.longitude()
 
-            onCameraChanged(zoom, latitude)
+            onCameraChanged(zoom, latitude, longitude)
 
             if (isDataLayerActive) {
                 val screenCenterX = mapView.width / 2.0

@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.FilledIconButton
@@ -42,10 +42,7 @@ fun RightSideToolbar(
     onFilterClick: () -> Unit,
     onLayersClick: () -> Unit,
     onMeasureClick: () -> Unit = {},
-    onWaypointsClick: () -> Unit = {},
-    onSatelliteClick: () -> Unit = {},
-    isMeasureModeActive: Boolean = false,
-    isSatelliteModeActive: Boolean = false,
+    onToolsClick: () -> Unit = {},
     shouldHide: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -91,27 +88,17 @@ fun RightSideToolbar(
 
         StaggeredMapButton(hasAppeared, 300) {
             MapControlButton(
-                icon = Icons.Default.Place,
-                contentDescription = "Waypoints",
-                onClick = onWaypointsClick
+                icon = Icons.Default.Straighten,
+                contentDescription = "Measure",
+                onClick = onMeasureClick
             )
         }
 
         StaggeredMapButton(hasAppeared, 400) {
             MapControlButton(
-                icon = Icons.Default.Straighten,
-                contentDescription = "Measure",
-                onClick = onMeasureClick,
-                isActive = isMeasureModeActive
-            )
-        }
-
-        StaggeredMapButton(hasAppeared, 500) {
-            MapControlButton(
-                iconResId = R.drawable.ic_satellite,
-                contentDescription = "Satellites",
-                onClick = onSatelliteClick,
-                isActive = isSatelliteModeActive
+                icon = Icons.Default.MoreVert,
+                contentDescription = "Tools",
+                onClick = onToolsClick
             )
         }
     }
