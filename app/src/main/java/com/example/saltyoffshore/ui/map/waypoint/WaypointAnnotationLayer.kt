@@ -79,6 +79,7 @@ class WaypointAnnotationLayer(
 
         // Build GeoJSON features
         val features = waypoints.map { wp ->
+            Log.d(TAG, "  Feature: ${wp.name} at (${wp.latitude}, ${wp.longitude}) icon=${wp.symbol.imageName}")
             Feature.fromGeometry(wp.coordinate).apply {
                 addStringProperty("id", wp.id)
                 addStringProperty("name", wp.name ?: "")
@@ -181,13 +182,19 @@ class WaypointAnnotationLayer(
                         textOffset(listOf(0.0, -1.75))
                         textAllowOverlap(false)
 
-                        minZoom(4.0)
+                        // TODO: restore minZoom(4.0) after debugging
+                        // minZoom(4.0)
                     }
                 )
             }
 
             isAdded = true
             Log.d(TAG, "Added to map with ${featureCollection.features()?.size ?: 0} features")
+
+            // Verify layers were added
+            Log.d(TAG, "  Layer exists check: $layerId = ${style.styleLayerExists(layerId)}")
+            Log.d(TAG, "  Layer exists check: $clusterLayerId = ${style.styleLayerExists(clusterLayerId)}")
+            Log.d(TAG, "  Layer exists check: $countLayerId = ${style.styleLayerExists(countLayerId)}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add waypoint layer: ${e.message}", e)
         }
