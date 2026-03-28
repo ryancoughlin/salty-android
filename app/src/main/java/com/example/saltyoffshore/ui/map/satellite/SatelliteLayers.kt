@@ -5,53 +5,61 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import com.example.saltyoffshore.data.satellite.RegionalPass
-import com.example.saltyoffshore.data.satellite.SatelliteTrack
+import androidx.compose.runtime.setValue
 import com.example.saltyoffshore.viewmodel.SatelliteMode
 import com.example.saltyoffshore.viewmodel.SatelliteStore
 import com.example.saltyoffshore.viewmodel.SatelliteTrackingMode
 import com.mapbox.maps.MapView
+import com.mapbox.maps.MapboxMap
+import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.plugin.gestures.gestures
 
 private const val TAG = "SatelliteLayers"
 
 /**
- * Router composable for satellite map layers.
- * Uses subscribeStyleLoaded + getStyle pattern to survive style reloads
- * (theme/projection changes destroy all custom sources/layers).
+ * Satellite map layers — lives inside MapboxMap { } composable.
+ * Uses MapEffect to get mapView directly (no nullable state ref).
+ * Subscribes to style reload events so layers survive theme/projection changes.
+ *
+ * Pattern matches GlobalLayersEffect exactly.
  *
  * iOS ref: SatelliteLayers.swift
  */
 @Composable
 fun SatelliteLayersEffect(
-    mapView: MapView,
     trackingMode: SatelliteTrackingMode,
     store: SatelliteStore
 ) {
-    // Keep references to latest data for style-loaded callback
-    val currentMode by rememberUpdatedState(trackingMode.mode)
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    // Keep latest values for async callbacks
     val currentIsActive by rememberUpdatedState(trackingMode.isActive)
+    val currentMode by rememberUpdatedState(trackingMode.mode)
     val currentTracks by rememberUpdatedState(store.tracks)
     val currentPasses by rememberUpdatedState(store.passes)
     val currentSelectedTrackId by rememberUpdatedState(trackingMode.selectedTrackId)
     val currentSelectedPassId by rememberUpdatedState(trackingMode.selectedPassId)
 
-    // Render function: applies layers to current style
-    fun render() {
-        if (!currentIsActive) return
-        val style = mapView.mapboxMap.style ?: return
+    fun render(mapboxMap: MapboxMap) {
+        val style = mapboxMap.style ?: return
+
+        if (!currentIsActive) {
+            removeLayers(style, SATELLITE_TRACK_LAYER_IDS, SATELLITE_TRACK_SOURCE_IDS)
+            removeLayers(style, COVERAGE_PASS_LAYER_IDS, COVERAGE_PASS_SOURCE_IDS)
+            return
+        }
 
         when (currentMode) {
             SatelliteMode.TRACKER -> {
-                // Remove coverage layers first
                 removeLayers(style, COVERAGE_PASS_LAYER_IDS, COVERAGE_PASS_SOURCE_IDS)
                 if (currentTracks.isNotEmpty()) {
                     renderTrackerLayers(style, currentTracks, currentSelectedTrackId)
                 }
             }
             SatelliteMode.COVERAGE -> {
-                // Remove tracker layers first
                 removeLayers(style, SATELLITE_TRACK_LAYER_IDS, SATELLITE_TRACK_SOURCE_IDS)
                 if (currentPasses.isNotEmpty()) {
                     renderCoverageLayers(style, currentPasses, currentSelectedPassId)
@@ -60,26 +68,21 @@ fun SatelliteLayersEffect(
         }
     }
 
-    // Subscribe to style reloads (theme/projection change wipes layers)
-    DisposableEffect(mapView) {
-        val cancelable = mapView.mapboxMap.subscribeStyleLoaded { _ ->
-            Log.d(TAG, "Style reloaded — re-adding satellite layers")
-            render()
+    // Get MapView + subscribe to style reloads (fires inside MapboxMap composable)
+    MapEffect(Unit) { mapView ->
+        Log.d(TAG, "MapEffect: got mapView")
+        mapViewRef = mapView
+
+        // Re-add layers after every style reload (theme/projection change)
+        mapView.mapboxMap.subscribeStyleLoaded { _ ->
+            Log.d(TAG, "Style reloaded — re-rendering satellite layers")
+            render(mapView.mapboxMap)
         }
 
         // Also render immediately if style already loaded
         mapView.mapboxMap.getStyle { _ ->
-            Log.d(TAG, "Style available — rendering satellite layers")
-            render()
-        }
-
-        onDispose {
-            cancelable.cancel()
-            // Clean up all satellite layers on dispose
-            mapView.mapboxMap.style?.let { style ->
-                removeLayers(style, SATELLITE_TRACK_LAYER_IDS, SATELLITE_TRACK_SOURCE_IDS)
-                removeLayers(style, COVERAGE_PASS_LAYER_IDS, COVERAGE_PASS_SOURCE_IDS)
-            }
+            Log.d(TAG, "Style available — initial satellite layer render")
+            render(mapView.mapboxMap)
         }
     }
 
@@ -92,26 +95,31 @@ fun SatelliteLayersEffect(
         trackingMode.selectedTrackId,
         trackingMode.selectedPassId
     ) {
-        if (!trackingMode.isActive) {
-            // Clean up when deactivated
-            mapView.mapboxMap.style?.let { style ->
+        val mapView = mapViewRef ?: return@LaunchedEffect
+        // Call render directly — style is guaranteed loaded since MapEffect already ran
+        render(mapView.mapboxMap)
+    }
+
+    // Clean up on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            mapViewRef?.mapboxMap?.style?.let { style ->
                 removeLayers(style, SATELLITE_TRACK_LAYER_IDS, SATELLITE_TRACK_SOURCE_IDS)
                 removeLayers(style, COVERAGE_PASS_LAYER_IDS, COVERAGE_PASS_SOURCE_IDS)
             }
-            return@LaunchedEffect
         }
-        mapView.mapboxMap.getStyle { _ -> render() }
     }
 
     // Pin tap listener for coverage mode
-    if (trackingMode.isActive && trackingMode.mode == SatelliteMode.COVERAGE) {
+    val mv = mapViewRef
+    if (mv != null && trackingMode.isActive && trackingMode.mode == SatelliteMode.COVERAGE) {
         val currentOnPassTap by rememberUpdatedState<(String) -> Unit> { id ->
             trackingMode.selectPass(id)
         }
 
         DisposableEffect(Unit) {
             val clickListener = com.mapbox.maps.plugin.gestures.OnMapClickListener { point ->
-                val mapboxMap = mapView.mapboxMap
+                val mapboxMap = mv.mapboxMap
                 val screenPoint = mapboxMap.pixelForCoordinate(point)
                 val queryGeometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
                 val options = com.mapbox.maps.RenderedQueryOptions(listOf("coverage-pins-circle"), null)
@@ -126,8 +134,8 @@ fun SatelliteLayersEffect(
                 false
             }
 
-            mapView.gestures.addOnMapClickListener(clickListener)
-            onDispose { mapView.gestures.removeOnMapClickListener(clickListener) }
+            mv.gestures.addOnMapClickListener(clickListener)
+            onDispose { mv.gestures.removeOnMapClickListener(clickListener) }
         }
     }
 }

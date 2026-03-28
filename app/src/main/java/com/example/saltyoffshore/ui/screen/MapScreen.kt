@@ -132,9 +132,6 @@ fun MapScreen(
     // Tools menu sheet state
     var showToolsSheet by remember { mutableStateOf(false) }
 
-    // MapView ref for satellite layers (needs style reload subscription)
-    var satelliteMapViewRef by remember { mutableStateOf<MapView?>(null) }
-
     // Special mode: hides normal controls when in satellite, measurement, etc.
     val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
 
@@ -397,19 +394,11 @@ fun MapScreen(
                 }
             }
 
-            // Satellite tracking layers — uses subscribeStyleLoaded for style reload survival
-            MapEffect(Unit) { mapView ->
-                // SatelliteLayersEffect is a composable, but we need the MapView ref.
-                // Store it for the composable below.
-                satelliteMapViewRef = mapView
-            }
-            satelliteMapViewRef?.let { mv ->
-                SatelliteLayersEffect(
-                    mapView = mv,
-                    trackingMode = viewModel.satelliteTrackingMode,
-                    store = viewModel.satelliteStore
-                )
-            }
+            // Satellite tracking layers — uses MapEffect internally for style reload survival
+            SatelliteLayersEffect(
+                trackingMode = viewModel.satelliteTrackingMode,
+                store = viewModel.satelliteStore
+            )
         }
 
         // Crosshair overlay
