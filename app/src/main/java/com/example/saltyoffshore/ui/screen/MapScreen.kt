@@ -132,6 +132,12 @@ fun MapScreen(
     // Tools menu sheet state
     var showToolsSheet by remember { mutableStateOf(false) }
 
+    // MapView ref for satellite layers (needs style reload subscription)
+    var satelliteMapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    // Special mode: hides normal controls when in satellite, measurement, etc.
+    val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
+
     // GPX file picker
     val context = LocalContext.current
     val gpxPickerLauncher = rememberLauncherForActivityResult(
@@ -391,10 +397,13 @@ fun MapScreen(
                 }
             }
 
-            // Satellite tracking layers — capture MapView via MapEffect
-            var satelliteMapView by remember { mutableStateOf<MapView?>(null) }
-            MapEffect(Unit) { mapView -> satelliteMapView = mapView }
-            satelliteMapView?.let { mv ->
+            // Satellite tracking layers — uses subscribeStyleLoaded for style reload survival
+            MapEffect(Unit) { mapView ->
+                // SatelliteLayersEffect is a composable, but we need the MapView ref.
+                // Store it for the composable below.
+                satelliteMapViewRef = mapView
+            }
+            satelliteMapViewRef?.let { mv ->
                 SatelliteLayersEffect(
                     mapView = mv,
                     trackingMode = viewModel.satelliteTrackingMode,
@@ -415,7 +424,7 @@ fun MapScreen(
 
         // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
-            isVisible = !viewModel.measurementState.isActive,
+            isVisible = !isInSpecialMode,
             notifications = viewModel.notificationManager.notifications,
             showAnnouncement = viewModel.isAnnouncementVisible,
             onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
@@ -445,7 +454,8 @@ fun MapScreen(
         }
 
         // Bottom controls column — matches iOS MapControlsContainer VStack
-        if (viewModel.selectedDataset != null) {
+        // Hidden in special modes (satellite, measurement replaces with its own overlay)
+        if (viewModel.selectedDataset != null && !viewModel.satelliteTrackingMode.isActive) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
