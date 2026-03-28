@@ -1,6 +1,7 @@
 package com.example.saltyoffshore.data
 
 import com.mapbox.geojson.Point
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -13,15 +14,24 @@ data class Station(
     val name: String,
     val location: StationLocation,
     val type: String,
-    val hasRealTimeData: Boolean,
-    val owner: String
+    val hasRealTimeData: Boolean = true,
+    val owner: String = "NDBC",
+    @SerialName("has_currents")
+    val hasCurrents: Boolean = false
 ) {
     val coordinate: Point
-        get() = Point.fromLngLat(location.longitude, location.latitude)
+        get() = Point.fromLngLat(location.coordinates[0], location.coordinates[1])
 }
 
+/**
+ * GeoJSON Point location.
+ * JSON: { "type": "Point", "coordinates": [lon, lat] }
+ */
 @Serializable
 data class StationLocation(
-    val latitude: Double,
-    val longitude: Double
-)
+    val type: String = "Point",
+    val coordinates: List<Double>
+) {
+    val longitude: Double get() = coordinates[0]
+    val latitude: Double get() = coordinates[1]
+}

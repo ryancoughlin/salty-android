@@ -1,5 +1,8 @@
 package com.example.saltyoffshore.ui.screen
 
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -27,14 +31,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
+import com.example.saltyoffshore.ui.controls.MapToolBar
+import com.example.saltyoffshore.ui.sharelink.ShareLinkSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.RegionStatus
+import com.example.saltyoffshore.ui.components.AnnouncementSheetView
 import com.example.saltyoffshore.ui.components.CrosshairOverlay
 import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
 import com.example.saltyoffshore.ui.components.DatasetFilterSheet
+import com.example.saltyoffshore.ui.components.QuickActionsBar
 import com.example.saltyoffshore.ui.components.RegionAnnotationView
 import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
@@ -47,7 +55,6 @@ import com.example.saltyoffshore.data.Tournament
 import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.config.CrosshairConstants
 import com.example.saltyoffshore.managers.CrosshairFeatureQueryManager
-import android.util.Log
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
@@ -57,10 +64,11 @@ import androidx.compose.ui.platform.LocalDensity
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.displayVariables
+import com.example.saltyoffshore.data.hasMultipleVariables
+import com.example.saltyoffshore.data.primaryVariable
 import com.example.saltyoffshore.data.TemperatureUnits
-import com.example.saltyoffshore.data.waypoint.SharedWaypoint
 import com.example.saltyoffshore.data.waypoint.Waypoint
-import com.example.saltyoffshore.data.waypoint.WaypointSelectionSource
 import com.example.saltyoffshore.data.waypoint.WaypointSheet
 import com.example.saltyoffshore.data.waypoint.WaypointSource
 import com.example.saltyoffshore.data.coordinate.GPSFormat
@@ -73,10 +81,14 @@ import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
 import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
-import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.Spacing
+import com.example.saltyoffshore.ui.station.StationDetailsView
+import com.example.saltyoffshore.ui.satellite.SatelliteModeView
+import com.example.saltyoffshore.ui.map.satellite.SatelliteLayersEffect
 import com.example.saltyoffshore.viewmodel.AppViewModel
+import com.example.saltyoffshore.viewmodel.StationDetailViewModel
+import com.mapbox.maps.MapView
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.ScreenCoordinate
@@ -114,6 +126,15 @@ fun MapScreen(
 
     // Waypoint management sheet state
     var showWaypointSheet by remember { mutableStateOf(false) }
+
+    // Tools menu sheet state
+    var showToolsSheet by remember { mutableStateOf(false) }
+
+    // Dataset guide sheet state
+    var showDatasetGuideSheet by remember { mutableStateOf(false) }
+
+    // Special mode: hides normal controls when in satellite, measurement, etc.
+    val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
 
     // GPX file picker
     val context = LocalContext.current
@@ -167,14 +188,112 @@ fun MapScreen(
         viewModel.loadWaypoints()
     }
 
+    // ── Satellite mode viewport animations (iOS: MapModeModifier.swift) ──
+
+    // Fly to globe on enter, back to region on exit
+    LaunchedEffect(viewModel.satelliteTrackingMode.isActive) {
+        if (viewModel.satelliteTrackingMode.isActive) {
+            mapViewportState.flyTo(
+                cameraOptions = CameraOptions.Builder()
+                    .center(Point.fromLngLat(-40.0, 20.0))  // Atlantic midpoint
+                    .zoom(0.0)
+                    .bearing(0.0)
+                    .pitch(0.0)
+                    .build(),
+                animationOptions = MapAnimationOptions.Builder().duration(1500L).build()
+            )
+        } else {
+            // Fly back to region on exit
+            viewModel.selectedRegion?.let { region ->
+                val bounds = region.bounds
+                val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
+                val centerLat = (bounds[0][1] + bounds[1][1]) / 2.0
+                mapViewportState.flyTo(
+                    cameraOptions = CameraOptions.Builder()
+                        .center(Point.fromLngLat(centerLon, centerLat))
+                        .zoom(AppConstants.mapDefaultZoom)
+                        .bearing(0.0)
+                        .pitch(0.0)
+                        .build(),
+                    animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
+                )
+            }
+        }
+    }
+
+    // Fly to selected track (zoom 2.0)
+    LaunchedEffect(viewModel.satelliteTrackingMode.selectedTrackId) {
+        val id = viewModel.satelliteTrackingMode.selectedTrackId ?: return@LaunchedEffect
+        val track = viewModel.satelliteStore.tracks.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val (lat, lon) = track.center
+        mapViewportState.flyTo(
+            cameraOptions = CameraOptions.Builder()
+                .center(Point.fromLngLat(lon, lat))
+                .zoom(2.0)
+                .bearing(0.0)
+                .pitch(0.0)
+                .build(),
+            animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
+        )
+    }
+
+    // Fly to selected pass (zoom 3.0)
+    LaunchedEffect(viewModel.satelliteTrackingMode.selectedPassId) {
+        val id = viewModel.satelliteTrackingMode.selectedPassId ?: return@LaunchedEffect
+        val pass = viewModel.satelliteStore.passes.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val (lat, lon) = pass.center
+        mapViewportState.flyTo(
+            cameraOptions = CameraOptions.Builder()
+                .center(Point.fromLngLat(lon, lat))
+                .zoom(3.0)
+                .bearing(0.0)
+                .pitch(0.0)
+                .build(),
+            animationOptions = MapAnimationOptions.Builder().duration(800L).build()
+        )
+    }
+
+    // ── Map style: switch projection & theme for satellite mode ──
+    val mapStyleUri = if (viewModel.satelliteTrackingMode.isActive) {
+        AppConstants.darkMapStyleURI
+    } else {
+        AppConstants.lightMapStyleURI
+    }
+    val mapProjection = if (viewModel.satelliteTrackingMode.isActive) {
+        Projection.GLOBE
+    } else {
+        Projection.MERCATOR
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         MapboxMap(
             modifier = Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
-            style = { MapStyle(style = AppConstants.lightMapStyleURI, projection = Projection.MERCATOR) }
+            style = { MapStyle(style = mapStyleUri, projection = mapProjection) }
         ) {
             // Wire up repaint callback for Zarr frame updates
             ZarrRepaintEffect(viewModel = viewModel)
+
+            // Wire map snapshot capture for share links
+            MapEffect(Unit) { mapView ->
+                viewModel.captureMapSnapshot = {
+                    mapView.snapshot { bitmap ->
+                        viewModel.setMapSnapshot(bitmap)
+                    }
+                }
+            }
+
+            // Zoom constraints: cap at 4.0 in satellite mode (iOS: cameraBounds)
+            MapEffect(viewModel.satelliteTrackingMode.isActive) { mapView ->
+                val bounds = if (viewModel.satelliteTrackingMode.isActive) {
+                    com.mapbox.maps.CameraBoundsOptions.Builder()
+                        .minZoom(0.0).maxZoom(4.0).build()
+                } else {
+                    com.mapbox.maps.CameraBoundsOptions.Builder()
+                        .minZoom(1.0).maxZoom(24.0).build()
+                }
+                mapView.mapboxMap.setBounds(bounds)
+            }
 
             // Region bounds outline
             RegionBoundsEffect(region = viewModel.selectedRegion)
@@ -188,12 +307,24 @@ fun MapScreen(
                 visualSource = viewModel.visualSource
             )
 
+            // Load stations when layer is enabled (deferred — matches iOS)
+            val stationsEnabled = viewModel.globalLayerManager.isEnabled(
+                com.example.saltyoffshore.data.GlobalLayerType.STATIONS
+            )
+            LaunchedEffect(stationsEnabled) {
+                if (stationsEnabled) viewModel.loadStationsIfNeeded()
+            }
+
             // Global overlay layers (bathymetry, shipping lanes, etc.)
             GlobalLayersEffect(
                 visibility = viewModel.globalLayerManager.visibility,
                 loranConfig = viewModel.globalLayerManager.selectedLoranConfig,
                 selectedTournament = viewModel.globalLayerManager.selectedTournament,
-                stations = emptyList() // TODO: Wire up stations from API
+                stations = viewModel.stations,
+                onStationTap = { stationId ->
+                    Log.d(TAG, "Station tapped: $stationId")
+                    viewModel.openStationDetail(stationId)
+                }
             )
 
             // Crosshair feature query on camera changes
@@ -201,11 +332,11 @@ fun MapScreen(
                 isDataLayerActive = viewModel.isDataLayerActive,
                 datasetType = viewModel.currentDatasetType,
                 onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
-                onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
+                onCameraChanged = { zoom, lat, lon -> viewModel.updateCameraState(zoom, lat, lon) }
             )
 
-            // Region annotations — hide the active region (matches iOS guard)
-            viewModel.regions
+            // Region annotations — hide during satellite mode + hide the active region
+            if (!viewModel.satelliteTrackingMode.isActive) viewModel.regions
                 .filter { it.id != viewModel.selectedRegion?.id }
                 .forEach { region ->
                 ViewAnnotation(
@@ -222,15 +353,10 @@ fun MapScreen(
                 }
             }
 
-            // Waypoint annotation layers
+            // Waypoint annotation layer with tap handling
             WaypointLayersEffect(
                 waypoints = viewModel.waypoints,
-                crewWaypoints = viewModel.crewWaypoints,
-                selectedWaypointId = viewModel.selectedWaypointId,
-                ownedWaypointIds = viewModel.ownedWaypointIds,
-                onWaypointTap = { id ->
-                    viewModel.selectWaypoint(id, WaypointSelectionSource.MAP_TAP)
-                }
+                onWaypointTap = { id -> viewModel.openWaypointDetails(id) }
             )
 
             // Long-press to create waypoint + open form
@@ -263,6 +389,12 @@ fun MapScreen(
                     }
                 }
             }
+
+            // Satellite tracking layers — uses MapEffect internally for style reload survival
+            SatelliteLayersEffect(
+                trackingMode = viewModel.satelliteTrackingMode,
+                store = viewModel.satelliteStore
+            )
         }
 
         // Crosshair overlay
@@ -275,10 +407,12 @@ fun MapScreen(
             isDataLayerActive = viewModel.isDataLayerActive
         )
 
-        // Top bar: left (crew/future) | center (loading/error capsules) | right (account)
+        // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
-            isVisible = !viewModel.measurementState.isActive,
+            isVisible = !isInSpecialMode,
             notifications = viewModel.notificationManager.notifications,
+            showAnnouncement = viewModel.isAnnouncementVisible,
+            onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
             onAccountTap = onSettingsClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -305,7 +439,8 @@ fun MapScreen(
         }
 
         // Bottom controls column — matches iOS MapControlsContainer VStack
-        if (viewModel.selectedDataset != null) {
+        // Hidden in special modes (satellite, measurement replaces with its own overlay)
+        if (viewModel.selectedDataset != null && !viewModel.satelliteTrackingMode.isActive) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -322,15 +457,14 @@ fun MapScreen(
                     RightSideToolbar(
                         onFilterClick = { showFilterSheet = true },
                         onLayersClick = { showLayersSheet = true },
-                        onWaypointsClick = { showWaypointSheet = true },
+                        onToolsClick = { showToolsSheet = true },
                         onMeasureClick = {
                             if (viewModel.measurementState.isActive) {
                                 viewModel.measurementState.exit()
                             } else {
                                 viewModel.measurementState.enter()
                             }
-                        },
-                        isMeasureModeActive = viewModel.measurementState.isActive
+                        }
                     )
                 }
 
@@ -346,6 +480,37 @@ fun MapScreen(
                         onUndo = { viewModel.measurementState.undoLastPoint() },
                         onClear = { viewModel.measurementState.clearAll() },
                         onDone = { viewModel.measurementState.exit() }
+                    )
+                }
+
+                // Quick actions bar (presets, variables, depth)
+                if (!viewModel.measurementState.isActive) {
+                    val dataset = viewModel.selectedDataset!!
+                    val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
+                    val entry = viewModel.selectedEntry
+                    val rangeKey = datasetType.rangeKey
+                    val rangeData = entry?.ranges?.get(rangeKey)
+                    val valueRange = if (rangeData?.min != null && rangeData.max != null) {
+                        rangeData.min..rangeData.max
+                    } else {
+                        0.0..1.0
+                    }
+                    val config = viewModel.primaryConfig
+
+                    QuickActionsBar(
+                        datasetType = datasetType,
+                        variables = datasetType.displayVariables,
+                        selectedVariable = config?.selectedVariable(dataset) ?: datasetType.primaryVariable,
+                        onVariableSelected = { viewModel.selectVariable(it) },
+                        availableDepths = dataset.availableDepths ?: listOf(0),
+                        selectedDepth = viewModel.depthFilterState.selectedDepth,
+                        onDepthSelected = { viewModel.onDepthSelected(it) },
+                        allPresets = viewModel.allPresets,
+                        selectedPreset = config?.selectedPreset,
+                        currentValue = viewModel.primaryValue.value,
+                        valueRange = valueRange,
+                        isLoadingPresets = viewModel.isLoadingPresets,
+                        onPresetSelected = { viewModel.applyPreset(it) }
                     )
                 }
 
@@ -498,6 +663,145 @@ fun MapScreen(
                 onDismiss = { showWaypointSheet = false }
             )
         }
+
+        // Announcement sheet
+        if (viewModel.showAnnouncementSheet) {
+            viewModel.announcement?.let { ann ->
+                AnnouncementSheetView(
+                    announcement = ann,
+                    onDismiss = { viewModel.markAnnouncementAsSeen() }
+                )
+            }
+        }
+
+        // Tools menu sheet
+        if (showToolsSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showToolsSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                MapToolBar(
+                    onAddWaypoint = {
+                        showToolsSheet = false
+                        // TODO: Open waypoint creation at map center
+                    },
+                    onSatellites = {
+                        showToolsSheet = false
+                        showLayersSheet = false
+                        showDatasetSheet = false
+                        viewModel.satelliteTrackingMode.enter()
+                    },
+                    onMyLocation = {
+                        showToolsSheet = false
+                        // TODO: Fly to user location
+                    },
+                    onShare = {
+                        showToolsSheet = false
+                        viewModel.createShareLink()
+                    },
+                    onWaypoints = {
+                        showToolsSheet = false
+                        showWaypointSheet = true
+                    },
+                    onDatasetGuide = {
+                        showToolsSheet = false
+                        showDatasetGuideSheet = true
+                    },
+                    onDismiss = { showToolsSheet = false }
+                )
+            }
+        }
+
+        // Dataset guide sheet
+        if (showDatasetGuideSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showDatasetGuideSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.background
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Dataset Guide",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = { showDatasetGuideSheet = false }
+                        ) {
+                            Text("Done", color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                    com.example.saltyoffshore.ui.components.DatasetGuideView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(600.dp)
+                    )
+                }
+            }
+        }
+
+        // Share link preview sheet — full-screen style matching iOS
+        viewModel.shareLinkUrl?.let { url ->
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissShareLink() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = null
+            ) {
+                ShareLinkSheet(
+                    url = url,
+                    mapSnapshot = viewModel.shareLinkSnapshot,
+                    regionName = viewModel.selectedRegion?.name ?: "Unknown",
+                    datasetName = viewModel.selectedDataset?.let {
+                        DatasetType.fromRawValue(it.type)?.shortName ?: it.type
+                    } ?: "Unknown",
+                    timestamp = viewModel.selectedEntry?.timestamp ?: "",
+                    latitude = viewModel.currentLatitude,
+                    longitude = viewModel.currentLongitude,
+                    onDismiss = { viewModel.dismissShareLink() }
+                )
+            }
+        }
+
+        // Station detail sheet
+        viewModel.selectedStationId?.let { stationId ->
+            val stationDetailViewModel: StationDetailViewModel = viewModel(
+                key = "stationDetail",
+                factory = androidx.lifecycle.ViewModelProvider.NewInstanceFactory()
+            )
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissStationDetail() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                StationDetailsView(
+                    stationId = stationId,
+                    viewModel = stationDetailViewModel
+                )
+            }
+        }
+
+        // Satellite mode overlay (full-screen, on top of map)
+        if (viewModel.satelliteTrackingMode.isActive) {
+            SatelliteModeView(
+                trackingMode = viewModel.satelliteTrackingMode,
+                store = viewModel.satelliteStore,
+                onDismiss = { viewModel.satelliteTrackingMode.exit() }
+            )
+        }
     }
 }
 
@@ -570,7 +874,7 @@ private fun CrosshairQueryEffect(
     isDataLayerActive: Boolean,
     datasetType: DatasetType?,
     onPrimaryValueChanged: (CurrentValue) -> Unit,
-    onCameraChanged: (zoom: Double, latitude: Double) -> Unit
+    onCameraChanged: (zoom: Double, latitude: Double, longitude: Double) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -588,8 +892,9 @@ private fun CrosshairQueryEffect(
             val zoom = cameraState.zoom
             val center = cameraState.center
             val latitude = center.latitude()
+            val longitude = center.longitude()
 
-            onCameraChanged(zoom, latitude)
+            onCameraChanged(zoom, latitude, longitude)
 
             if (isDataLayerActive) {
                 val screenCenterX = mapView.width / 2.0
@@ -620,7 +925,8 @@ private fun GlobalLayersEffect(
     visibility: GlobalLayerVisibility,
     loranConfig: LoranRegionConfig?,
     selectedTournament: Tournament?,
-    stations: List<Station>
+    stations: List<Station>,
+    onStationTap: (String) -> Unit = {}
 ) {
     var globalLayers by remember { mutableStateOf<GlobalLayers?>(null) }
     var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
@@ -630,6 +936,7 @@ private fun GlobalLayersEffect(
     val currentLoranConfig by androidx.compose.runtime.rememberUpdatedState(loranConfig)
     val currentTournament by androidx.compose.runtime.rememberUpdatedState(selectedTournament)
     val currentStations by androidx.compose.runtime.rememberUpdatedState(stations)
+    val currentOnStationTap by androidx.compose.runtime.rememberUpdatedState(onStationTap)
 
     // Clean up on dispose
     DisposableEffect(Unit) {
@@ -644,11 +951,32 @@ private fun GlobalLayersEffect(
         Log.d(TAG, "GlobalLayersEffect: MapEffect triggered")
         mapboxMapRef = mapView.mapboxMap
 
+        // Station marker tap detection via queryRenderedFeatures
+        mapView.mapboxMap.let { map ->
+            mapView.gestures.addOnMapClickListener { point ->
+                val screenPoint = map.pixelForCoordinate(point)
+                val geometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
+                val options = com.mapbox.maps.RenderedQueryOptions(
+                    listOf(com.example.saltyoffshore.config.MapLayers.Global.STATIONS_LAYER),
+                    null
+                )
+                map.queryRenderedFeatures(geometry, options) { expected ->
+                    expected.value?.firstOrNull()?.let { feature ->
+                        val stationId = feature.queriedFeature.feature.getStringProperty("id")
+                        if (stationId != null) {
+                            currentOnStationTap(stationId)
+                        }
+                    }
+                }
+                false // Don't consume — let other listeners also handle
+            }
+        }
+
         // Subscribe to style loaded events for initial render
         mapView.mapboxMap.subscribeStyleLoaded { _ ->
             Log.d(TAG, "GlobalLayersEffect: Style loaded event received")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.mapboxMap)
+                globalLayers = GlobalLayers(mapView.context, mapView.mapboxMap)
             }
             globalLayers?.update(
                 visibility = currentVisibility,
@@ -662,7 +990,7 @@ private fun GlobalLayersEffect(
         mapView.mapboxMap.getStyle { _ ->
             Log.d(TAG, "GlobalLayersEffect: getStyle callback - style available")
             if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.mapboxMap)
+                globalLayers = GlobalLayers(mapView.context, mapView.mapboxMap)
             }
             globalLayers?.update(
                 visibility = currentVisibility,
@@ -673,8 +1001,8 @@ private fun GlobalLayersEffect(
         }
     }
 
-    // Update layers when visibility changes (after initial setup)
-    LaunchedEffect(visibility, loranConfig, selectedTournament) {
+    // Update layers when visibility or stations change (after initial setup)
+    LaunchedEffect(visibility, loranConfig, selectedTournament, stations) {
         val map = mapboxMapRef ?: return@LaunchedEffect
         map.getStyle { _ ->
             globalLayers?.update(
@@ -688,81 +1016,62 @@ private fun GlobalLayersEffect(
 }
 
 /**
- * Effect that manages waypoint annotation layers (own + shared).
- * Uses imperative GeoJSON source + SymbolLayer pattern matching StationsLayer.
+ * Simple waypoint layer effect: icons + text + tap handling.
  */
 @Composable
 private fun WaypointLayersEffect(
     waypoints: List<Waypoint>,
-    crewWaypoints: List<SharedWaypoint>,
-    selectedWaypointId: String?,
-    ownedWaypointIds: Set<String>,
     onWaypointTap: (String) -> Unit
 ) {
-    var ownLayer by remember { mutableStateOf<WaypointAnnotationLayer?>(null) }
-    var sharedLayer by remember { mutableStateOf<SharedWaypointAnnotationLayer?>(null) }
+    val context = LocalContext.current
+    var layer by remember { mutableStateOf<WaypointAnnotationLayer?>(null) }
     var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
-
-    // Use rememberUpdatedState for latest values in callbacks
     val currentWaypoints by androidx.compose.runtime.rememberUpdatedState(waypoints)
-    val currentCrewWaypoints by androidx.compose.runtime.rememberUpdatedState(crewWaypoints)
-    val currentSelectedId by androidx.compose.runtime.rememberUpdatedState(selectedWaypointId)
-    val currentOwnedIds by androidx.compose.runtime.rememberUpdatedState(ownedWaypointIds)
+    val currentOnWaypointTap by androidx.compose.runtime.rememberUpdatedState(onWaypointTap)
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
-    // Clean up on dispose
     DisposableEffect(Unit) {
         onDispose {
-            ownLayer?.removeFromMap()
-            ownLayer = null
-            sharedLayer?.removeFromMap()
-            sharedLayer = null
+            layer?.removeFromMap()
+            layer = null
         }
     }
 
-    // Get map reference and do initial render
+    fun render(mapboxMap: com.mapbox.maps.MapboxMap) {
+        if (layer == null) layer = WaypointAnnotationLayer(mapboxMap, context)
+        layer?.update(currentWaypoints)
+    }
+
     MapEffect(Unit) { mapView ->
         mapboxMapRef = mapView.mapboxMap
 
-        mapView.mapboxMap.getStyle { _ ->
-            if (ownLayer == null) {
-                ownLayer = WaypointAnnotationLayer(mapView.mapboxMap)
-            }
-            if (sharedLayer == null) {
-                sharedLayer = SharedWaypointAnnotationLayer(mapView.mapboxMap)
-            }
-
-            ownLayer?.update(
-                waypoints = currentWaypoints,
-                selectedWaypointId = currentSelectedId,
-                activeCrewId = null // TODO: wire crew state
+        // Tap detection via queryRenderedFeatures
+        mapView.gestures.addOnMapClickListener { point ->
+            val screenPoint = mapView.mapboxMap.pixelForCoordinate(point)
+            val geometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
+            val options = com.mapbox.maps.RenderedQueryOptions(
+                listOf(com.example.saltyoffshore.config.MapLayers.Waypoint.OWN_LAYER),
+                null
             )
-            sharedLayer?.update(
-                sharedWaypoints = currentCrewWaypoints,
-                activeCrewId = null, // TODO: wire crew state
-                ownedWaypointIds = currentOwnedIds,
-                selectedWaypointId = currentSelectedId
-            )
+            mapView.mapboxMap.queryRenderedFeatures(geometry, options) { expected ->
+                expected.value?.firstOrNull()?.let { feature ->
+                    feature.queriedFeature.feature.getStringProperty("id")?.let { id ->
+                        currentOnWaypointTap(id)
+                    }
+                }
+            }
+            false
         }
 
-        // TODO: Handle tap on waypoint features — wire when gesture API is confirmed
-        // Needs: addOnMapClickListener + queryRenderedFeatures for waypoint layer tap detection
+        mapView.mapboxMap.subscribeStyleLoaded { _ ->
+            mainHandler.post { render(mapView.mapboxMap) }
+        }
+
+        mapView.mapboxMap.getStyle { _ -> render(mapView.mapboxMap) }
     }
 
-    // Update layers when data changes
-    LaunchedEffect(waypoints, crewWaypoints, selectedWaypointId) {
+    LaunchedEffect(waypoints) {
         val map = mapboxMapRef ?: return@LaunchedEffect
-        map.getStyle { _ ->
-            ownLayer?.update(
-                waypoints = currentWaypoints,
-                selectedWaypointId = currentSelectedId,
-                activeCrewId = null
-            )
-            sharedLayer?.update(
-                sharedWaypoints = currentCrewWaypoints,
-                activeCrewId = null,
-                ownedWaypointIds = currentOwnedIds,
-                selectedWaypointId = currentSelectedId
-            )
-        }
+        map.getStyle { _ -> render(map) }
     }
 }

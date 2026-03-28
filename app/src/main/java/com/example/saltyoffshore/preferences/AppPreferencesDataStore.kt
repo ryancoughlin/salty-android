@@ -326,4 +326,19 @@ object AppPreferencesDataStore {
     suspend fun setEnableWeatherLayers(context: Context, enabled: Boolean) {
         context.dataStore.edit { it[ENABLE_WEATHER_LAYERS] = enabled }
     }
+
+    // =============================================================================
+    // MARK: - Notification Preferences (iOS: PushNotificationService.swift)
+    // =============================================================================
+
+    private val HAS_SEEN_NOTIFICATION_PRIMER = booleanPreferencesKey("has_seen_notification_primer")
+
+    // Has Seen Notification Primer (default: false)
+
+    fun getHasSeenNotificationPrimer(context: Context): Flow<Boolean> =
+        context.dataStore.data.map { it[HAS_SEEN_NOTIFICATION_PRIMER] ?: false }
+
+    suspend fun setHasSeenNotificationPrimer(context: Context, seen: Boolean) {
+        context.dataStore.edit { it[HAS_SEEN_NOTIFICATION_PRIMER] = seen }
+    }
 }

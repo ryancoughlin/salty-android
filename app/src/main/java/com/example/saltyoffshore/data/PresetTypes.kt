@@ -1,5 +1,7 @@
 package com.example.saltyoffshore.data
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.round
@@ -182,14 +184,23 @@ data class PresetConfiguration(
  * Statistics for a COG band, used for dynamic preset generation.
  * iOS: struct COGBandStatistics
  */
+@Serializable
 data class COGBandStatistics(
     val min: Double,
     val max: Double,
     val mean: Double,
     val std: Double,
     val median: Double? = null,
-    val percentile_2: Double,
-    val percentile_98: Double
+    val majority: Double? = null,
+    val minority: Double? = null,
+    @SerialName("percentile_2") val percentile2: Double,
+    @SerialName("percentile_98") val percentile98: Double,
+    val count: Double? = null,
+    val sum: Double? = null,
+    val unique: Double? = null,
+    @SerialName("valid_percent") val validPercent: Double? = null,
+    @SerialName("masked_pixels") val maskedPixels: Double? = null,
+    @SerialName("valid_pixels") val validPixels: Double? = null
 )
 
 // MARK: - Dynamic Preset Builder
@@ -248,20 +259,20 @@ object DynamicPresetBuilder {
     }
 
     private fun warmWaterPreset(stats: COGBandStatistics): DatasetPreset? {
-        if (!stats.percentile_98.isFinite() || !stats.mean.isFinite()) return null
+        if (!stats.percentile98.isFinite() || !stats.mean.isFinite()) return null
 
-        val threshold = round(stats.percentile_98).toInt()
+        val threshold = round(stats.percentile98).toInt()
         return DatasetPreset(
             id = "dynamic_warm_water",
             label = "Warm Water (${threshold} deg F)",
-            type = PresetType.FixedRange(min = stats.mean, max = stats.percentile_98),
+            type = PresetType.FixedRange(min = stats.mean, max = stats.percentile98),
             datasetType = DatasetType.SST
         )
     }
 
     private fun temperatureBreaksPreset(stats: COGBandStatistics): DatasetPreset? {
         if (!stats.mean.isFinite() || !stats.std.isFinite()) return null
-        if (!stats.percentile_2.isFinite() || !stats.percentile_98.isFinite()) return null
+        if (!stats.percentile2.isFinite() || !stats.percentile98.isFinite()) return null
 
         // Calculate optimal break range using enhanced algorithm
         val breakRange = calculateOptimalBreakRange(stats)
@@ -282,8 +293,8 @@ object DynamicPresetBuilder {
      */
     private fun calculateOptimalBreakRange(stats: COGBandStatistics): ClosedFloatingPointRange<Double> {
         // Step 1: Clip extremes (ignore clouds/outliers)
-        val safeMin = stats.percentile_2
-        val safeMax = stats.percentile_98
+        val safeMin = stats.percentile2
+        val safeMax = stats.percentile98
 
         // Step 2: Detect break spread using standard deviation
         val stdDev = stats.std
@@ -314,13 +325,13 @@ object DynamicPresetBuilder {
 
     /** Slack Currents (bottom 2% - calm areas for drifting) */
     private fun slackCurrentPreset(stats: COGBandStatistics): DatasetPreset? {
-        if (!stats.percentile_2.isFinite() || !stats.min.isFinite()) return null
+        if (!stats.percentile2.isFinite() || !stats.min.isFinite()) return null
 
-        val threshold = String.format("%.1f", stats.percentile_2)
+        val threshold = String.format("%.1f", stats.percentile2)
         return DatasetPreset(
             id = "dynamic_slack_current",
             label = "Slack Water (<${threshold} kts)",
-            type = PresetType.FixedRange(min = stats.min, max = stats.percentile_2),
+            type = PresetType.FixedRange(min = stats.min, max = stats.percentile2),
             datasetType = DatasetType.CURRENTS
         )
     }
@@ -344,13 +355,13 @@ object DynamicPresetBuilder {
 
     /** Strong Currents (top 2% - rips and upwelling zones) */
     private fun strongCurrentPreset(stats: COGBandStatistics): DatasetPreset? {
-        if (!stats.percentile_98.isFinite() || !stats.max.isFinite()) return null
+        if (!stats.percentile98.isFinite() || !stats.max.isFinite()) return null
 
-        val threshold = String.format("%.1f", stats.percentile_98)
+        val threshold = String.format("%.1f", stats.percentile98)
         return DatasetPreset(
             id = "dynamic_strong_current",
             label = "Strong Current (>${threshold} kts)",
-            type = PresetType.FixedRange(min = stats.percentile_98, max = stats.max),
+            type = PresetType.FixedRange(min = stats.percentile98, max = stats.max),
             datasetType = DatasetType.CURRENTS
         )
     }
@@ -382,13 +393,13 @@ object DynamicPresetBuilder {
      * Baitfish concentrate at freshwater/saltwater interfaces.
      */
     private fun riverPlumePreset(stats: COGBandStatistics): DatasetPreset? {
-        if (!stats.percentile_2.isFinite() || !stats.min.isFinite()) return null
+        if (!stats.percentile2.isFinite() || !stats.min.isFinite()) return null
 
-        val threshold = String.format("%.1f", stats.percentile_2)
+        val threshold = String.format("%.1f", stats.percentile2)
         return DatasetPreset(
             id = "dynamic_river_plume",
             label = "River Plume (<${threshold} PSU)",
-            type = PresetType.FixedRange(min = stats.min, max = stats.percentile_2),
+            type = PresetType.FixedRange(min = stats.min, max = stats.percentile2),
             datasetType = DatasetType.SALINITY
         )
     }
@@ -418,13 +429,13 @@ object DynamicPresetBuilder {
      * Clean offshore water where pelagics (marlin, tuna, wahoo) prefer.
      */
     private fun blueWaterPreset(stats: COGBandStatistics): DatasetPreset? {
-        if (!stats.percentile_98.isFinite() || !stats.max.isFinite()) return null
+        if (!stats.percentile98.isFinite() || !stats.max.isFinite()) return null
 
-        val threshold = String.format("%.1f", stats.percentile_98)
+        val threshold = String.format("%.1f", stats.percentile98)
         return DatasetPreset(
             id = "dynamic_blue_water",
             label = "Blue Water (>${threshold} PSU)",
-            type = PresetType.FixedRange(min = stats.percentile_98, max = stats.max),
+            type = PresetType.FixedRange(min = stats.percentile98, max = stats.max),
             datasetType = DatasetType.SALINITY
         )
     }

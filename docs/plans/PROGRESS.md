@@ -121,19 +121,145 @@ Three critical disconnects fixed + six iOS parity corrections.
 
 ---
 
+## Phase 3: Presets + Variables + Quick Actions — COMPLETE
+
+- [x] `COGStatisticsService` — Ktor service fetching band statistics from TiTiler, custom KSerializer for dynamic band JSON
+- [x] `COGStatisticsResponse` — `@Serializable` with dynamic band names, `primaryBandStatistics()`, convenience accessors
+- [x] `COGBandStatistics` expanded — added all iOS fields (majority, minority, count, sum, unique, validPercent, maskedPixels, validPixels), `@SerialName` for snake_case JSON mapping
+- [x] `QuickActionChip` — M3 FilterChip with two-state white alpha styling: active (solid white/black text) vs inactive (white@20%/white@70% text)
+- [x] `PresetQuickActions` — preset chip row with range text, loading indicator, break preset disabling
+- [x] `VariableQuickActions` — variable chips, only renders for multi-variable datasets
+- [x] `DepthQuickAction` — depth cycle chip (tap cycles through available depths)
+- [x] `QuickActionsBar` — wired all three sections with vertical dividers, horizontalScroll, 44dp height
+- [x] `AppViewModel.applyPreset()` — toggle on/off, calculates range from crosshair + entry data
+- [x] `AppViewModel.selectVariable()` — switches variable, clears active filter
+- [x] `AppViewModel.loadCOGStatistics()` — 600ms debounced, cancel-and-replace, `Dispatchers.IO` for network, state writes on Main
+- [x] `allPresets` computed property — merges static + dynamic presets
+- [x] COG stats wired to entry changes — `loadCOGStatistics()` called from `selectEntry()`, `loadEntriesForDataset()`, `selectDataset()`
+- [x] `DatasetRenderConfig` cleanup — removed dead `cogStatistics: Any?` field
+- [x] `MapScreen` placement — QuickActionsBar positioned above SaltyDatasetControl
+
+**Commit:** `53eb441` — 10 files, 658 insertions
+
+**Design decision:** White alpha chips (active=solid white, inactive=white@20%) over M3 surface containers. M3 surfaces are opaque and designed for app chrome — on a satellite map they'd look like dark blobs. White alpha is the closest Android equivalent to iOS `.ultraThinMaterial` for map overlays. Google Maps uses the same approach.
+
+**Remaining gaps (not blocking, future work):**
+- [ ] **Stagger entrance animation**: iOS delays each chip by 0.03s. Android chips appear instantly.
+- [ ] **Spring selection animation**: iOS uses spring(response=0.5, damping=0.9). Android uses default M3 chip animation.
+- [ ] **Edge fade mask**: iOS QuickActionsBar has `.edgeFadeMask()`. Android has no equivalent modifier.
+- [ ] **Haptic feedback**: iOS fires haptic on chip tap. Android has none.
+- [ ] **Break preset toast**: iOS shows snackbar when tapping break preset without crosshair value. Android disables the chip but shows no message.
+- [ ] **Pro/preview mode gating**: iOS dims chips for non-premium users. Android skips subscription gating entirely.
+- [ ] **Statistics caching by COG URL**: iOS caches in DatasetActor. Android fetches every time (debounced but no cache).
+- [ ] **Overlay preset support**: iOS has `applyOverlayPreset()`. Android only supports primary dataset presets.
+
+---
+
+## Phase 10: Stations + Weather — COMPLETE
+
+- [x] `StationListService` — fetch station list from API
+- [x] `StationDetailViewModel` — individual station detail (observations, forecasts)
+- [x] `StationDetailsView` — bottom sheet with forecast charts, weather data
+- [x] Station markers on map via `GlobalLayers`
+
+**Commit:** `5a6071b`
+
+---
+
+## Tools Menu + Announcements + Share Links — COMPLETE (merged from main)
+
+From `main` branch merge (`ad47c34`):
+
+- [x] **Map Tools Menu** — grid layout bottom sheet matching iOS MapToolBar (waypoints, satellites, my location, share, dataset guide)
+- [x] **Announcements** — fetch from Supabase, display sheet, dismiss tracking
+- [x] **Share Links** — create shareable map links with camera/layers/region state, preview sheet with map snapshot
+
+---
+
+## Satellite Tracker Mode — IN PROGRESS
+
+Satellite tracking UI, state, and API fully ported. Map layer rendering not yet working.
+
+**Plan:** `docs/plans/2026-03-27-satellite-tracker.md`
+
+### What's Done
+
+- [x] **Data models** — 16 types: TrackerResponse, SatelliteTrack, RegionalPass, SatelliteCoverage, enums (SatelliteDatasetType, OrbitDirection, DayNight, PassStatus, SkipReason, DataFreshness, GeoJSONPolygon)
+- [x] **SatelliteService** — 3 API endpoints: /satellites/swaths, /satellites/coverage, /region/{id}/satellite-coverage
+- [x] **SatelliteTrackingMode** — mode state: isActive, mode (tracker/coverage), selections, night filter
+- [x] **SatelliteStore** — data state: tracks, passes, predictions, parallel loading
+- [x] **SatelliteModeView** — full-screen overlay: mode toggle pill, data loading via LaunchedEffect, auto-select
+- [x] **TrackerPanel** — HorizontalPager carousel with satellite cards, bidirectional sync, page dots
+- [x] **CoveragePanel** — pass list with status indicators, night toggle, yesterday header, auto-scroll
+- [x] **PassPredictionPanel** — NextPassRow + ModalBottomSheet with freshness dots, countdown
+- [x] **DayNightBadge** — day/night/both badge composable
+- [x] **SatelliteTrackLayer** — Mapbox layers: unselected outlines, selected fill+glow, trail with fading opacity, labels
+- [x] **CoveragePassLayer** — selected polygon + tappable circle pins with status colors
+- [x] **SatelliteLayers** — router with cross-mode cleanup
+- [x] **Globe viewport** — fly animation to 20°N/40°W zoom 0 on enter, fly back to region on exit
+- [x] **Globe projection** — Mercator → Globe when active, dark theme forced
+- [x] **Zoom constraints** — 0-4 in satellite mode (vs 1-24 normal)
+- [x] **Selection camera** — fly to track (zoom 2.0) and pass (zoom 3.0) on selection
+- [x] **Region annotations** — hidden during satellite mode
+- [x] **Tools menu wiring** — satellite mode launches from map tools menu
+- [x] **Sheet dismissal** — all sheets close on satellite mode entry
+
+### Files Created (14)
+
+| File | Lines |
+|------|-------|
+| `data/satellite/SatelliteModels.kt` | ~350 |
+| `data/satellite/SatelliteService.kt` | ~65 |
+| `viewmodel/SatelliteTrackingMode.kt` | ~80 |
+| `viewmodel/SatelliteStore.kt` | ~120 |
+| `ui/satellite/SatelliteModeView.kt` | ~250 |
+| `ui/satellite/TrackerPanel.kt` | ~200 |
+| `ui/satellite/CoveragePanel.kt` | ~370 |
+| `ui/satellite/PassPredictionPanel.kt` | ~280 |
+| `ui/satellite/DayNightBadge.kt` | ~50 |
+| `ui/map/satellite/SatelliteTrackLayer.kt` | ~250 |
+| `ui/map/satellite/CoveragePassLayer.kt` | ~230 |
+| `ui/map/satellite/SatelliteLayers.kt` | ~80 |
+| `res/drawable/ic_satellite.xml` | vector drawable |
+| `docs/plans/2026-03-27-satellite-tracker.md` | implementation plan |
+
+### Files Modified (4)
+
+- `viewmodel/AppViewModel.kt` — added satelliteTrackingMode + satelliteStore
+- `ui/screen/MapScreen.kt` — viewport animations, projection, zoom bounds, overlay, tools wiring
+- `ui/controls/RightSideToolbar.kt` — resolved merge conflict (tools menu from main)
+- `data/SaltyApi.kt` — made client internal for SatelliteStore access
+
+### Blocking: Map Layer Rendering
+
+- [ ] **SatelliteTrackLayer polygons/trails/labels not rendering on map** — UI panel works, API returns data, camera animates to satellites, but Mapbox GeoJSON layers don't appear. Investigated: thread safety (subscribeStyleLoaded dispatches to main), style reload survival (subscribeStyleLoaded + getStyle pattern), MapEffect composition timing. Debug logging added. Needs further investigation — check Logcat `SatelliteLayers` tag.
+- [ ] **CoveragePassLayer pins/polygons not rendering** — same root cause as tracker layers
+
+### Remaining Gaps (cosmetic, not blocking)
+
+- [ ] **Foreground color animation on TrackerCard**: iOS animates both bg and text color; Android animates bg only, text snaps
+- [ ] **Duplicate Mapbox helpers**: `toMapboxFeature`, `addOrUpdateSource`, etc. copied in both track/coverage layers (could extract to shared file)
+- [ ] **CoveragePanel date formatter**: has its own ISO parser instead of reusing SatelliteModels helpers
+- [ ] **Pin icons**: iOS uses custom coverage-pin-success/pending/unavailable drawables; Android uses CircleLayer (functional but less polished)
+
+---
+
 ## Upcoming Phases
 
 | Phase | Status | Spec |
 |-------|--------|------|
 | 2.5 — Data Viz Pipeline | **Fixed** | See "Data Visualization Pipeline Fix" above |
-| 3 — Presets | Not started | `phases/phase-3-presets.md` |
-| 4 — Colorscale + Variables | Not started | `phases/phase-4-colorscale-variables.md` |
+| 3 — Presets | **Complete** | `phases/phase-3-presets.md` |
+| 4 — Colorscale + Variables | Partially done (variables done, colorscale picker remaining) | `phases/phase-4-colorscale-variables.md` |
 | 5 — Overlay Datasets | Not started | `phases/phase-5-overlay-datasets.md` |
 | 6 — Waypoints | Phase 1 complete | `phases/phase-6-waypoints.md` |
 | 7 — Measurement | **Complete** | `phases/phase-7-measurement.md` |
-| 8 — Announcements | Not started | `phases/phase-8-announcements.md` |
+| 8 — Announcements | **Complete** (merged from main) | `phases/phase-8-announcements.md` |
 | 9 — Route Recording | Not started | `phases/phase-9-route-recording.md` |
-| 10 — Stations + Weather | Not started | `phases/phase-10-stations-weather.md` |
+| 10 — Stations + Weather | **Complete** | `phases/phase-10-stations-weather.md` |
+| — Tools Menu | **Complete** (merged from main) | MapToolBar grid layout |
+| — Share Links | **Complete** (merged from main) | Create + preview shareable map links |
+| — Satellite Tracker | **In Progress** (UI done, map layers not rendering) | `plans/2026-03-27-satellite-tracker.md` |
 
 ---
 

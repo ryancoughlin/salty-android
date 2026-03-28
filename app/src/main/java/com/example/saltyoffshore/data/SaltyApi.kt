@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
 
 object SaltyApi {
 
-    private val client = HttpClient(OkHttp) {
+    internal val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true

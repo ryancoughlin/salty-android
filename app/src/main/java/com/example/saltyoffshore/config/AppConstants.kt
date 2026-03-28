@@ -35,7 +35,7 @@ object AppConstants {
     const val mapMinZoom: Double = 0.0
 
     /** Maximum zoom level */
-    const val mapMaxZoom: Double = 12.0
+    const val mapMaxZoom: Double = 16.0
 
     /** Default animation duration in milliseconds */
     const val mapDefaultAnimationDuration: Long = 1500L
@@ -47,6 +47,9 @@ object AppConstants {
 
     /** Dark theme map style URI */
     const val darkMapStyleURI: String = "mapbox://styles/snowcast/cmfa1occi004701p83f5ghngx"
+
+    /** Satellite theme map style URI */
+    const val satelliteMapStyleURI: String = "mapbox://styles/snowcast/cmg5upllr00dw01qt3z2rcl3s"
 
     /** Legacy - use lightMapStyleURI instead */
     const val mapStyleURI: String = lightMapStyleURI
@@ -73,8 +76,11 @@ object AppConstants {
 
     // MARK: - Global Layer Tile URLs
 
-    /** Bathymetry contours PMTiles */
+    /** Bathymetry contours PMTiles (regional, z5–z12) */
     const val bathymetryContoursURL: String = "$staticTilesURL/bathymetry_contours/{z}/{x}/{y}"
+
+    /** Bathymetry overview PMTiles (GEBCO global, z0–z4) */
+    const val bathymetryOverviewURL: String = "$staticTilesURL/bathymetry_overview/{z}/{x}/{y}"
 
     /** Shipping lanes PMTiles */
     const val shippingLanesTileURL: String = "$staticTilesURL/shipping_lanes/{z}/{x}/{y}"
@@ -122,6 +128,11 @@ object AppConstants {
 
     /** Supabase service role key */
     const val supabaseKey: String = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12aGh1aHdvYWJxZ3JicWV3cXNrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzAyMzU4NiwiZXhwIjoyMDQ4NTk5NTg2fQ.I8Ie0Zfk1KQgT54YVriSeQYvzd82DTTx12bbvYXRnNs"
+
+    // MARK: - Support
+
+    /** Support email address */
+    const val supportEmail: String = "support@saltyoffshore.com"
 
     // MARK: - Helper Functions
 

@@ -9,26 +9,40 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
+import com.example.saltyoffshore.data.Announcement
+import com.example.saltyoffshore.data.AnnouncementDisplayState
+import com.example.saltyoffshore.data.AnnouncementService
+import com.example.saltyoffshore.data.sharelink.ShareLinkCameraView
+import com.example.saltyoffshore.data.sharelink.ShareLinkDatasetConfig
+import com.example.saltyoffshore.data.sharelink.ShareLinkPayload
+import com.example.saltyoffshore.data.sharelink.ShareLinkService
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.LoadOperation
 import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationManager
+import com.example.saltyoffshore.data.COGStatisticsResponse
+import com.example.saltyoffshore.data.COGStatisticsService
 import com.example.saltyoffshore.data.Colorscale
 import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.Dataset
+import com.example.saltyoffshore.data.DatasetPreset
 import com.example.saltyoffshore.data.DatasetRenderConfig
 import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
+import com.example.saltyoffshore.data.DatasetVariable
 import com.example.saltyoffshore.data.DepthFilterState
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
 import com.example.saltyoffshore.data.measurement.MeasurementState
 import com.example.saltyoffshore.data.GpsFormat
 import com.example.saltyoffshore.data.MapTheme
+import com.example.saltyoffshore.data.PresetConfiguration
 import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 import com.example.saltyoffshore.data.RegionMetadata
 import com.example.saltyoffshore.data.SaltyApi
+import com.example.saltyoffshore.data.Station
 import com.example.saltyoffshore.data.ScaleMode
+import com.example.saltyoffshore.data.StationListService
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.TimeEntry
@@ -64,7 +78,11 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,6 +96,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Measurement state
     val measurementState = MeasurementState()
+
+    // Satellite tracking
+    val satelliteTrackingMode = SatelliteTrackingMode()
+    val satelliteStore = SatelliteStore(SaltyApi.client)
 
     val currentDistanceUnits: DistanceUnits
         get() = DistanceUnits.fromRawValue(userPreferences?.distanceUnits) ?: DistanceUnits.NAUTICAL_MILES
@@ -152,6 +174,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var depthFilterState by mutableStateOf(DepthFilterState())
         private set
 
+    // Preset state
+    var cogStatistics: COGStatisticsResponse? by mutableStateOf(null)
+        private set
+    var dynamicPresets: List<DatasetPreset> by mutableStateOf(emptyList())
+        private set
+    var isLoadingPresets: Boolean by mutableStateOf(false)
+        private set
+
+    /** All presets for current dataset: static + dynamic merged */
+    val allPresets: List<DatasetPreset>
+        get() {
+            val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return emptyList()
+            val config = PresetConfiguration.configuration(datasetType) ?: return emptyList()
+            return config.staticPresets + dynamicPresets
+        }
+
     // Crosshair state
     var primaryValue by mutableStateOf(CurrentValue())
         private set
@@ -160,6 +198,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     var currentLatitude by mutableStateOf(30.0)
+        private set
+
+    var currentLongitude by mutableStateOf(-60.0)
         private set
 
     // Dataset control state (matches iOS DatasetControlState)
@@ -193,6 +234,71 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private var hasLoadedWaypointsFromDisk = false
 
+    // MARK: - Announcement State
+
+    var announcementDisplayState by mutableStateOf<AnnouncementDisplayState>(AnnouncementDisplayState.Hidden)
+        private set
+
+    var showAnnouncementSheet by mutableStateOf(false)
+
+    /** The currently visible announcement, or null */
+    val announcement: Announcement?
+        get() = (announcementDisplayState as? AnnouncementDisplayState.Visible)?.announcement
+
+    /** True when announcement is active and unseen by user */
+    val isAnnouncementVisible: Boolean
+        get() = announcementDisplayState is AnnouncementDisplayState.Visible
+
+    // MARK: - Share Link State
+
+    var shareLinkUrl by mutableStateOf<String?>(null)
+        private set
+
+    var shareLinkSnapshot by mutableStateOf<android.graphics.Bitmap?>(null)
+        private set
+
+    var isCreatingShareLink by mutableStateOf(false)
+        private set
+
+    /** Callback set by MapScreen to capture map bitmap on demand */
+    var captureMapSnapshot: (() -> Unit)? = null
+
+    // MARK: - Station State
+
+    var stations by mutableStateOf<List<Station>>(emptyList())
+        private set
+
+    private var hasLoadedStations = false
+
+    /** Station detail sheet — set to a stationId to show detail sheet. */
+    var selectedStationId by mutableStateOf<String?>(null)
+        private set
+
+    fun openStationDetail(stationId: String) {
+        selectedStationId = stationId
+    }
+
+    fun dismissStationDetail() {
+        selectedStationId = null
+    }
+
+    /** Deferred loading — only fetches when stations layer is first enabled. Matches iOS StationsViewModel. */
+    fun loadStationsIfNeeded() {
+        if (hasLoadedStations) return
+        hasLoadedStations = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val loaded = StationListService.fetchStations(context)
+                withContext(Dispatchers.Main) {
+                    stations = loaded
+                }
+                Log.d(TAG, "Loaded ${loaded.size} stations")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load stations", e)
+            }
+        }
+    }
+
     // MARK: - Waypoint Derived Properties
 
     val allWaypoints: List<Waypoint>
@@ -217,8 +323,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
     init {
+        satelliteTrackingMode.selectedRegionIdProvider = { selectedRegion?.id }
         loadRegionsAndRestoreSelection()
         loadUserPreferences()
+        checkForAnnouncements()
     }
 
     private fun loadUserPreferences() {
@@ -230,6 +338,98 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.d(TAG, "Loaded user preferences: ${prefs != null}")
         }
+    }
+
+    // MARK: - Announcement Methods
+
+    private fun checkForAnnouncements() {
+        viewModelScope.launch {
+            val state = AnnouncementService.checkForAnnouncements(context)
+            announcementDisplayState = state
+        }
+    }
+
+    fun markAnnouncementAsSeen() {
+        val version = announcement?.version ?: return
+        viewModelScope.launch {
+            AnnouncementService.markAsSeen(context, version)
+        }
+        announcementDisplayState = AnnouncementDisplayState.Hidden
+        showAnnouncementSheet = false
+    }
+
+    // MARK: - Share Link Methods
+
+    /**
+     * Capture current map state as a ShareLinkPayload and create a share link.
+     */
+    fun createShareLink() {
+        val region = selectedRegion ?: return
+        val dataset = selectedDataset ?: return
+        val entry = selectedEntry ?: return
+        val config = primaryConfig
+
+        // Capture map snapshot before creating link
+        captureMapSnapshot?.invoke()
+
+        isCreatingShareLink = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val payload = ShareLinkPayload(
+                    entryId = entry.id,
+                    regionId = region.id,
+                    view = ShareLinkCameraView.from(
+                        longitude = currentLongitude,
+                        latitude = currentLatitude,
+                        zoom = currentZoom
+                    ),
+                    primaryConfig = config?.let { cfg ->
+                        ShareLinkDatasetConfig(
+                            datasetId = dataset.id,
+                            colorscaleId = cfg.colorscale?.id,
+                            customRange = cfg.customRange?.let { listOf(it.start, it.endInclusive) },
+                            filterMode = cfg.filterMode.rawValue,
+                            visualEnabled = cfg.visualEnabled,
+                            visualOpacity = cfg.visualOpacity,
+                            contourEnabled = cfg.contourEnabled,
+                            contourOpacity = cfg.contourOpacity,
+                            contourColor = String.format("#%06X", 0xFFFFFF and cfg.contourColor.toInt()),
+                            dynamicContourColoring = cfg.dynamicContourColoring,
+                            arrowsEnabled = cfg.arrowsEnabled,
+                            arrowsOpacity = cfg.arrowsOpacity,
+                            breaksEnabled = cfg.breaksEnabled,
+                            breaksOpacity = cfg.breaksOpacity,
+                            numbersEnabled = cfg.numbersEnabled,
+                            numbersOpacity = cfg.numbersOpacity,
+                            particlesEnabled = cfg.particlesEnabled,
+                            selectedDepth = depthFilterState.selectedDepth
+                        )
+                    }
+                )
+
+                val response = ShareLinkService.createShareLink(payload)
+                withContext(Dispatchers.Main) {
+                    shareLinkUrl = response.url
+                    isCreatingShareLink = false
+                }
+                Log.d(TAG, "Share link created: ${response.url}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create share link", e)
+                withContext(Dispatchers.Main) {
+                    isCreatingShareLink = false
+                    notificationManager.updateError("Failed to create share link")
+                }
+            }
+        }
+    }
+
+    fun dismissShareLink() {
+        shareLinkUrl = null
+        shareLinkSnapshot = null
+    }
+
+    fun setMapSnapshot(bitmap: android.graphics.Bitmap?) {
+        shareLinkSnapshot = bitmap
     }
 
     private fun loadRegionsAndRestoreSelection() {
@@ -376,6 +576,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         // Now load Zarr with populated entries
                         loadZarrForDataset(datasetWithEntries)
                         notificationManager.finishLoading(LoadOperation.Dataset)
+                        // Refresh COG statistics for dynamic presets
+                        loadCOGStatistics()
                     }
                 }
             } catch (e: Exception) {
@@ -397,6 +599,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         // Show frame in Zarr renderer
         zarrManager.showFrame(entry.id)
+
+        // Refresh COG statistics for dynamic presets
+        loadCOGStatistics()
     }
 
     fun selectDataset(dataset: Dataset) {
@@ -428,6 +633,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             // Entries already exist — zarr load started, finish loading indicator
             notificationManager.finishLoading(LoadOperation.Dataset)
+            loadCOGStatistics()
         }
     }
 
@@ -712,9 +918,105 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         primaryValue = value
     }
 
-    fun updateCameraState(zoom: Double, latitude: Double) {
+    fun updateCameraState(zoom: Double, latitude: Double, longitude: Double) {
         currentZoom = zoom
         currentLatitude = latitude
+        currentLongitude = longitude
+    }
+
+    // MARK: - Preset / Variable Selection
+
+    fun applyPreset(preset: DatasetPreset) {
+        val config = primaryConfig ?: return
+
+        // Toggle off if same preset
+        if (config.selectedPreset?.id == preset.id) {
+            updatePrimaryConfig(config.clearFilter())
+            return
+        }
+
+        // Calculate range — break presets need crosshair value
+        val currentValue = primaryValue.value
+        val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return
+        val entry = selectedEntry
+        val rangeKey = datasetType.rangeKey
+        val rangeData = entry?.ranges?.get(rangeKey)
+        val valueRange = if (rangeData?.min != null && rangeData.max != null) {
+            rangeData.min..rangeData.max
+        } else {
+            0.0..1.0
+        }
+
+        val range = preset.calculateRange(currentValue, valueRange) ?: return
+
+        updatePrimaryConfig(config.copy(
+            customRange = range,
+            selectedPreset = preset
+        ))
+    }
+
+    fun selectVariable(variable: DatasetVariable) {
+        val config = primaryConfig ?: return
+        updatePrimaryConfig(config.clearFilter().copy(
+            selectedVariableId = variable.id
+        ))
+    }
+
+    // MARK: - COG Statistics (Dynamic Presets)
+
+    private var cogStatsJob: Job? = null
+
+    private fun loadCOGStatistics() {
+        cogStatsJob?.cancel()
+
+        val cogUrl = selectedEntry?.layers?.cog ?: run {
+            cogStatistics = null
+            dynamicPresets = emptyList()
+            isLoadingPresets = false
+            return
+        }
+
+        val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return
+        val presetConfig = PresetConfiguration.configuration(datasetType)
+
+        // Only fetch if this dataset supports dynamic presets
+        if (presetConfig?.supportsDynamicPresets != true) {
+            cogStatistics = null
+            dynamicPresets = emptyList()
+            isLoadingPresets = false
+            return
+        }
+
+        isLoadingPresets = true
+
+        cogStatsJob = viewModelScope.launch {
+            delay(600) // 600ms debounce matching iOS
+
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    COGStatisticsService.fetchStatistics(cogUrl)
+                }
+                ensureActive()
+
+                val stats = response.primaryBandStatistics()
+                val builtPresets = if (stats != null) {
+                    presetConfig.dynamicBuilder?.invoke(stats) ?: emptyList()
+                } else {
+                    emptyList()
+                }
+
+                cogStatistics = response
+                dynamicPresets = builtPresets
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "COG stats fetch failed: ${e.message}")
+                cogStatistics = null
+                dynamicPresets = emptyList()
+            } finally {
+                isLoadingPresets = false
+            }
+        }
     }
 
     val isDataLayerActive: Boolean

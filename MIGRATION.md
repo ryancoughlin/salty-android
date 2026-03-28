@@ -42,151 +42,61 @@
 
 ---
 
-## Out of Scope
+---
 
-- Forecast models (GFS, HRRR wind/wave)
-- Weather overlays
-- Fronts layer
+## Feature Parity Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Authentication (login/signup/reset) | ✅ Complete | |
+| Account Hub + Profile | ✅ Complete | |
+| Region Selection (FTUX + settings) | ✅ Complete | |
+| Map + Mapbox | ✅ Complete | |
+| Global Layers (bathymetry, stations, shipping, MPAs, reefs, tournaments, GPS/LORAN) | ✅ Complete | |
+| Dataset Visualization (contours, breaks, arrows, particles, numbers) | ✅ Complete | |
+| Overlay Datasets | ✅ Complete | |
+| Colorscale + Variable Selector | ✅ Complete | |
+| Presets / Quick Actions | ✅ Complete | |
+| Zarr Pipeline | ✅ Complete | |
+| Entry Gallery / Timeline | ✅ Complete | |
+| Waypoints (CRUD, symbols, GPS formats, GPX import/export) | ✅ Complete | |
+| Waypoint Crew Sharing + Offline Queue | ✅ Complete | |
+| Station Details (observations, currents, forecasts, charts) | ✅ Complete | |
+| Satellite Tracking | ✅ Complete | |
+| Measurement Tool | ✅ Complete | |
+| Share Links | ✅ Complete | |
+| Notifications (loading/error capsules) | ✅ Complete | |
+| Announcements | 🔄 In Progress | Completing — extract service + sheet |
+| Dataset Guide | 🔄 In Progress | Building from scratch |
+| Notification Settings + Primer | 🔄 In Progress | UI layer, no FCM yet |
+| Crew Management UI (create/join/invite/detail) | ⬜ Not Started | |
+| Saved Maps (save/load/share configs) | ⬜ Not Started | |
+| Routes/Tracks (recording, playback, detail) | ⬜ Not Started | Largest missing feature |
+| Playback Mode (historical data animation) | ⬜ Not Started | |
+| Eddy Feature Layer (SSH pulsing) | ⬜ Not Started | |
+| Waypoint Notification Overlay (direction indicator) | ⬜ Not Started | |
+| Realtime Waypoint Subscriptions | ⬜ Not Started | |
+| Google Sign-In | ⬜ Not Started | Android equivalent of Apple Sign-In |
+| Subscription/Premium (billing) | ⬜ Not Started | |
+| Guided Onboarding (tooltip journey) | ⬜ Not Started | |
+| FADs Layer | ⬜ Not Started | |
+| Offline Downloads | ⬜ Not Started | |
+| Weather Overlays (wind/pressure/wave heatmaps) | ⬜ LAST | Complex shader work, do after everything else |
+| AI Reports | ⬜ LAST | Do after everything else |
 
 ---
 
-## Current State
+## Implementation Order
 
-### Implemented ✅
-
-**Foundation:**
-- Region listing + metadata fetch (`SaltyApi`)
-- Dataset selection + entry selection (uses `mostRecentEntry`)
-- State persistence (`AppPreferencesDataStore`)
-- Supabase auth (sign up, sign in, sign out)
-- User preferences (Supabase sync)
-- Settings UI (units + sign out)
-- Camera fly-to animation
-- Depth selection with filtered entries
-
-**Map Layers:**
-- Visual raster via TiTiler (`COGVisualLayer`) — ⚠️ *iOS uses Zarr shader instead*
-- PMTiles contours (`ContourLayer`) — ✅ major/minor lines + labels
-- PMTiles currents arrows (`CurrentsLayer`) — ✅ rotation + log color ramp
-- Data query layer (`DataQueryLayer`) — ✅ crosshair queries
-- Region bounds outline — ✅
-
-**Layers Complete:**
-- `BreaksVectorLayer` — ✅ thermal front visualization
-- `NumbersLayer` — ✅ grid value labels
-- `ParticleLayer` — GPU flow animation (Later)
-
-**Missing UI:**
-- `DatasetSelectorSheet` — modal to change datasets
-- `FilterRangeSheet` — data range slider for filtering
-
-**Data Models (Aligned with iOS):**
-- `RegionMetadata` with `region_id` → `id`
-- `Dataset` with `mostRecentEntry`, `hasMultipleDepths`, `depths`
-- `TimeEntry` with `entry_id` → `id`, `dataCoveragePercentage`, `isComposite`, `isSurface`, `isSubsurface`
-- `RegionsResponse` with `serverUrl`
-
----
-
-## Phase 1: Dataset Selection UI (Current Focus)
-
-**Goal:** Users can change datasets and adjust filtering, matching iOS UI.
-
-### iOS Dataset UI Architecture
-
-```
-DatasetControl.swift (root)
-├── PrimaryDatasetPage.swift (shows dataset + timeline)
-│   └── "Change" button → DatasetSelectorView overlay
-├── DatasetSelectorView.swift (grouped dataset picker)
-│   └── DatasetListItem (preview + metadata chips)
-└── DatasetFilterSheet.swift (range slider modal)
-    └── FilterGradientBar (dual-handle slider)
-```
-
-### Android Target Architecture
-
-```
-MapScreen.kt (orchestrator)
-├── SaltyDatasetControl.kt (shows dataset + timeline) ✅
-│   └── "Change" button → DatasetSelectorSheet (modal)
-├── DatasetSelectorSheet.kt (grouped dataset picker)
-│   └── DatasetListItem (preview + metadata)
-└── FilterRangeSheet.kt (range slider modal)
-    └── RangeSlider (dual-handle slider)
-```
-
-### Task 1.1: DatasetSelectorSheet ✅
-
-**iOS Source:** `SaltyOffshore/Views/DatasetControls/DatasetSelectorView.swift`
-
-| Step | iOS Reference | Android Target | Status |
-|------|---------------|----------------|--------|
-| 1.1.1 | `DatasetSelectorView` | `DatasetSelectorSheet.kt` | ✅ |
-| 1.1.2 | `CategorySection` | Inline in sheet | ✅ |
-| 1.1.3 | `DatasetListItem` | Inline in sheet | ✅ |
-| 1.1.4 | Wire to `onChange` | `SaltyDatasetControl.kt` | ✅ |
-
-### Task 1.2: FilterRangeSheet ✅
-
-**iOS Source:** `SaltyOffshore/Views/DatasetControls/Components/DatasetFilterSheet.swift`
-
-| Step | iOS Reference | Android Target | Status |
-|------|---------------|----------------|--------|
-| 1.2.1 | `DatasetFilterSheet` | `FilterRangeSheet.kt` | ✅ |
-| 1.2.2 | `FilterGradientBar` | RangeSlider + gradient | ✅ |
-| 1.2.3 | Min/Max inputs | Value labels | ✅ |
-| 1.2.4 | Wire to ViewModel | `updateDataRange()` | ✅ |
-
-### Task 1.3: Visual Layer Parity
-
-**iOS Source:** `SaltyOffshore/Map/CustomShaders/ZarrShaderHost.swift`
-
-Current Android uses TiTiler COG tiles (server-side rendering).
-iOS uses Zarr Metal shader (client-side GPU rendering).
-
-Options:
-1. **Keep COG/TiTiler** — Works now, simpler, server-dependent
-2. **CustomRasterSource** — Kotlin-only, experimental Mapbox API
-3. **CustomLayerHost** — OpenGL ES, 1:1 parity with iOS Metal
-
-Decision: Evaluate after UI is complete
-
----
-
-## Phase 2: Core Features (After Map Layers)
-
-| Feature | iOS Source | Status |
-|---------|------------|--------|
-| Waypoints | `WaypointStore.swift` | ✅ Phase 1 complete ([details](docs/WAYPOINT_MIGRATION.md)) |
-| Measurement | `Features/Measurement/` | ✅ Complete ([phase-7](docs/plans/phases/phase-7-measurement.md)) |
-| Crews | `CrewViewModel.swift` | ❌ |
-| Saved Maps | `SavedMapViewModel.swift` | ❌ |
-| Timeline Scrubber | `TimelineCoordinator.swift` | ❌ |
-
----
-
-## Phase 3: Polish (Later)
-
-| Feature | iOS Source | Status |
-|---------|------------|--------|
-| Offline download | `OfflineDownloadManager.swift` | ❌ |
-| Track recording | `TrackViewModel.swift` | ❌ |
-| AI reports | `AIReportService.swift` | ❌ |
-| Satellite tracking | `SatelliteStore.swift` | ❌ |
-| Global layers | `GlobalLayers.swift` | ❌ |
-
----
-
-## Progress Summary
-
-| Phase | Status | Details |
-|-------|--------|---------|
-| Foundation | ✅ Complete | Auth, preferences (26 keys), API, dataset types, rendering config, presets |
-| Map Layers | ✅ Complete | All vector layers working (Contours, Currents, Breaks, Numbers) |
-| Dataset UI | ✅ Complete | DatasetSelectorSheet, FilterRangeSheet, Filter button |
-| Visual Layer | 🔄 Evaluate | Currently using COG/TiTiler, iOS uses Zarr Metal shader |
-| Core Features | 🔄 In Progress | Waypoints ✅, Measurement ✅, Crews ❌, Saved Maps ❌ |
-| Polish | ❌ Not Started | Offline, Tracks, AI Reports |
-
-**Current Focus:** Evaluate visual layer approach (COG vs Zarr).
+1. ✅ Foundation (auth, map, datasets, layers) — DONE
+2. ✅ Waypoints + Crew Sharing — DONE
+3. ✅ Stations + Satellite + Measurement — DONE
+4. 🔄 Small features (announcements, dataset guide, notification settings) — IN PROGRESS
+5. ⬜ Crew Management UI (create/join/invite screens)
+6. ⬜ Saved Maps
+7. ⬜ Routes/Tracks (recording + playback)
+8. ⬜ Playback Mode (historical data)
+9. ⬜ Remaining layers (eddies, FADs)
+10. ⬜ Polish (onboarding, Google Sign-In, subscription)
+11. ⬜ Weather Overlays — **MUST BE LAST** (complex Metal→GL shader port)
+12. ⬜ AI Reports — **MUST BE LAST**

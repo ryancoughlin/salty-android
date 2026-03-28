@@ -408,3 +408,5 @@ Auto-scale by zoom: <7 = full range, 7-11 = viewport stats + 20% padding, >11 = 
 - Crews + Sharing
 - Saved Maps
 - Satellite Tracking
+
+> **DEFERRED TO LAST:** Weather Overlays (wind/pressure/wave heatmaps) and AI Reports are explicitly deferred to be the very last items implemented. Weather overlays require a complex Metal→OpenGL ES shader port. AI Reports depend on backend infrastructure. Both should only begin after all other parity work is complete.

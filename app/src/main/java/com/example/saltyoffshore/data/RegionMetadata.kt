@@ -45,6 +45,10 @@ data class Dataset(
     val depths: List<Int>
         get() = availableDepths ?: listOf(0)
 
+    /** Whether this dataset is effectively cloud-free (matches iOS Dataset.effectiveCloudFree) */
+    val effectiveCloudFree: Boolean
+        get() = metadata?.cloudFree ?: true
+
     /** Whether this dataset is a composite — dataset-level flag or any composite entry */
     val isCombinedDataset: Boolean
         get() = composite == true || entries?.any { it.isComposite } == true

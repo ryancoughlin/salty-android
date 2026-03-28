@@ -209,6 +209,25 @@ User taps expand button (chevron-up)
 - Pass variable/depth/preset state from ViewModel.
 - Show variable chips only when `dataset.variables.filter { it.isVisible }.size > 1`.
 
+## Implementation Status (as of 2026-03-22)
+
+### Done (completed in Phase 3)
+- [x] **VariableQuickActions** — chips for multi-variable datasets, white alpha styling
+- [x] **QuickActionsBar** — wired with variables | divider | depth | divider | presets sections
+- [x] **AppViewModel.selectVariable()** — switches selectedVariableId, clears filter
+- [x] **DatasetRenderConfig.selectedVariableId** — already existed, now wired to UI
+- [x] **MapScreen placement** — QuickActionsBar above SaltyDatasetControl
+
+### Remaining
+- [ ] **ColorscaleChip** — angular gradient circle + name chip in QuickActionsBar
+- [ ] **ColorscalePickerSheet** — 3-column swatch grid (rewrite current row-based picker)
+- [ ] **AppViewModel.selectColorscale()** — colorscale override field + mutator
+- [ ] **CollapsedDatasetView** — compact overlay chip bar + expand button
+- [ ] **SaltyDatasetControl expand/collapse** — AnimatedContent with spring transition
+- [ ] **Missing colorscales** — wind, waveHeight, wavePeriod hex arrays + Colorscale instances
+
+---
+
 ## Current Android State
 
 ### Can Reuse
@@ -226,10 +245,10 @@ User taps expand button (chevron-up)
 ### Needs Creation
 - **`DatasetControlState`** — No equivalent exists on Android.
 - **`ColorscaleChip`** — No chip component exists (only the full picker).
-- **`VariableChipButton`** — No variable chip UI exists.
-- **`QuickActionsBar`** — No composable bar for variables/depth/presets.
+- ~~**`VariableChipButton`**~~ — Done: `VariableQuickActions.kt` created in Phase 3.
+- ~~**`QuickActionsBar`**~~ — Done: populated in Phase 3 with all three sections.
 - **`CollapsedDatasetView`** — No collapsed mode exists.
-- **ViewModel colorscale/variable selection** — `AppViewModel` has no `selectedColorscale` or `selectedVariableId` fields.
+- ~~**ViewModel variable selection**~~ — Done: `selectVariable()` added in Phase 3. Colorscale selection still needed.
 
 ### Needs Modification
 - **`SaltyDatasetControl.kt`** — Currently always-expanded. Needs collapse/expand branching + DatasetControlState parameter.

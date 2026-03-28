@@ -1,5 +1,6 @@
 package com.example.saltyoffshore.ui.map.globallayers
 
+import android.content.Context
 import android.util.Log
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.GlobalLayerType
@@ -21,6 +22,7 @@ private const val TAG = "GlobalLayers"
  * Matches iOS GlobalLayers.
  */
 class GlobalLayers(
+    private val context: Context,
     private val mapboxMap: MapboxMap
 ) {
     // Layer instances
@@ -229,7 +231,7 @@ class GlobalLayers(
 
         if (enabled && stations.isNotEmpty()) {
             if (stationsLayer == null) {
-                stationsLayer = StationsLayer(mapboxMap, opacity)
+                stationsLayer = StationsLayer(context, mapboxMap, opacity)
                 stationsLayer?.addToMap(stations)
             } else if (stations != lastStations) {
                 stationsLayer?.updateStations(stations)

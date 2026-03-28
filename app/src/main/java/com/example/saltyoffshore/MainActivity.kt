@@ -28,6 +28,7 @@ import com.example.saltyoffshore.ui.screen.FTUXRegionSelectionScreen
 import com.example.saltyoffshore.ui.screen.RegionSelectionSheet
 import com.example.saltyoffshore.ui.screen.LoginScreen
 import com.example.saltyoffshore.ui.screen.MapScreen
+import com.example.saltyoffshore.ui.screen.ResetPasswordScreen
 import com.example.saltyoffshore.ui.screen.SignUpScreen
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.viewmodel.AppViewModel
@@ -109,7 +110,12 @@ private fun SaltyApp() {
             )
         }
 
-        // TODO: Reset Password sheet, Update Password sheet
+        // Reset Password sheet
+        if (showResetPasswordSheet) {
+            ResetPasswordScreen(
+                onBack = { showResetPasswordSheet = false }
+            )
+        }
     }
 }
 
