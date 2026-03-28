@@ -133,7 +133,7 @@ val DatasetType.availableVariables: List<DatasetVariable>
             ),
             DatasetVariable(
                 id = "sst_gradient_magnitude",
-                displayName = "Gradient",
+                displayName = "Break",
                 zarrVariableName = "sst_gradient_magnitude",
                 rangeKey = "sst_gradient_magnitude",
                 hasPMTilesData = false,
@@ -152,7 +152,7 @@ val DatasetType.availableVariables: List<DatasetVariable>
             ),
             DatasetVariable(
                 id = "salinity_gradient",
-                displayName = "Gradient",
+                displayName = "Break",
                 zarrVariableName = "salinity_gradient",
                 rangeKey = "salinity_gradient",
                 hasPMTilesData = false,
@@ -172,7 +172,7 @@ val DatasetType.availableVariables: List<DatasetVariable>
             ),
             DatasetVariable(
                 id = "sla_gradient",
-                displayName = "Gradient",
+                displayName = "Break",
                 zarrVariableName = "sla_gradient",
                 rangeKey = "sla_gradient",
                 hasPMTilesData = false,
@@ -226,7 +226,7 @@ val DatasetType.availableVariables: List<DatasetVariable>
                 zarrVariableName = "rotational_speed",
                 rangeKey = "rotational_speed",
                 hasPMTilesData = false,
-                colorscale = Colorscale.SPECTRAL,
+                colorscale = Colorscale.MAGNITUDE,
                 scaleMode = ScaleMode.LINEAR,
                 unit = DatasetUnit.KNOTS,
                 decimalPlaces = 2
@@ -244,7 +244,7 @@ val DatasetType.availableVariables: List<DatasetVariable>
             ),
             DatasetVariable(
                 id = "mld_gradient",
-                displayName = "Gradient",
+                displayName = "Break",
                 zarrVariableName = "mld_gradient",
                 rangeKey = "mld_gradient",
                 hasPMTilesData = false,
@@ -276,7 +276,7 @@ val DatasetType.availableVariables: List<DatasetVariable>
             ),
             DatasetVariable(
                 id = "chlor_a_gradient",
-                displayName = "Gradient",
+                displayName = "Break",
                 zarrVariableName = "chlor_a_gradient",
                 rangeKey = "chlor_a_gradient",
                 hasPMTilesData = false,

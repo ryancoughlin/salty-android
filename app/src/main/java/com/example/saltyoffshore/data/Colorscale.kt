@@ -2,6 +2,7 @@ package com.example.saltyoffshore.data
 
 import android.graphics.Color
 import com.example.saltyoffshore.ui.theme.ColorScales
+import com.example.saltyoffshore.utils.ScaleNormalizer
 
 /**
  * Colorscale model - works with any dataset type.
@@ -20,10 +21,42 @@ data class Colorscale(
         hexColors.map { parseHexColor(it) }
     }
 
+    /**
+     * Map a data value to a color using scale-aware normalization.
+     * iOS ref: Colorscale.color(for:in:scaleMode:)
+     *
+     * @param value Raw data value (e.g., 72.5°F)
+     * @param range Data domain (e.g., 65.0..85.0)
+     * @param normalizer ScaleNormalizer from ScaleMode.normalizer() — handles linear/log/sqrt/diverging
+     * @return ARGB color int, or Color.GRAY for noData
+     */
+    fun colorForValue(value: Double, range: ClosedFloatingPointRange<Double>, normalizer: ScaleNormalizer): Int {
+        if (colors.isEmpty()) return Color.GRAY
+
+        val position = normalizer.normalize(value.toFloat()) ?: return Color.GRAY
+        val exactIndex = position * (colors.size - 1)
+        val lower = exactIndex.toInt().coerceIn(0, colors.size - 2)
+        val upper = (lower + 1).coerceIn(0, colors.size - 1)
+        val fraction = exactIndex - lower
+
+        return interpolateColor(colors[lower], colors[upper], fraction)
+    }
+
     companion object {
         fun parseHexColor(hex: String): Int {
             val cleanHex = hex.removePrefix("#")
             return Color.parseColor("#$cleanHex")
+        }
+
+        /**
+         * Linear interpolation between two ARGB color ints.
+         * iOS ref: Colorscale.interpolate(from:to:fraction:)
+         */
+        private fun interpolateColor(from: Int, to: Int, fraction: Float): Int {
+            val r = Color.red(from) + ((Color.red(to) - Color.red(from)) * fraction).toInt()
+            val g = Color.green(from) + ((Color.green(to) - Color.green(from)) * fraction).toInt()
+            val b = Color.blue(from) + ((Color.blue(to) - Color.blue(from)) * fraction).toInt()
+            return Color.rgb(r, g, b)
         }
 
         // =============================================

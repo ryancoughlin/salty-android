@@ -7,30 +7,25 @@ package com.example.saltyoffshore.ui.theme
 object ColorScales {
 
     /**
-     * SST High Contrast - Standard high-contrast SST visualization (24 colors)
+     * SST High Contrast - Standard high-contrast SST visualization (12 colors)
      * Temperature Range: Typically 65°F - 85°F
+     * iOS ref: ColorScales.swift — exact 12-stop array
      */
     val sst = listOf(
-        "#081d58", "#16306e", "#21449b", "#2c5fcf",
-        "#3883f6", "#34d1db", "#0effc5", "#7ff000",
-        "#ebf600", "#fec44f", "#fca23f", "#fb9137",
-        "#fa802f", "#f96f27", "#f85e1f", "#f74d17",
-        "#e6420e", "#d53e0d", "#c43a0c", "#b3360b",
-        "#a2320a", "#912e09", "#802a08", "#5e2206"
+        "#081d58", "#21449b", "#3883f6", "#34d1db",
+        "#0effc5", "#7ff000", "#ebf600", "#fec44f",
+        "#fa802f", "#e6420e", "#b3360b", "#5e2206"
     )
 
     /**
-     * Salty Vibes - Extended range SST with purple cold-end (28 colors)
+     * Salty Vibes - Extended range SST with purple cold-end (12 colors)
      * Temperature Range: Typically 60°F - 85°F
+     * iOS ref: ColorScales.swift — exact 12-stop array
      */
     val saltyVibes = listOf(
-        "#1a0033", "#35006b", "#5a00bb", "#081d58",
-        "#16306e", "#21449b", "#2c5fcf", "#3883f6",
-        "#34d1db", "#0effc5", "#7ff000", "#ebf600",
-        "#fec44f", "#fca23f", "#fb9137", "#fa802f",
-        "#f96f27", "#f85e1f", "#f74d17", "#e6420e",
-        "#d53e0d", "#c43a0c", "#b3360b", "#a2320a",
-        "#912e09", "#802a08", "#6f2607", "#5e2206"
+        "#1a0033", "#5a00bb", "#2c5fcf", "#34d1db",
+        "#0effc5", "#7ff000", "#ebf600", "#fec44f",
+        "#fa802f", "#e6420e", "#b3360b", "#5e2206"
     )
 
     /**
@@ -44,45 +39,39 @@ object ColorScales {
     )
 
     /**
-     * Currents - Dark navy to red for ocean current speed
+     * Currents - Purple to red for ocean current speed (8 colors)
+     * iOS ref: ColorScales.swift — exact 8-stop array
      */
     val currents = listOf(
-        "#000814", "#001d3d", "#003566",
-        "#0353a4", "#1e6091", "#2a6f97",
-        "#2a9d8f", "#00b4d8", "#0096c7",
-        "#00ced1", "#20b2aa", "#32cd32",
-        "#9acd32", "#ffd700", "#ffa500",
-        "#ff6347", "#ff4500", "#dc143c", "#b22222"
+        "#1a0033", "#4a148c", "#1976d2", "#00bcd4",
+        "#26a69a", "#ffca28", "#ff7043", "#e53935"
     )
 
     /**
-     * Chlorophyll - 19 color stops with log10 scale from 0.01 to 8.0 mg/m³
+     * Chlorophyll - 29 color stops with log10 scale from 0.01 to 8.0 mg/m³
+     * iOS ref: ColorScales.swift — exact 29-stop array optimized for front detection
      */
     val chlorophyll = listOf(
-        "#E040E0", "#9966CC", "#6633CC", "#0D1F6D", "#1E3A8A",
-        "#1E40AF", "#2196F3", "#3B82F6", "#00BCD4", "#00ACC1",
-        "#00897B", "#26A69A", "#4CAF50", "#66BB6A", "#9CCC65",
-        "#C0CA33", "#FDD835", "#FFB300", "#F57C00"
+        "#E040E0", "#9966CC", "#6633CC", "#0D1F6D", "#1E3A8A", "#1E40AF",
+        "#1E50C0", "#2060D0", "#2070E0", "#2196F3", "#42A5F5", "#64B5F6", "#81D4FA", "#00BCD4",
+        "#00B5B8", "#00ACC1", "#009FA8", "#00938F", "#00897B", "#1E9E7A", "#26A69A", "#3BAF8A", "#4CAF50",
+        "#66BB6A", "#9CCC65", "#C0CA33", "#FDD835", "#FFB300", "#F57C00"
     )
 
     /**
      * Bloom - Phytoplankton bloom visualization (TiTiler colormap_name: "bloom")
      * Ultra-clear oligotrophic (purple/magenta) to intense blooms (red-brown)
      */
+    /**
+     * iOS ref: ColorScales.swift — exact 34-stop array (Android had 33, iOS has 34)
+     */
     val bloom = listOf(
-        // Ultra-clear oligotrophic (deep purple/magenta - Gulf Stream type)
         "#4a0040", "#5c1a5c", "#6b2d6b",
-        // Low productivity (deep blue)
         "#1a237e", "#283593", "#3949ab",
-        // Clear to transitional (bright blue to cyan)
         "#1e88e5", "#039be5", "#00acc1", "#00bcd4",
-        // Productive waters (cyan to teal to green)
         "#009688", "#00897b", "#26a69a", "#4caf50", "#66bb6a",
-        // Dense productivity (yellow-green to yellow)
         "#8bc34a", "#9ccc65", "#c0ca33", "#cddc39", "#fdd835",
-        // Bloom conditions (yellow to orange)
         "#ffb300", "#ffa000", "#ff8f00", "#ff6f00",
-        // Intense blooms (deep orange to red-brown)
         "#e65100", "#d84315", "#bf360c", "#8d4004"
     )
 

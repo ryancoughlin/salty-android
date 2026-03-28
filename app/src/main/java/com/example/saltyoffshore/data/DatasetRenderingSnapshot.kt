@@ -45,7 +45,7 @@ data class DatasetRenderingSnapshot(
     val dataMax: Double = 100.0,
 
     // Resampling
-    val resamplingMethod: String = "bilinear"
+    val resamplingMethod: ResamplingMethod = ResamplingMethod.BILINEAR
 ) {
     val renderRange: ClosedFloatingPointRange<Double>
         get() = if (isFilterActive) filterMin..filterMax else dataMin..dataMax

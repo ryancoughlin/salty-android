@@ -45,6 +45,7 @@ data class DatasetRenderConfig(
 
     // PRESET SUPPORT
     val selectedPreset: DatasetPreset? = null,
+    val cogStatistics: COGStatisticsResponse? = null,
 
     // FILTER MODE
     val filterMode: FilterMode = FilterMode.SQUASH,
@@ -58,7 +59,7 @@ data class DatasetRenderConfig(
      */
     fun snapshot(
         dataRange: ClosedFloatingPointRange<Double> = 0.0..1.0,
-        resamplingMethod: String = "bilinear",
+        resamplingMethod: ResamplingMethod = ResamplingMethod.BILINEAR,
         selectedBreakId: String? = null
     ): DatasetRenderingSnapshot {
         val effectiveRange = customRange ?: dataRange

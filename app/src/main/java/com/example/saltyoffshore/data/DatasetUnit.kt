@@ -19,6 +19,7 @@ enum class DatasetUnit(val symbol: String) {
     DIMENSIONLESS(""),
     INVERSE_SECONDS("s⁻¹"),
     MG_PER_LITER("mg/L"),
+    MILES_PER_HOUR("mph"),
     CELSIUS_PER_KM("°C/km"),
     PSU_PER_KM("PSU/km"),
     CM_PER_KM("cm/km");
@@ -57,6 +58,7 @@ enum class DatasetUnit(val symbol: String) {
                     "F" -> FAHRENHEIT
                     "C" -> CELSIUS
                     "kt" -> KNOTS
+                    "mph" -> MILES_PER_HOUR
                     else -> DIMENSIONLESS
                 }
         }
