@@ -55,12 +55,20 @@ class WaypointAnnotationLayer(
         selectedWaypointId: String?,
         activeCrewId: String?
     ) {
-        val style = mapboxMap.style ?: return
+        Log.d(TAG, "update() called with ${waypoints.size} waypoints, activeCrewId=$activeCrewId")
+
+        val style = mapboxMap.style
+        if (style == null) {
+            Log.w(TAG, "update() ABORT: style is null")
+            return
+        }
 
         // Hide own waypoints in crew focus mode (matches iOS)
         val visible = activeCrewId == null && waypoints.isNotEmpty()
+        Log.d(TAG, "visible=$visible (activeCrewId=$activeCrewId, waypointsNotEmpty=${waypoints.isNotEmpty()})")
 
         if (!visible) {
+            Log.d(TAG, "update() ABORT: not visible")
             if (isAdded) setVisibility(false)
             return
         }
@@ -91,15 +99,20 @@ class WaypointAnnotationLayer(
         val waypointIds = waypoints.map { it.id }.toSet()
 
         // Always check if source exists (survives style reloads)
-        if (!style.styleSourceExists(sourceId)) {
+        val sourceExists = style.styleSourceExists(sourceId)
+        Log.d(TAG, "sourceExists=$sourceExists for sourceId=$sourceId")
+
+        if (!sourceExists) {
+            Log.d(TAG, "Source doesn't exist, calling addToMap()")
             addToMap(featureCollection)
         } else {
-            // Update GeoJSON data
+            Log.d(TAG, "Source exists, updating GeoJSON data")
             style.getSourceAs<GeoJsonSource>(sourceId)
                 ?.featureCollection(featureCollection)
         }
 
         setVisibility(true)
+        Log.d(TAG, "update() complete")
         lastWaypointIds = waypointIds
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,16 +18,24 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +48,7 @@ import com.example.saltyoffshore.data.DatasetRenderingSnapshot
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.TimeEntry
 import com.example.saltyoffshore.ui.controls.layercontrols.DatasetLayerControls
+import com.example.saltyoffshore.ui.components.entrygallery.EntryGalleryView
 
 import com.example.saltyoffshore.ui.theme.SaltyType
 import com.example.saltyoffshore.ui.theme.Spacing
@@ -52,6 +62,7 @@ import com.example.saltyoffshore.ui.theme.Spacing
  *
  * iOS ref: Views/DatasetControls/DatasetControl.swift
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaltyDatasetControl(
     dataset: Dataset,
@@ -59,6 +70,7 @@ fun SaltyDatasetControl(
     snapshot: DatasetRenderingSnapshot,
     primaryValue: CurrentValue = CurrentValue(),
     isExpanded: Boolean = false,
+    selectedDepth: Int = 0,
     primaryConfig: DatasetRenderConfig? = null,
     onConfigChanged: ((DatasetRenderConfig) -> Unit)? = null,
     onEntrySelected: (TimeEntry) -> Unit,
@@ -68,6 +80,27 @@ fun SaltyDatasetControl(
 ) {
     val datasetType = DatasetType.fromRawValue(dataset.type)
     val config = datasetType?.let { DatasetConfiguration.forDatasetType(it) }
+    var showEntryGallery by remember { mutableStateOf(false) }
+
+    // Entry Gallery sheet
+    if (showEntryGallery) {
+        ModalBottomSheet(
+            onDismissRequest = { showEntryGallery = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            EntryGalleryView(
+                dataset = dataset,
+                selectedDepth = selectedDepth,
+                currentEntryId = entry?.id,
+                onEntrySelected = { selectedEntry ->
+                    onEntrySelected(selectedEntry)
+                    showEntryGallery = false
+                },
+                onDismiss = { showEntryGallery = false }
+            )
+        }
+    }
 
     Surface(
         modifier = modifier
@@ -160,12 +193,31 @@ fun SaltyDatasetControl(
                 }
             }
 
-            // Row 3: Timeline
-            TimelineControl(
-                entries = dataset.entries ?: emptyList(),
-                selectedEntry = entry,
-                onEntrySelected = onEntrySelected
-            )
+            // Row 3: Gallery button + Timeline (matches iOS PrimaryDatasetPage timelineRow)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { showEntryGallery = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.CalendarMonth,
+                        contentDescription = "Entry gallery",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    TimelineControl(
+                        entries = dataset.entries ?: emptyList(),
+                        selectedEntry = entry,
+                        onEntrySelected = onEntrySelected
+                    )
+                }
+            }
 
             // Expanded: Layer controls inline (matches iOS ExpandedDatasetView)
             AnimatedVisibility(
