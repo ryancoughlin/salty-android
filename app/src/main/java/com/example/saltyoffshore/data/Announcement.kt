@@ -22,3 +22,12 @@ data class Announcement(
     val formattedMessage: String
         get() = message.replace("\\n", "\n")
 }
+
+/**
+ * Display state for announcement feature.
+ * Matches iOS AnnouncementDisplayState enum.
+ */
+sealed class AnnouncementDisplayState {
+    data object Hidden : AnnouncementDisplayState()
+    data class Visible(val announcement: Announcement) : AnnouncementDisplayState()
+}

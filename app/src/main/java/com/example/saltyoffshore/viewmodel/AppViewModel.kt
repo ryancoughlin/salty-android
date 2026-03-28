@@ -10,6 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
 import com.example.saltyoffshore.data.Announcement
+import com.example.saltyoffshore.data.AnnouncementDisplayState
+import com.example.saltyoffshore.data.AnnouncementService
 import com.example.saltyoffshore.data.sharelink.ShareLinkCameraView
 import com.example.saltyoffshore.data.sharelink.ShareLinkDatasetConfig
 import com.example.saltyoffshore.data.sharelink.ShareLinkPayload
@@ -76,7 +78,6 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
-import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -235,14 +236,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // MARK: - Announcement State
 
-    var announcement by mutableStateOf<Announcement?>(null)
+    var announcementDisplayState by mutableStateOf<AnnouncementDisplayState>(AnnouncementDisplayState.Hidden)
         private set
 
     var showAnnouncementSheet by mutableStateOf(false)
 
+    /** The currently visible announcement, or null */
+    val announcement: Announcement?
+        get() = (announcementDisplayState as? AnnouncementDisplayState.Visible)?.announcement
+
     /** True when announcement is active and unseen by user */
     val isAnnouncementVisible: Boolean
-        get() = announcement?.isActive == true
+        get() = announcementDisplayState is AnnouncementDisplayState.Visible
 
     // MARK: - Share Link State
 
@@ -338,38 +343,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // MARK: - Announcement Methods
 
     private fun checkForAnnouncements() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val result = SupabaseClientProvider.client
-                    .from("announcement")
-                    .select {
-                        filter { eq("id", "singleton") }
-                    }
-                    .decodeSingleOrNull<Announcement>()
-
-                if (result != null && result.isActive) {
-                    val lastSeen = AppPreferencesDataStore
-                        .getLastAnnouncementVersion(context)
-                        .first()
-                    if (result.version > lastSeen) {
-                        withContext(Dispatchers.Main) {
-                            announcement = result
-                        }
-                    }
-                }
-                Log.d(TAG, "Announcement check: ${result?.title ?: "none"}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to check announcements", e)
-            }
+        viewModelScope.launch {
+            val state = AnnouncementService.checkForAnnouncements(context)
+            announcementDisplayState = state
         }
     }
 
     fun markAnnouncementAsSeen() {
         val version = announcement?.version ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            AppPreferencesDataStore.setLastAnnouncementVersion(context, version)
+        viewModelScope.launch {
+            AnnouncementService.markAsSeen(context, version)
         }
-        announcement = null
+        announcementDisplayState = AnnouncementDisplayState.Hidden
         showAnnouncementSheet = false
     }
 
