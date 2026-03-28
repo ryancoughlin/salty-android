@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -595,7 +597,7 @@ fun MapScreen(
                                 onClick = { viewModel.markAnnouncementAsSeen() }
                             ) {
                                 androidx.compose.material3.Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                                    imageVector = Icons.Default.Close,
                                     contentDescription = "Close",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
