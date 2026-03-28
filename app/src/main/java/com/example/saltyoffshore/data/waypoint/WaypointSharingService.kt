@@ -5,7 +5,8 @@ import android.util.Log
 import com.example.saltyoffshore.auth.AuthManager
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
-// import io.github.jan.supabase.postgrest.rpc  // TODO: uncomment when wiring crew sharing
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -152,12 +153,10 @@ object WaypointSharingService {
         userId: String
     ) = withContext(Dispatchers.IO) {
         Log.d(TAG, "Marking waypoint $sharedWaypointId as read for $userId")
-        // TODO: Wire up when crew sharing is active
-        // supabase.rpc("mark_waypoint_read", buildJsonObject {
-        //     put("waypoint_id", JsonPrimitive(sharedWaypointId))
-        //     put("user_id", JsonPrimitive(userId))
-        // })
-        Log.d(TAG, "markAsRead stub — will wire when crew sharing is active")
+        supabase.postgrest.rpc("mark_waypoint_read", buildJsonObject {
+            put("waypoint_id", JsonPrimitive(sharedWaypointId))
+            put("user_id", JsonPrimitive(userId))
+        })
         Log.d(TAG, "Marked waypoint as read")
     }
 

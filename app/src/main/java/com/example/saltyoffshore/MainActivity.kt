@@ -72,6 +72,7 @@ private fun SaltyApp() {
             when (status) {
                 is SessionStatus.Authenticated -> {
                     isAuthenticated = true
+                    viewModel.handleAuthReady()
                 }
                 is SessionStatus.NotAuthenticated -> {
                     if (isAuthenticated) {
@@ -89,6 +90,11 @@ private fun SaltyApp() {
                 }
             }
         }
+    }
+
+    // Network monitoring: sync pending changes when connectivity restores
+    LaunchedEffect(Unit) {
+        viewModel.observeNetworkState()
     }
 
     // Scene lifecycle: refresh data when returning to foreground

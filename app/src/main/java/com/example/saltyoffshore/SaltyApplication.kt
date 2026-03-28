@@ -3,6 +3,7 @@ package com.example.saltyoffshore
 import android.app.Application
 import android.util.Log
 import com.example.saltyoffshore.auth.SupabaseClientProvider
+import com.example.saltyoffshore.data.network.NetworkMonitor
 
 /**
  * Application subclass for Salty Offshore.
@@ -20,6 +21,9 @@ class SaltyApplication : Application() {
 
         // Eagerly initialize Supabase client so session restore happens before UI
         SupabaseClientProvider.client
+
+        // Initialize network connectivity monitor
+        NetworkMonitor.init(this)
 
         // Preload native library on startup (avoids lazy load during render path)
         System.loadLibrary("zarr-shader")

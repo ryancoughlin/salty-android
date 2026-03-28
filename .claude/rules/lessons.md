@@ -102,3 +102,59 @@ mapView.gestures.addOnMapClickListener { point ->
     false
 }
 ```
+
+---
+
+## Supabase Kotlin SDK
+
+### Realtime: decodeRecord doesn't exist on PostgresAction
+
+**Problem:** `PostgresAction.Insert` does not have a `decodeRecord<T>()` method in supabase-kt. The Context7 docs show it but the actual SDK exposes `record` as a `JsonObject`.
+
+**Solution:** Decode manually using your own Json instance:
+
+```kotlin
+// WRONG — decodeRecord is not a method on PostgresAction.Insert
+val item = action.decodeRecord<MyType>()
+
+// CORRECT — decode from the record JsonObject
+val item = json.decodeFromJsonElement(MyType.serializer(), action.record)
+```
+
+### Realtime: Channel cleanup
+
+**Pattern:** Use `channel.unsubscribe()` to tear down, not `realtime.removeChannel()`.
+
+### RPC calls
+
+**Pattern:** Use `supabase.postgrest.rpc(functionName, jsonParams)` with `buildJsonObject {}`.
+
+```kotlin
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
+
+supabase.postgrest.rpc("mark_waypoint_read", buildJsonObject {
+    put("waypoint_id", JsonPrimitive(id))
+    put("user_id", JsonPrimitive(userId))
+})
+```
+
+---
+
+## kotlinx.serialization
+
+### SetSerializer / ListSerializer inline type parameter
+
+**Problem:** `kotlinx.serialization.builtins.serializer<String>()` is a reified inline function that doesn't resolve when called from a non-inline context.
+
+**Solution:** Use `encodeToString` with a concrete collection — the serializer is inferred:
+
+```kotlin
+// WRONG — unresolved reference
+json.encodeToString(SetSerializer(serializer<String>()), set)
+
+// CORRECT — encode a List, decode as Set (JSON arrays work for both)
+json.encodeToString(set.toList())
+// and decode:
+json.decodeFromString<Set<String>>(raw)
+```

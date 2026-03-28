@@ -69,6 +69,12 @@ import com.example.saltyoffshore.data.waypoint.WaypointSortOption
 import com.example.saltyoffshore.data.waypoint.WaypointStorage
 import com.example.saltyoffshore.data.waypoint.WaypointSymbol
 import com.example.saltyoffshore.data.waypoint.WaypointCategory
+import com.example.saltyoffshore.data.waypoint.WaypointSyncService
+import com.example.saltyoffshore.data.waypoint.WaypointSharingService
+import com.example.saltyoffshore.data.waypoint.PendingWaypointQueue
+import com.example.saltyoffshore.data.waypoint.RealtimeWaypointService
+import com.example.saltyoffshore.data.waypoint.OfflineShareQueue
+import com.example.saltyoffshore.data.network.NetworkMonitor
 import com.example.saltyoffshore.preferences.AppPreferencesDataStore
 import com.example.saltyoffshore.repository.UserPreferencesRepository
 import com.example.saltyoffshore.zarr.TimeEntry as ZarrTimeEntry
@@ -1148,6 +1154,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // MARK: - Sign Out
 
     fun signOut() {
+        handleSignOut()
         viewModelScope.launch(Dispatchers.IO) {
             AuthManager.signOut()
             // Clear all user-specific DataStore preferences
@@ -1194,6 +1201,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 waypointLoadingState = LoadingState.LOADED
             }
             Log.d(TAG, "Loaded ${loaded.size} waypoints from disk")
+
+            // Background sync with Supabase (fire-and-forget, matches iOS loadWaypoints)
+            syncWithRemote()
         }
     }
 
@@ -1216,12 +1226,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         waypoints = waypoints + waypoint
         persistWaypoints()
+        syncUpsert(waypoint)
 
         Log.d(TAG, "Created waypoint: ${waypoint.name}")
         return waypoint
     }
 
     fun saveWaypoint(waypoint: Waypoint) {
+        // Route: crew waypoint → WaypointSharingService, owned → disk + sync
+        val shared = crewWaypoints.find { it.waypoint.id == waypoint.id }
+        if (shared != null) {
+            // Crew waypoint — update via sharing service
+            val updated = crewWaypoints.map {
+                if (it.id == shared.id) it.copy(waypoint = waypoint) else it
+            }
+            crewWaypoints = updated
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    WaypointSharingService.updateSharedWaypoint(
+                        SupabaseClientProvider.client, shared.id, waypoint
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to update shared waypoint: ${e.message}")
+                }
+            }
+            return
+        }
+
         val index = waypoints.indexOfFirst { it.id == waypoint.id }
         if (index == -1) {
             Log.w(TAG, "Waypoint not found for save: ${waypoint.id}")
@@ -1229,12 +1260,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         waypoints = waypoints.toMutableList().also { it[index] = waypoint }
         persistWaypoints()
+        syncUpsert(waypoint)
         Log.d(TAG, "Saved waypoint: ${waypoint.name}")
     }
 
     fun deleteWaypoint(waypoint: Waypoint) {
+        // Route: crew waypoint → WaypointSharingService, owned → disk + sync
+        val shared = crewWaypoints.find { it.waypoint.id == waypoint.id }
+        if (shared != null) {
+            crewWaypoints = crewWaypoints.filter { it.id != shared.id }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    WaypointSharingService.deleteSharedWaypoint(
+                        SupabaseClientProvider.client, shared.id
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to delete shared waypoint: ${e.message}")
+                }
+            }
+            return
+        }
+
         waypoints = waypoints.filter { it.id != waypoint.id }
         persistWaypoints()
+        syncDelete(waypoint.id)
         Log.d(TAG, "Deleted waypoint: ${waypoint.name}")
     }
 
@@ -1242,6 +1291,223 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val snapshot = waypoints
         viewModelScope.launch(Dispatchers.IO) {
             WaypointStorage.save(context, snapshot)
+        }
+    }
+
+    // MARK: - Sync Operations (fire-and-forget, matches iOS WaypointStore)
+
+    /** Fire-and-forget upsert: mark in queue → push to Supabase → complete on success. */
+    private fun syncUpsert(waypoint: Waypoint) {
+        viewModelScope.launch(Dispatchers.IO) {
+            PendingWaypointQueue.markForUpsert(context, waypoint.id)
+            try {
+                WaypointSyncService.upsertWaypoint(waypoint)
+                PendingWaypointQueue.completedUpsert(context, waypoint.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Waypoint ${waypoint.id} queued for later sync: ${e.message}")
+            }
+        }
+    }
+
+    /** Fire-and-forget delete: mark in queue → delete from Supabase → complete on success. */
+    private fun syncDelete(waypointId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            PendingWaypointQueue.markForDelete(context, waypointId)
+            try {
+                WaypointSyncService.deleteWaypoint(waypointId)
+                PendingWaypointQueue.completedDelete(context, waypointId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Delete for $waypointId queued for later sync: ${e.message}")
+            }
+        }
+    }
+
+    /** Batch upsert for GPX import. */
+    private fun syncUpsertBatch(waypointsToSync: List<Waypoint>) {
+        if (waypointsToSync.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            for (wp in waypointsToSync) {
+                PendingWaypointQueue.markForUpsert(context, wp.id)
+            }
+            try {
+                WaypointSyncService.upsertWaypoints(waypointsToSync)
+                for (wp in waypointsToSync) {
+                    PendingWaypointQueue.completedUpsert(context, wp.id)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "${waypointsToSync.size} waypoints queued for later sync: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Full sync: drain pending queue → fetch remote → merge (remote wins) → persist.
+     * Called after disk load and on auth/network restore.
+     * Matches iOS WaypointStore.syncWithRemote().
+     */
+    private suspend fun syncWithRemote() {
+        try {
+            // Step 1: Drain pending queue
+            drainPendingQueue()
+
+            // Step 2: Fetch remote waypoints
+            val remoteWaypoints = WaypointSyncService.fetchWaypoints()
+
+            // Step 3: Merge — remote wins, preserve local-only
+            val remoteIds = remoteWaypoints.map { it.id }.toSet()
+            val localOnly = waypoints.filter { it.id !in remoteIds }
+            val merged = remoteWaypoints + localOnly
+
+            // Step 4: Persist and update state
+            withContext(Dispatchers.Main) {
+                waypoints = merged
+            }
+            WaypointStorage.save(context, merged)
+
+            // Step 5: Upload local-only waypoints to Supabase
+            if (localOnly.isNotEmpty()) {
+                WaypointSyncService.upsertWaypoints(localOnly)
+                Log.d(TAG, "Pushed ${localOnly.size} local-only waypoints to Supabase")
+            }
+
+            Log.d(TAG, "Sync complete: ${merged.size} waypoints (${remoteWaypoints.size} remote, ${localOnly.size} local-only)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Remote waypoint sync failed (using local data): ${e.message}")
+        }
+    }
+
+    /** Drain pending upserts and deletes from the queue. */
+    private suspend fun drainPendingQueue() {
+        val upsertIds = PendingWaypointQueue.pendingUpsertIds(context)
+        val deleteIds = PendingWaypointQueue.pendingDeleteIds(context)
+
+        if (upsertIds.isEmpty() && deleteIds.isEmpty()) return
+        Log.d(TAG, "Draining pending queue: ${upsertIds.size} upserts, ${deleteIds.size} deletes")
+
+        // Upsert pending waypoints
+        for (id in upsertIds) {
+            val wp = waypoints.find { it.id == id }
+            if (wp != null) {
+                try {
+                    WaypointSyncService.upsertWaypoint(wp)
+                    PendingWaypointQueue.completedUpsert(context, id)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to drain upsert $id: ${e.message}")
+                }
+            } else {
+                // Orphaned — waypoint deleted between queue and drain
+                PendingWaypointQueue.completedUpsert(context, id)
+            }
+        }
+
+        // Delete pending waypoints
+        for (id in deleteIds) {
+            try {
+                WaypointSyncService.deleteWaypoint(id)
+                PendingWaypointQueue.completedDelete(context, id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to drain delete $id: ${e.message}")
+            }
+        }
+    }
+
+    /** Public trigger for auth ready and network restore. */
+    fun syncPendingChanges() {
+        viewModelScope.launch(Dispatchers.IO) {
+            syncWithRemote()
+        }
+    }
+
+    // MARK: - Auth Lifecycle (matches iOS handleAuthReady / handleSignOut)
+
+    /**
+     * Called when auth state transitions to Authenticated.
+     * Syncs waypoints, loads crews, starts realtime listening.
+     */
+    fun handleAuthReady() {
+        syncPendingChanges()
+        loadCrewWaypoints()
+    }
+
+    /**
+     * Called on sign-out. Stops realtime, clears crew state.
+     * Preserves local owned waypoints (matches iOS behavior).
+     */
+    fun handleSignOut() {
+        viewModelScope.launch {
+            RealtimeWaypointService.stopListening()
+        }
+        crewWaypoints = emptyList()
+    }
+
+    // MARK: - Crew Waypoint Operations
+
+    /** Load crew waypoints and start realtime listening. */
+    private fun loadCrewWaypoints() {
+        val userId = AuthManager.currentUserId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // TODO: Load crew IDs from CrewService when crews are implemented
+                // For now, this is a placeholder — crews will be loaded from Supabase
+                val crewIds = emptyList<String>() // Will be populated when crew feature is active
+
+                if (crewIds.isEmpty()) {
+                    Log.d(TAG, "No crews found, skipping crew waypoint load")
+                    return@launch
+                }
+
+                // Load initial crew waypoints
+                val loaded = RealtimeWaypointService.loadInitialCrewWaypoints(crewIds)
+                withContext(Dispatchers.Main) {
+                    crewWaypoints = loaded
+                }
+
+                // Start realtime listening
+                RealtimeWaypointService.startListening(
+                    crewIds = crewIds,
+                    currentUserId = userId,
+                    onWaypointReceived = { sharedWaypoint ->
+                        upsertCrewWaypoint(sharedWaypoint)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load crew waypoints: ${e.message}")
+            }
+        }
+    }
+
+    /** Upsert a crew waypoint (from realtime or initial load). */
+    fun upsertCrewWaypoint(sharedWaypoint: SharedWaypoint) {
+        val existing = crewWaypoints.indexOfFirst { it.waypoint.id == sharedWaypoint.waypoint.id }
+        crewWaypoints = if (existing >= 0) {
+            crewWaypoints.toMutableList().also { it[existing] = sharedWaypoint }
+        } else {
+            crewWaypoints + sharedWaypoint
+        }
+    }
+
+    // MARK: - Network Monitoring
+
+    /** Observe network state and sync on offline→online transitions. */
+    fun observeNetworkState() {
+        viewModelScope.launch {
+            var wasOnline = NetworkMonitor.isOnline.value
+            NetworkMonitor.isOnline.collect { isOnline ->
+                if (!wasOnline && isOnline) {
+                    Log.d(TAG, "Network restored — syncing pending changes")
+                    syncPendingChanges()
+                    // Also sync pending crew shares
+                    val userId = AuthManager.currentUserId
+                    if (userId != null) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            WaypointSharingService.syncPendingShares(
+                                SupabaseClientProvider.client, context, userId
+                            )
+                        }
+                    }
+                }
+                wasOnline = isOnline
+            }
         }
     }
 
@@ -1302,6 +1568,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 waypoints = updatedList
                 WaypointStorage.save(context, updatedList)
+                syncUpsertBatch(result.waypointsToAdd)
 
                 val count = result.waypointsToAdd.size
                 importResult = if (count > 0) {
