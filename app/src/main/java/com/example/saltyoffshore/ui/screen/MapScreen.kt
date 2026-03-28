@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -27,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
+import com.example.saltyoffshore.ui.controls.MapToolBar
+import com.example.saltyoffshore.ui.sharelink.ShareLinkSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.RegionStatus
@@ -121,6 +126,9 @@ fun MapScreen(
     // Waypoint management sheet state
     var showWaypointSheet by remember { mutableStateOf(false) }
 
+    // Tools menu sheet state
+    var showToolsSheet by remember { mutableStateOf(false) }
+
     // GPX file picker
     val context = LocalContext.current
     val gpxPickerLauncher = rememberLauncherForActivityResult(
@@ -182,6 +190,15 @@ fun MapScreen(
             // Wire up repaint callback for Zarr frame updates
             ZarrRepaintEffect(viewModel = viewModel)
 
+            // Wire map snapshot capture for share links
+            MapEffect(Unit) { mapView ->
+                viewModel.captureMapSnapshot = {
+                    mapView.snapshot { bitmap ->
+                        viewModel.setMapSnapshot(bitmap)
+                    }
+                }
+            }
+
             // Region bounds outline
             RegionBoundsEffect(region = viewModel.selectedRegion)
 
@@ -219,7 +236,7 @@ fun MapScreen(
                 isDataLayerActive = viewModel.isDataLayerActive,
                 datasetType = viewModel.currentDatasetType,
                 onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
-                onCameraChanged = { zoom, lat -> viewModel.updateCameraState(zoom, lat) }
+                onCameraChanged = { zoom, lat, lon -> viewModel.updateCameraState(zoom, lat, lon) }
             )
 
             // Region annotations — hide the active region (matches iOS guard)
@@ -293,10 +310,12 @@ fun MapScreen(
             isDataLayerActive = viewModel.isDataLayerActive
         )
 
-        // Top bar: left (crew/future) | center (loading/error capsules) | right (account)
+        // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
             isVisible = !viewModel.measurementState.isActive,
             notifications = viewModel.notificationManager.notifications,
+            showAnnouncement = viewModel.isAnnouncementVisible,
+            onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
             onAccountTap = onSettingsClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -340,15 +359,14 @@ fun MapScreen(
                     RightSideToolbar(
                         onFilterClick = { showFilterSheet = true },
                         onLayersClick = { showLayersSheet = true },
-                        onWaypointsClick = { showWaypointSheet = true },
+                        onToolsClick = { showToolsSheet = true },
                         onMeasureClick = {
                             if (viewModel.measurementState.isActive) {
                                 viewModel.measurementState.exit()
                             } else {
                                 viewModel.measurementState.enter()
                             }
-                        },
-                        isMeasureModeActive = viewModel.measurementState.isActive
+                        }
                     )
                 }
 
@@ -405,7 +423,6 @@ fun MapScreen(
                     snapshot = viewModel.renderingSnapshot,
                     primaryValue = viewModel.primaryValue,
                     isExpanded = viewModel.isDatasetControlCollapsed,
-                    selectedDepth = viewModel.depthFilterState.selectedDepth,
                     primaryConfig = viewModel.primaryConfig,
                     onConfigChanged = { viewModel.updatePrimaryConfig(it) },
                     onEntrySelected = { viewModel.selectEntry(it) },
@@ -549,6 +566,133 @@ fun MapScreen(
             )
         }
 
+        // Announcement sheet
+        if (viewModel.showAnnouncementSheet) {
+            viewModel.announcement?.let { ann ->
+                androidx.compose.material3.ModalBottomSheet(
+                    onDismissRequest = { viewModel.markAnnouncementAsSeen() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    dragHandle = null
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 32.dp)
+                    ) {
+                        // Header with close button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Announcement",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.weight(1f))
+                            androidx.compose.material3.IconButton(
+                                onClick = { viewModel.markAnnouncementAsSeen() }
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        // Title
+                        Text(
+                            text = ann.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        // Message
+                        Text(
+                            text = ann.formattedMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        // OK button — primary filled (not tonal)
+                        androidx.compose.material3.Button(
+                            onClick = { viewModel.markAnnouncementAsSeen() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
+                        ) {
+                            Text("OK")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tools menu sheet
+        if (showToolsSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showToolsSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                MapToolBar(
+                    onAddWaypoint = {
+                        showToolsSheet = false
+                        // TODO: Open waypoint creation at map center
+                    },
+                    onSatellites = {
+                        showToolsSheet = false
+                        // TODO: Open satellite tracking
+                    },
+                    onMyLocation = {
+                        showToolsSheet = false
+                        // TODO: Fly to user location
+                    },
+                    onShare = {
+                        showToolsSheet = false
+                        viewModel.createShareLink()
+                    },
+                    onWaypoints = {
+                        showToolsSheet = false
+                        showWaypointSheet = true
+                    },
+                    onDatasetGuide = {
+                        showToolsSheet = false
+                        // TODO: Open dataset guide
+                    },
+                    onDismiss = { showToolsSheet = false }
+                )
+            }
+        }
+
+        // Share link preview sheet — full-screen style matching iOS
+        viewModel.shareLinkUrl?.let { url ->
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissShareLink() },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = null
+            ) {
+                ShareLinkSheet(
+                    url = url,
+                    mapSnapshot = viewModel.shareLinkSnapshot,
+                    regionName = viewModel.selectedRegion?.name ?: "Unknown",
+                    datasetName = viewModel.selectedDataset?.let {
+                        DatasetType.fromRawValue(it.type)?.shortName ?: it.type
+                    } ?: "Unknown",
+                    timestamp = viewModel.selectedEntry?.timestamp ?: "",
+                    latitude = viewModel.currentLatitude,
+                    longitude = viewModel.currentLongitude,
+                    onDismiss = { viewModel.dismissShareLink() }
+                )
+            }
+        }
+
         // Station detail sheet
         viewModel.selectedStationId?.let { stationId ->
             val stationDetailViewModel: StationDetailViewModel = viewModel(
@@ -638,7 +782,7 @@ private fun CrosshairQueryEffect(
     isDataLayerActive: Boolean,
     datasetType: DatasetType?,
     onPrimaryValueChanged: (CurrentValue) -> Unit,
-    onCameraChanged: (zoom: Double, latitude: Double) -> Unit
+    onCameraChanged: (zoom: Double, latitude: Double, longitude: Double) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -656,8 +800,9 @@ private fun CrosshairQueryEffect(
             val zoom = cameraState.zoom
             val center = cameraState.center
             val latitude = center.latitude()
+            val longitude = center.longitude()
 
-            onCameraChanged(zoom, latitude)
+            onCameraChanged(zoom, latitude, longitude)
 
             if (isDataLayerActive) {
                 val screenCenterX = mapView.width / 2.0

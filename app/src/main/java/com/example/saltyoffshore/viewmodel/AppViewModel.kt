@@ -9,6 +9,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
+import com.example.saltyoffshore.data.Announcement
+import com.example.saltyoffshore.data.sharelink.ShareLinkCameraView
+import com.example.saltyoffshore.data.sharelink.ShareLinkDatasetConfig
+import com.example.saltyoffshore.data.sharelink.ShareLinkPayload
+import com.example.saltyoffshore.data.sharelink.ShareLinkService
 import com.example.saltyoffshore.data.AppStatus
 import com.example.saltyoffshore.data.LoadOperation
 import com.example.saltyoffshore.ui.components.notification.UnifiedNotificationManager
@@ -71,6 +76,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -189,6 +195,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var currentLatitude by mutableStateOf(30.0)
         private set
 
+    var currentLongitude by mutableStateOf(-60.0)
+        private set
+
     // Dataset control state (matches iOS DatasetControlState)
     var isDatasetControlCollapsed by mutableStateOf(false)
     var isDatasetSelectorExpanded by mutableStateOf(false)
@@ -219,6 +228,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     private var hasLoadedWaypointsFromDisk = false
+
+    // MARK: - Announcement State
+
+    var announcement by mutableStateOf<Announcement?>(null)
+        private set
+
+    var showAnnouncementSheet by mutableStateOf(false)
+
+    /** True when announcement is active and unseen by user */
+    val isAnnouncementVisible: Boolean
+        get() = announcement?.isActive == true
+
+    // MARK: - Share Link State
+
+    var shareLinkUrl by mutableStateOf<String?>(null)
+        private set
+
+    var shareLinkSnapshot by mutableStateOf<android.graphics.Bitmap?>(null)
+        private set
+
+    var isCreatingShareLink by mutableStateOf(false)
+        private set
+
+    /** Callback set by MapScreen to capture map bitmap on demand */
+    var captureMapSnapshot: (() -> Unit)? = null
 
     // MARK: - Station State
 
@@ -282,6 +316,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadRegionsAndRestoreSelection()
         loadUserPreferences()
+        checkForAnnouncements()
     }
 
     private fun loadUserPreferences() {
@@ -293,6 +328,118 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.d(TAG, "Loaded user preferences: ${prefs != null}")
         }
+    }
+
+    // MARK: - Announcement Methods
+
+    private fun checkForAnnouncements() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = SupabaseClientProvider.client
+                    .from("announcement")
+                    .select {
+                        filter { eq("id", "singleton") }
+                    }
+                    .decodeSingleOrNull<Announcement>()
+
+                if (result != null && result.isActive) {
+                    val lastSeen = AppPreferencesDataStore
+                        .getLastAnnouncementVersion(context)
+                        .first()
+                    if (result.version > lastSeen) {
+                        withContext(Dispatchers.Main) {
+                            announcement = result
+                        }
+                    }
+                }
+                Log.d(TAG, "Announcement check: ${result?.title ?: "none"}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check announcements", e)
+            }
+        }
+    }
+
+    fun markAnnouncementAsSeen() {
+        val version = announcement?.version ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            AppPreferencesDataStore.setLastAnnouncementVersion(context, version)
+        }
+        announcement = null
+        showAnnouncementSheet = false
+    }
+
+    // MARK: - Share Link Methods
+
+    /**
+     * Capture current map state as a ShareLinkPayload and create a share link.
+     */
+    fun createShareLink() {
+        val region = selectedRegion ?: return
+        val dataset = selectedDataset ?: return
+        val entry = selectedEntry ?: return
+        val config = primaryConfig
+
+        // Capture map snapshot before creating link
+        captureMapSnapshot?.invoke()
+
+        isCreatingShareLink = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val payload = ShareLinkPayload(
+                    entryId = entry.id,
+                    regionId = region.id,
+                    view = ShareLinkCameraView.from(
+                        longitude = currentLongitude,
+                        latitude = currentLatitude,
+                        zoom = currentZoom
+                    ),
+                    primaryConfig = config?.let { cfg ->
+                        ShareLinkDatasetConfig(
+                            datasetId = dataset.id,
+                            colorscaleId = cfg.colorscale?.id,
+                            customRange = cfg.customRange?.let { listOf(it.start, it.endInclusive) },
+                            filterMode = cfg.filterMode.rawValue,
+                            visualEnabled = cfg.visualEnabled,
+                            visualOpacity = cfg.visualOpacity,
+                            contourEnabled = cfg.contourEnabled,
+                            contourOpacity = cfg.contourOpacity,
+                            contourColor = String.format("#%06X", 0xFFFFFF and cfg.contourColor.toInt()),
+                            dynamicContourColoring = cfg.dynamicContourColoring,
+                            arrowsEnabled = cfg.arrowsEnabled,
+                            arrowsOpacity = cfg.arrowsOpacity,
+                            breaksEnabled = cfg.breaksEnabled,
+                            breaksOpacity = cfg.breaksOpacity,
+                            numbersEnabled = cfg.numbersEnabled,
+                            numbersOpacity = cfg.numbersOpacity,
+                            particlesEnabled = cfg.particlesEnabled,
+                            selectedDepth = depthFilterState.selectedDepth
+                        )
+                    }
+                )
+
+                val response = ShareLinkService.createShareLink(payload)
+                withContext(Dispatchers.Main) {
+                    shareLinkUrl = response.url
+                    isCreatingShareLink = false
+                }
+                Log.d(TAG, "Share link created: ${response.url}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create share link", e)
+                withContext(Dispatchers.Main) {
+                    isCreatingShareLink = false
+                    notificationManager.updateError("Failed to create share link")
+                }
+            }
+        }
+    }
+
+    fun dismissShareLink() {
+        shareLinkUrl = null
+        shareLinkSnapshot = null
+    }
+
+    fun setMapSnapshot(bitmap: android.graphics.Bitmap?) {
+        shareLinkSnapshot = bitmap
     }
 
     private fun loadRegionsAndRestoreSelection() {
@@ -781,9 +928,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         primaryValue = value
     }
 
-    fun updateCameraState(zoom: Double, latitude: Double) {
+    fun updateCameraState(zoom: Double, latitude: Double, longitude: Double) {
         currentZoom = zoom
         currentLatitude = latitude
+        currentLongitude = longitude
     }
 
     // MARK: - Preset / Variable Selection
