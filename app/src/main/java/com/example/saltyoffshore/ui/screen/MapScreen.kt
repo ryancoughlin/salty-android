@@ -69,9 +69,7 @@ import com.example.saltyoffshore.data.displayVariables
 import com.example.saltyoffshore.data.hasMultipleVariables
 import com.example.saltyoffshore.data.primaryVariable
 import com.example.saltyoffshore.data.TemperatureUnits
-import com.example.saltyoffshore.data.waypoint.SharedWaypoint
 import com.example.saltyoffshore.data.waypoint.Waypoint
-import com.example.saltyoffshore.data.waypoint.WaypointSelectionSource
 import com.example.saltyoffshore.data.waypoint.WaypointSheet
 import com.example.saltyoffshore.data.waypoint.WaypointSource
 import com.example.saltyoffshore.data.coordinate.GPSFormat
@@ -84,7 +82,6 @@ import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
 import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
-import com.example.saltyoffshore.ui.map.waypoint.SharedWaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.ui.station.StationDetailsView
@@ -354,15 +351,10 @@ fun MapScreen(
                 }
             }
 
-            // Waypoint annotation layers
+            // Waypoint annotation layer with tap handling
             WaypointLayersEffect(
                 waypoints = viewModel.waypoints,
-                crewWaypoints = viewModel.crewWaypoints,
-                selectedWaypointId = viewModel.selectedWaypointId,
-                ownedWaypointIds = viewModel.ownedWaypointIds,
-                onWaypointTap = { id ->
-                    viewModel.selectWaypoint(id, WaypointSelectionSource.MAP_TAP)
-                }
+                onWaypointTap = { id -> viewModel.openWaypointDetails(id) }
             )
 
             // Long-press to create waypoint + open form
@@ -1039,96 +1031,62 @@ private fun GlobalLayersEffect(
 }
 
 /**
- * Effect that manages waypoint annotation layers (own + shared).
- * Uses imperative GeoJSON source + SymbolLayer pattern matching StationsLayer.
+ * Simple waypoint layer effect: icons + text + tap handling.
  */
 @Composable
 private fun WaypointLayersEffect(
     waypoints: List<Waypoint>,
-    crewWaypoints: List<SharedWaypoint>,
-    selectedWaypointId: String?,
-    ownedWaypointIds: Set<String>,
     onWaypointTap: (String) -> Unit
 ) {
-    var ownLayer by remember { mutableStateOf<WaypointAnnotationLayer?>(null) }
-    var sharedLayer by remember { mutableStateOf<SharedWaypointAnnotationLayer?>(null) }
+    val context = LocalContext.current
+    var layer by remember { mutableStateOf<WaypointAnnotationLayer?>(null) }
     var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
-
-    // Use rememberUpdatedState for latest values in callbacks
     val currentWaypoints by androidx.compose.runtime.rememberUpdatedState(waypoints)
-    val currentCrewWaypoints by androidx.compose.runtime.rememberUpdatedState(crewWaypoints)
-    val currentSelectedId by androidx.compose.runtime.rememberUpdatedState(selectedWaypointId)
-    val currentOwnedIds by androidx.compose.runtime.rememberUpdatedState(ownedWaypointIds)
-
-    // Clean up on dispose
-    DisposableEffect(Unit) {
-        onDispose {
-            ownLayer?.removeFromMap()
-            ownLayer = null
-            sharedLayer?.removeFromMap()
-            sharedLayer = null
-        }
-    }
-
-    // Main thread handler for style reload callbacks
+    val currentOnWaypointTap by androidx.compose.runtime.rememberUpdatedState(onWaypointTap)
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
-    // Render function called on style load
-    fun render(mapboxMap: com.mapbox.maps.MapboxMap) {
-        Log.d("WaypointLayersEffect", "render() called with ${currentWaypoints.size} waypoints")
-        if (ownLayer == null) {
-            ownLayer = WaypointAnnotationLayer(mapboxMap)
+    DisposableEffect(Unit) {
+        onDispose {
+            layer?.removeFromMap()
+            layer = null
         }
-        if (sharedLayer == null) {
-            sharedLayer = SharedWaypointAnnotationLayer(mapboxMap)
-        }
-
-        ownLayer?.update(
-            waypoints = currentWaypoints,
-            selectedWaypointId = currentSelectedId,
-            activeCrewId = null // TODO: wire crew state
-        )
-        sharedLayer?.update(
-            sharedWaypoints = currentCrewWaypoints,
-            activeCrewId = null, // TODO: wire crew state
-            ownedWaypointIds = currentOwnedIds,
-            selectedWaypointId = currentSelectedId
-        )
     }
 
-    // Get map reference and subscribe to style reloads
+    fun render(mapboxMap: com.mapbox.maps.MapboxMap) {
+        if (layer == null) layer = WaypointAnnotationLayer(mapboxMap, context)
+        layer?.update(currentWaypoints)
+    }
+
     MapEffect(Unit) { mapView ->
-        Log.d("WaypointLayersEffect", "MapEffect: got mapView")
         mapboxMapRef = mapView.mapboxMap
 
-        // Re-add layers after every style reload — dispatch to main thread
-        mapView.mapboxMap.subscribeStyleLoaded { _ ->
-            Log.d("WaypointLayersEffect", "subscribeStyleLoaded fired")
-            mainHandler.post {
-                Log.d("WaypointLayersEffect", "Style loaded — rendering on main thread")
-                render(mapView.mapboxMap)
+        // Tap detection via queryRenderedFeatures
+        mapView.gestures.addOnMapClickListener { point ->
+            val screenPoint = mapView.mapboxMap.pixelForCoordinate(point)
+            val geometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
+            val options = com.mapbox.maps.RenderedQueryOptions(
+                listOf(com.example.saltyoffshore.config.MapLayers.Waypoint.OWN_LAYER),
+                null
+            )
+            mapView.mapboxMap.queryRenderedFeatures(geometry, options) { expected ->
+                expected.value?.firstOrNull()?.let { feature ->
+                    feature.queriedFeature.feature.getStringProperty("id")?.let { id ->
+                        currentOnWaypointTap(id)
+                    }
+                }
             }
+            false
         }
 
-        // Also render immediately if style already loaded
-        mapView.mapboxMap.getStyle { _ ->
-            Log.d("WaypointLayersEffect", "getStyle callback — initial render")
-            render(mapView.mapboxMap)
+        mapView.mapboxMap.subscribeStyleLoaded { _ ->
+            mainHandler.post { render(mapView.mapboxMap) }
         }
 
-        // TODO: Handle tap on waypoint features — wire when gesture API is confirmed
-        // Needs: addOnMapClickListener + queryRenderedFeatures for waypoint layer tap detection
+        mapView.mapboxMap.getStyle { _ -> render(mapView.mapboxMap) }
     }
 
-    // Update layers when data changes
-    LaunchedEffect(waypoints, crewWaypoints, selectedWaypointId) {
-        Log.d("WaypointLayersEffect", "LaunchedEffect: data changed, ${waypoints.size} waypoints")
-        val map = mapboxMapRef ?: run {
-            Log.d("WaypointLayersEffect", "LaunchedEffect: mapboxMapRef is null, skipping")
-            return@LaunchedEffect
-        }
-        map.getStyle { _ ->
-            render(map)
-        }
+    LaunchedEffect(waypoints) {
+        val map = mapboxMapRef ?: return@LaunchedEffect
+        map.getStyle { _ -> render(map) }
     }
 }
