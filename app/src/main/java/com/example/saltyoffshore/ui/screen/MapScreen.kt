@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -38,6 +36,7 @@ import com.example.saltyoffshore.ui.sharelink.ShareLinkSheet
 import com.example.saltyoffshore.ui.controls.RightSideToolbar
 import com.example.saltyoffshore.config.AppConstants
 import com.example.saltyoffshore.data.RegionStatus
+import com.example.saltyoffshore.ui.components.AnnouncementSheetView
 import com.example.saltyoffshore.ui.components.CrosshairOverlay
 import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
@@ -130,6 +129,9 @@ fun MapScreen(
 
     // Tools menu sheet state
     var showToolsSheet by remember { mutableStateOf(false) }
+
+    // Dataset guide sheet state
+    var showDatasetGuideSheet by remember { mutableStateOf(false) }
 
     // Special mode: hides normal controls when in satellite, measurement, etc.
     val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
@@ -665,67 +667,10 @@ fun MapScreen(
         // Announcement sheet
         if (viewModel.showAnnouncementSheet) {
             viewModel.announcement?.let { ann ->
-                androidx.compose.material3.ModalBottomSheet(
-                    onDismissRequest = { viewModel.markAnnouncementAsSeen() },
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    dragHandle = null
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 32.dp)
-                    ) {
-                        // Header with close button
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Announcement",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.weight(1f))
-                            androidx.compose.material3.IconButton(
-                                onClick = { viewModel.markAnnouncementAsSeen() }
-                            ) {
-                                androidx.compose.material3.Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        // Title
-                        Text(
-                            text = ann.title,
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        // Message
-                        Text(
-                            text = ann.formattedMessage,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                        Spacer(Modifier.height(24.dp))
-                        // OK button — primary filled (not tonal)
-                        androidx.compose.material3.Button(
-                            onClick = { viewModel.markAnnouncementAsSeen() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp)
-                        ) {
-                            Text("OK")
-                        }
-                    }
-                }
+                AnnouncementSheetView(
+                    announcement = ann,
+                    onDismiss = { viewModel.markAnnouncementAsSeen() }
+                )
             }
         }
 
@@ -761,10 +706,50 @@ fun MapScreen(
                     },
                     onDatasetGuide = {
                         showToolsSheet = false
-                        // TODO: Open dataset guide
+                        showDatasetGuideSheet = true
                     },
                     onDismiss = { showToolsSheet = false }
                 )
+            }
+        }
+
+        // Dataset guide sheet
+        if (showDatasetGuideSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showDatasetGuideSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.background
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Dataset Guide",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = { showDatasetGuideSheet = false }
+                        ) {
+                            Text("Done", color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                    com.example.saltyoffshore.ui.components.DatasetGuideView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(600.dp)
+                    )
+                }
             }
         }
 

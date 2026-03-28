@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.QuestionMark
@@ -52,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.saltyoffshore.ui.components.NotificationSettingsView
 import com.example.saltyoffshore.data.DepthUnits
 import com.example.saltyoffshore.data.DistanceUnits
 import com.example.saltyoffshore.data.GpsFormat
@@ -59,6 +61,7 @@ import com.example.saltyoffshore.data.MapTheme
 import com.example.saltyoffshore.data.SpeedUnits
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.UserPreferences
+import com.example.saltyoffshore.ui.components.DatasetGuideView
 import androidx.compose.material3.ExperimentalMaterial3Api
 import kotlinx.coroutines.launch
 
@@ -139,6 +142,7 @@ fun AccountHubSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountHubContent(
     preferences: UserPreferences?,
@@ -159,6 +163,8 @@ private fun AccountHubContent(
     var showingDeleteConfirmation by remember { mutableStateOf(false) }
     var showingFinalConfirmation by remember { mutableStateOf(false) }
     var confirmationText by remember { mutableStateOf("") }
+    var showingDatasetGuide by remember { mutableStateOf(false) }
+    var showingNotificationSettings by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -193,6 +199,12 @@ private fun AccountHubContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
+        NotificationsSection(
+            expanded = showingNotificationSettings,
+            onToggleExpanded = { showingNotificationSettings = !showingNotificationSettings }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
         UnitsSection(
             preferences = preferences,
             onDepthUnitsChanged = onDepthUnitsChanged,
@@ -209,7 +221,7 @@ private fun AccountHubContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        DatasetInfoSection()
+        DatasetInfoSection(onDatasetGuide = { showingDatasetGuide = true })
         Spacer(modifier = Modifier.height(16.dp))
 
         AboutSection()
@@ -333,6 +345,45 @@ private fun AccountHubContent(
             }
         )
     }
+
+    // Dataset Guide full-screen bottom sheet
+    if (showingDatasetGuide) {
+        ModalBottomSheet(
+            onDismissRequest = { showingDatasetGuide = false },
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Dataset Guide",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    TextButton(onClick = { showingDatasetGuide = false }) {
+                        Text("Done", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+                // Guide content
+                DatasetGuideView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(600.dp)
+                )
+            }
+        }
+    }
 }
 
 // =============================================================================
@@ -422,6 +473,26 @@ private fun AccountSettingsSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                 style = MaterialTheme.typography.labelMedium
             )
+        }
+    }
+}
+
+@Composable
+private fun NotificationsSection(
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit
+) {
+    SectionHeader(title = "NOTIFICATIONS")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Default.Notifications,
+            title = "Notification Settings",
+            onClick = onToggleExpanded
+        )
+        if (expanded) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+            NotificationSettingsView()
         }
     }
 }
@@ -540,14 +611,14 @@ private fun MapThemeSection(
 }
 
 @Composable
-private fun DatasetInfoSection() {
+private fun DatasetInfoSection(onDatasetGuide: () -> Unit) {
     SectionHeader(title = "DATASET INFORMATION")
     Spacer(modifier = Modifier.height(8.dp))
     SunkenCard {
         NavigationRow(
             icon = Icons.Default.Info,
             title = "Dataset Guide",
-            onClick = { /* Future: dataset guide */ }
+            onClick = onDatasetGuide
         )
     }
 }
