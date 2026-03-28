@@ -1,5 +1,8 @@
 package com.example.saltyoffshore.ui.screen
 
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -53,7 +56,6 @@ import com.example.saltyoffshore.data.Tournament
 import com.example.saltyoffshore.data.VisualLayerSource
 import com.example.saltyoffshore.config.CrosshairConstants
 import com.example.saltyoffshore.managers.CrosshairFeatureQueryManager
-import android.util.Log
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
@@ -1068,30 +1070,50 @@ private fun WaypointLayersEffect(
         }
     }
 
+    // Main thread handler for style reload callbacks
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+
+    // Render function called on style load
+    fun render(mapboxMap: com.mapbox.maps.MapboxMap) {
+        Log.d("WaypointLayersEffect", "render() called with ${currentWaypoints.size} waypoints")
+        if (ownLayer == null) {
+            ownLayer = WaypointAnnotationLayer(mapboxMap)
+        }
+        if (sharedLayer == null) {
+            sharedLayer = SharedWaypointAnnotationLayer(mapboxMap)
+        }
+
+        ownLayer?.update(
+            waypoints = currentWaypoints,
+            selectedWaypointId = currentSelectedId,
+            activeCrewId = null // TODO: wire crew state
+        )
+        sharedLayer?.update(
+            sharedWaypoints = currentCrewWaypoints,
+            activeCrewId = null, // TODO: wire crew state
+            ownedWaypointIds = currentOwnedIds,
+            selectedWaypointId = currentSelectedId
+        )
+    }
+
     // Get map reference and subscribe to style reloads
     MapEffect(Unit) { mapView ->
+        Log.d("WaypointLayersEffect", "MapEffect: got mapView")
         mapboxMapRef = mapView.mapboxMap
 
-        // Re-add layers after every style reload (matches GlobalLayersEffect pattern)
+        // Re-add layers after every style reload — dispatch to main thread
         mapView.mapboxMap.subscribeStyleLoaded { _ ->
-            if (ownLayer == null) {
-                ownLayer = WaypointAnnotationLayer(mapView.mapboxMap)
+            Log.d("WaypointLayersEffect", "subscribeStyleLoaded fired")
+            mainHandler.post {
+                Log.d("WaypointLayersEffect", "Style loaded — rendering on main thread")
+                render(mapView.mapboxMap)
             }
-            if (sharedLayer == null) {
-                sharedLayer = SharedWaypointAnnotationLayer(mapView.mapboxMap)
-            }
+        }
 
-            ownLayer?.update(
-                waypoints = currentWaypoints,
-                selectedWaypointId = currentSelectedId,
-                activeCrewId = null // TODO: wire crew state
-            )
-            sharedLayer?.update(
-                sharedWaypoints = currentCrewWaypoints,
-                activeCrewId = null, // TODO: wire crew state
-                ownedWaypointIds = currentOwnedIds,
-                selectedWaypointId = currentSelectedId
-            )
+        // Also render immediately if style already loaded
+        mapView.mapboxMap.getStyle { _ ->
+            Log.d("WaypointLayersEffect", "getStyle callback — initial render")
+            render(mapView.mapboxMap)
         }
 
         // TODO: Handle tap on waypoint features — wire when gesture API is confirmed
@@ -1100,19 +1122,13 @@ private fun WaypointLayersEffect(
 
     // Update layers when data changes
     LaunchedEffect(waypoints, crewWaypoints, selectedWaypointId) {
-        val map = mapboxMapRef ?: return@LaunchedEffect
+        Log.d("WaypointLayersEffect", "LaunchedEffect: data changed, ${waypoints.size} waypoints")
+        val map = mapboxMapRef ?: run {
+            Log.d("WaypointLayersEffect", "LaunchedEffect: mapboxMapRef is null, skipping")
+            return@LaunchedEffect
+        }
         map.getStyle { _ ->
-            ownLayer?.update(
-                waypoints = currentWaypoints,
-                selectedWaypointId = currentSelectedId,
-                activeCrewId = null
-            )
-            sharedLayer?.update(
-                sharedWaypoints = currentCrewWaypoints,
-                activeCrewId = null,
-                ownedWaypointIds = currentOwnedIds,
-                selectedWaypointId = currentSelectedId
-            )
+            render(map)
         }
     }
 }
