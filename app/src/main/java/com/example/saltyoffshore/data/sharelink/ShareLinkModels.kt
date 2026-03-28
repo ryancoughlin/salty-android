@@ -119,13 +119,13 @@ data class ShareLinkResolveResponse(
  * Errors from share link operations — carries context like iOS.
  */
 sealed class ShareLinkError : Exception() {
-    data class NetworkError(val cause: Throwable) : ShareLinkError() {
+    data class NetworkError(override val cause: Throwable) : ShareLinkError() {
         override val message = "Check your internet connection"
     }
-    data class EncodingError(val cause: Throwable) : ShareLinkError() {
+    data class EncodingError(override val cause: Throwable) : ShareLinkError() {
         override val message = "Failed to encode share link"
     }
-    data class DecodingError(val cause: Throwable) : ShareLinkError() {
+    data class DecodingError(override val cause: Throwable) : ShareLinkError() {
         override val message = "Failed to decode share link"
     }
     data class ServerError(val statusCode: Int, val serverMessage: String?) : ShareLinkError() {
@@ -134,7 +134,7 @@ sealed class ShareLinkError : Exception() {
     data object InvalidURL : ShareLinkError() {
         override val message = "Invalid share link URL"
     }
-    data class UnknownError(val cause: Throwable?) : ShareLinkError() {
+    data class UnknownError(override val cause: Throwable?) : ShareLinkError() {
         override val message = "Something went wrong"
     }
 

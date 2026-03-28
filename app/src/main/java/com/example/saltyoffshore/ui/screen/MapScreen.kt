@@ -421,7 +421,6 @@ fun MapScreen(
                     snapshot = viewModel.renderingSnapshot,
                     primaryValue = viewModel.primaryValue,
                     isExpanded = viewModel.isDatasetControlCollapsed,
-                    selectedDepth = viewModel.depthFilterState.selectedDepth,
                     primaryConfig = viewModel.primaryConfig,
                     onConfigChanged = { viewModel.updatePrimaryConfig(it) },
                     onEntrySelected = { viewModel.selectEntry(it) },
@@ -595,7 +594,7 @@ fun MapScreen(
                             androidx.compose.material3.IconButton(
                                 onClick = { viewModel.markAnnouncementAsSeen() }
                             ) {
-                                Icon(
+                                androidx.compose.material3.Icon(
                                     imageVector = androidx.compose.material.icons.Icons.Default.Close,
                                     contentDescription = "Close",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -682,7 +681,7 @@ fun MapScreen(
                     mapSnapshot = viewModel.shareLinkSnapshot,
                     regionName = viewModel.selectedRegion?.name ?: "Unknown",
                     datasetName = viewModel.selectedDataset?.let {
-                        DatasetType.fromRawValue(it.type)?.displayName ?: it.type
+                        DatasetType.fromRawValue(it.type)?.shortName ?: it.type
                     } ?: "Unknown",
                     timestamp = viewModel.selectedEntry?.timestamp ?: "",
                     latitude = viewModel.currentLatitude,

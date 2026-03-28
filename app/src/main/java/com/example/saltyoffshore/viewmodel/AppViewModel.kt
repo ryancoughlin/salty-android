@@ -427,7 +427,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "Failed to create share link", e)
                 withContext(Dispatchers.Main) {
                     isCreatingShareLink = false
-                    notificationManager.showError("Failed to create share link")
+                    notificationManager.updateError("Failed to create share link")
                 }
             }
         }
