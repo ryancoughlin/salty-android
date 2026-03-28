@@ -1,5 +1,7 @@
 package com.example.saltyoffshore.ui.map.satellite
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,13 +20,12 @@ import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.plugin.gestures.gestures
 
 private const val TAG = "SatelliteLayers"
+private val mainHandler = Handler(Looper.getMainLooper())
 
 /**
  * Satellite map layers — lives inside MapboxMap { } composable.
- * Uses MapEffect to get mapView directly (no nullable state ref).
+ * Uses MapEffect to get mapView directly.
  * Subscribes to style reload events so layers survive theme/projection changes.
- *
- * Pattern matches GlobalLayersEffect exactly.
  *
  * iOS ref: SatelliteLayers.swift
  */
@@ -35,7 +36,7 @@ fun SatelliteLayersEffect(
 ) {
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
 
-    // Keep latest values for async callbacks
+    // Keep latest values for async callbacks (subscribeStyleLoaded fires off main thread)
     val currentIsActive by rememberUpdatedState(trackingMode.isActive)
     val currentMode by rememberUpdatedState(trackingMode.mode)
     val currentTracks by rememberUpdatedState(store.tracks)
@@ -44,7 +45,11 @@ fun SatelliteLayersEffect(
     val currentSelectedPassId by rememberUpdatedState(trackingMode.selectedPassId)
 
     fun render(mapboxMap: MapboxMap) {
-        val style = mapboxMap.style ?: return
+        val style = mapboxMap.style
+        if (style == null) {
+            Log.w(TAG, "render() called but style is null — skipping")
+            return
+        }
 
         if (!currentIsActive) {
             removeLayers(style, SATELLITE_TRACK_LAYER_IDS, SATELLITE_TRACK_SOURCE_IDS)
@@ -56,37 +61,46 @@ fun SatelliteLayersEffect(
             SatelliteMode.TRACKER -> {
                 removeLayers(style, COVERAGE_PASS_LAYER_IDS, COVERAGE_PASS_SOURCE_IDS)
                 if (currentTracks.isNotEmpty()) {
+                    Log.d(TAG, "Rendering ${currentTracks.size} tracker layers, selected=$currentSelectedTrackId")
                     renderTrackerLayers(style, currentTracks, currentSelectedTrackId)
+                } else {
+                    Log.d(TAG, "No tracks to render")
                 }
             }
             SatelliteMode.COVERAGE -> {
                 removeLayers(style, SATELLITE_TRACK_LAYER_IDS, SATELLITE_TRACK_SOURCE_IDS)
                 if (currentPasses.isNotEmpty()) {
+                    Log.d(TAG, "Rendering ${currentPasses.size} coverage layers, selected=$currentSelectedPassId")
                     renderCoverageLayers(style, currentPasses, currentSelectedPassId)
+                } else {
+                    Log.d(TAG, "No passes to render")
                 }
             }
         }
     }
 
-    // Get MapView + subscribe to style reloads (fires inside MapboxMap composable)
+    // Get MapView + subscribe to style reloads
     MapEffect(Unit) { mapView ->
         Log.d(TAG, "MapEffect: got mapView")
         mapViewRef = mapView
 
-        // Re-add layers after every style reload (theme/projection change)
+        // Re-add layers after every style reload — dispatch to main thread
         mapView.mapboxMap.subscribeStyleLoaded { _ ->
-            Log.d(TAG, "Style reloaded — re-rendering satellite layers")
-            render(mapView.mapboxMap)
+            Log.d(TAG, "subscribeStyleLoaded fired")
+            mainHandler.post {
+                Log.d(TAG, "Style reloaded — re-rendering on main thread")
+                render(mapView.mapboxMap)
+            }
         }
 
-        // Also render immediately if style already loaded
+        // Also try immediately if style already loaded
         mapView.mapboxMap.getStyle { _ ->
-            Log.d(TAG, "Style available — initial satellite layer render")
+            Log.d(TAG, "getStyle callback — initial render")
             render(mapView.mapboxMap)
         }
     }
 
-    // Re-render when data or selection changes
+    // Re-render when data or selection changes (main thread via LaunchedEffect)
     LaunchedEffect(
         trackingMode.isActive,
         trackingMode.mode,
@@ -95,8 +109,12 @@ fun SatelliteLayersEffect(
         trackingMode.selectedTrackId,
         trackingMode.selectedPassId
     ) {
-        val mapView = mapViewRef ?: return@LaunchedEffect
-        // Call render directly — style is guaranteed loaded since MapEffect already ran
+        val mapView = mapViewRef
+        if (mapView == null) {
+            Log.d(TAG, "LaunchedEffect: mapViewRef is null, skipping")
+            return@LaunchedEffect
+        }
+        Log.d(TAG, "LaunchedEffect: data changed, rendering")
         render(mapView.mapboxMap)
     }
 
