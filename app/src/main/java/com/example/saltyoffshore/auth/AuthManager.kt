@@ -110,6 +110,26 @@ object AuthManager {
         }
     }
 
+    // MARK: - Password Update
+
+    suspend fun updatePassword(newPassword: String) {
+        if (!ValidationHelper.isValidPassword(newPassword)) {
+            throw AuthError.WeakPassword
+        }
+        _isLoading.value = true
+        try {
+            supabase.auth.updateUser {
+                password = newPassword
+            }
+            Log.d(TAG, "Password updated successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Password update failed: ${e.message}")
+            throw AuthError.Unknown(e)
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
     // MARK: - Sign Out
 
     suspend fun signOut() {

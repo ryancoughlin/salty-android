@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.QuestionMark
@@ -94,6 +95,8 @@ fun AccountHubSheet(
     onMapThemeChanged: (MapTheme) -> Unit,
     onEditProfile: () -> Unit,
     onPreferredRegion: () -> Unit,
+    onManageWaypoints: () -> Unit = {},
+    onImportGPX: () -> Unit = {},
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
     onDismiss: () -> Unit
@@ -125,6 +128,8 @@ fun AccountHubSheet(
             onMapThemeChanged = onMapThemeChanged,
             onEditProfile = onEditProfile,
             onPreferredRegion = onPreferredRegion,
+            onManageWaypoints = onManageWaypoints,
+            onImportGPX = onImportGPX,
             onDeleteAccount = onDeleteAccount,
             onSignOut = {
                 scope.launch {
@@ -154,6 +159,8 @@ private fun AccountHubContent(
     onMapThemeChanged: (MapTheme) -> Unit,
     onEditProfile: () -> Unit,
     onPreferredRegion: () -> Unit,
+    onManageWaypoints: () -> Unit,
+    onImportGPX: () -> Unit,
     onDeleteAccount: () -> Unit,
     onSignOut: () -> Unit,
     onDone: () -> Unit
@@ -218,6 +225,12 @@ private fun AccountHubContent(
         MapThemeSection(
             preferences = preferences,
             onMapThemeChanged = onMapThemeChanged
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        MyWaypointsSection(
+            onManageWaypoints = onManageWaypoints,
+            onImportGPX = onImportGPX
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -412,7 +425,7 @@ private fun WelcomeSection() {
             Button(
                 onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:feedback@saltyoffshore.com?subject=App%20Feedback")
+                        data = Uri.parse("mailto:support@saltyoffshore.com")
                     }
                     context.startActivity(intent)
                 },
@@ -611,6 +624,28 @@ private fun MapThemeSection(
 }
 
 @Composable
+private fun MyWaypointsSection(
+    onManageWaypoints: () -> Unit,
+    onImportGPX: () -> Unit
+) {
+    SectionHeader(title = "MY WAYPOINTS")
+    Spacer(modifier = Modifier.height(8.dp))
+    SunkenCard {
+        NavigationRow(
+            icon = Icons.Default.Place,
+            title = "Manage Waypoints",
+            onClick = onManageWaypoints
+        )
+        RowDivider()
+        NavigationRow(
+            icon = Icons.Default.Info,
+            title = "Import GPX File",
+            onClick = onImportGPX
+        )
+    }
+}
+
+@Composable
 private fun DatasetInfoSection(onDatasetGuide: () -> Unit) {
     SectionHeader(title = "DATASET INFORMATION")
     Spacer(modifier = Modifier.height(8.dp))
@@ -640,7 +675,7 @@ private fun AboutSection() {
             icon = Icons.Default.PrivacyTip,
             title = "Privacy Policy",
             onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://saltyoffshore.com/privacy"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://saltyoffshore.com/#/privacy"))
                 context.startActivity(intent)
             }
         )
@@ -649,7 +684,7 @@ private fun AboutSection() {
             icon = Icons.Outlined.Description,
             title = "Terms of Use",
             onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://saltyoffshore.com/terms"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://saltyoffshore.com/#/terms-of-use"))
                 context.startActivity(intent)
             }
         )
