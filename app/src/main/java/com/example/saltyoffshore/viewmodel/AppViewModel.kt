@@ -35,6 +35,7 @@ import com.example.saltyoffshore.data.DistanceUnits
 import com.example.saltyoffshore.data.measurement.MeasurementState
 import com.example.saltyoffshore.data.GpsFormat
 import com.example.saltyoffshore.data.MapTheme
+import com.example.saltyoffshore.data.OverlayEntryResolver
 import com.example.saltyoffshore.data.PresetConfiguration
 import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
@@ -86,6 +87,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "AppViewModel"
 
@@ -169,6 +171,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Layer rendering state (derived from config for map rendering)
     var renderingSnapshot by mutableStateOf(DatasetRenderingSnapshot.default())
         private set
+
+    // MARK: - Overlay State
+
+    /** Active overlay datasets keyed by DatasetType. Ordered by activation time. */
+    var overlays by mutableStateOf<Map<DatasetType, DatasetRenderConfig>>(emptyMap())
+        private set
+
+    /** Overlay visual layer sources keyed by dataset ID. */
+    var overlayVisualSources by mutableStateOf<Map<String, VisualLayerSource>>(emptyMap())
+        private set
+
+    /** Overlay rendering snapshots keyed by DatasetType. */
+    var overlaySnapshots by mutableStateOf<Map<DatasetType, DatasetRenderingSnapshot>>(emptyMap())
+        private set
+
+    /** Overlay datasets (with populated entries) keyed by DatasetType. */
+    var overlayDatasets by mutableStateOf<Map<DatasetType, Dataset>>(emptyMap())
+        private set
+
+    /** Overlay entries (resolved per overlay) keyed by DatasetType. */
+    var overlayEntries by mutableStateOf<Map<DatasetType, TimeEntry>>(emptyMap())
+        private set
+
+    /** Per-overlay ZarrManagers for independent GPU rendering. */
+    private val overlayZarrManagers = ConcurrentHashMap<DatasetType, ZarrManager>()
+
+    /** Overlay activation order — determines z-order on map. */
+    var overlayOrder by mutableStateOf<List<DatasetType>>(emptyList())
+        private set
+
+    val hasActiveOverlays: Boolean
+        get() = overlays.isNotEmpty()
+
+    val activeOverlayTypes: Set<DatasetType>
+        get() = overlays.keys
+
+    fun isOverlayActive(type: DatasetType): Boolean = overlays.containsKey(type)
+
+    fun overlayConfig(type: DatasetType): DatasetRenderConfig? = overlays[type]
 
     // Depth filter state
     var depthFilterState by mutableStateOf(DepthFilterState())
@@ -600,12 +641,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Show frame in Zarr renderer
         zarrManager.showFrame(entry.id)
 
+        // Sync overlay frames to new primary entry
+        if (hasActiveOverlays) {
+            showOverlayFrames(entry)
+        }
+
         // Refresh COG statistics for dynamic presets
         loadCOGStatistics()
     }
 
     fun selectDataset(dataset: Dataset) {
         notificationManager.startLoading(LoadOperation.Dataset)
+        deactivateAllOverlays()
         selectedDataset = dataset
         Log.d(TAG, "Dataset selected: ${dataset.name}")
 
@@ -716,6 +763,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearSelection() {
+        deactivateAllOverlays()
         selectedRegion = null
         selectedDataset = null
         selectedEntry = null
@@ -909,6 +957,252 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 dataMax = rangeData.max
             )
             Log.d(TAG, "Updated data range: ${rangeData.min} - ${rangeData.max}")
+        }
+    }
+
+    // MARK: - Overlay Dataset API
+
+    /**
+     * Activate a dataset type as an overlay.
+     * Fetches entries, loads Zarr data, resolves visual source.
+     * iOS ref: DatasetStore.activateOverlay()
+     */
+    fun activateOverlay(type: DatasetType) {
+        // Can't overlay the same type as primary
+        val primaryType = selectedDataset?.let { DatasetType.fromRawValue(it.type) }
+        if (type == primaryType) return
+        // Already active
+        if (overlays.containsKey(type)) return
+
+        val region = selectedRegion ?: return
+        val primaryEntry = selectedEntry ?: return
+
+        // Find the dataset for this type in the region
+        val dataset = region.datasets.find { DatasetType.fromRawValue(it.type) == type } ?: return
+
+        // Create overlay config with defaults
+        val config = DatasetRenderConfig.overlayDefaults(type, dataset.id)
+        overlays = overlays + (type to config)
+        overlayOrder = overlayOrder + type
+
+        // Create snapshot
+        val snapshot = config.snapshot()
+        overlaySnapshots = overlaySnapshots + (type to snapshot)
+
+        Log.d(TAG, "Activating overlay: ${type.shortName}")
+
+        // Fetch entries and load Zarr
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val datasetWithEntries = SaltyApi.fetchDatasetEntries(region.id, dataset.id)
+                Log.d(TAG, "Loaded ${datasetWithEntries.entries?.size ?: 0} entries for overlay ${type.shortName}")
+
+                // Resolve best entry
+                val overlayEntry = OverlayEntryResolver.resolve(
+                    overlayDataset = datasetWithEntries,
+                    primaryEntry = primaryEntry,
+                    override = config.entryOverride
+                )
+
+                withContext(Dispatchers.Main) {
+                    // Store dataset + resolved entry
+                    overlayDatasets = overlayDatasets + (type to datasetWithEntries)
+                    if (overlayEntry != null) {
+                        overlayEntries = overlayEntries + (type to overlayEntry)
+                        // Update snapshot with entry data range
+                        val rangeKey = type.rangeKey
+                        val rangeData = overlayEntry.ranges?.get(rangeKey)
+                        if (rangeData?.min != null && rangeData.max != null) {
+                            val updatedSnapshot = config.snapshot(
+                                dataRange = rangeData.min..rangeData.max
+                            )
+                            overlaySnapshots = overlaySnapshots + (type to updatedSnapshot)
+                        }
+                    }
+                }
+
+                // Load Zarr for overlay
+                if (overlayEntry != null) {
+                    loadZarrForOverlay(type, datasetWithEntries, overlayEntry, config)
+                }
+
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to activate overlay ${type.shortName}", e)
+                withContext(Dispatchers.Main) {
+                    deactivateOverlay(type)
+                }
+            }
+        }
+    }
+
+    /**
+     * Deactivate a single overlay.
+     */
+    fun deactivateOverlay(type: DatasetType) {
+        overlays = overlays - type
+        overlayOrder = overlayOrder - type
+        overlaySnapshots = overlaySnapshots - type
+        overlayDatasets = overlayDatasets - type
+        overlayEntries = overlayEntries - type
+        overlayVisualSources = overlayVisualSources - type.rawValue
+
+        // Tear down Zarr manager
+        overlayZarrManagers.remove(type)?.removeAll()
+
+        Log.d(TAG, "Deactivated overlay: ${type.shortName}")
+        repaint?.invoke()
+    }
+
+    /**
+     * Deactivate all overlays. Called on primary dataset switch or region change.
+     */
+    fun deactivateAllOverlays() {
+        overlayZarrManagers.values.forEach { it.removeAll() }
+        overlayZarrManagers.clear()
+        overlays = emptyMap()
+        overlayOrder = emptyList()
+        overlaySnapshots = emptyMap()
+        overlayDatasets = emptyMap()
+        overlayEntries = emptyMap()
+        overlayVisualSources = emptyMap()
+        Log.d(TAG, "Deactivated all overlays")
+    }
+
+    /**
+     * Update an overlay's render config.
+     */
+    fun updateOverlayConfig(type: DatasetType, config: DatasetRenderConfig) {
+        overlays = overlays + (type to config)
+
+        // Update snapshot
+        val currentSnapshot = overlaySnapshots[type] ?: DatasetRenderingSnapshot.default()
+        val dataRange = currentSnapshot.dataMin..currentSnapshot.dataMax
+        overlaySnapshots = overlaySnapshots + (type to config.snapshot(dataRange))
+
+        // Sync to shader
+        syncOverlayConfigToShader(type, config)
+    }
+
+    /**
+     * Load Zarr data for an overlay dataset.
+     */
+    private fun loadZarrForOverlay(
+        type: DatasetType,
+        dataset: Dataset,
+        entry: TimeEntry,
+        config: DatasetRenderConfig
+    ) {
+        val zarrUrl = dataset.zarrUrl ?: return
+
+        // Create dedicated ZarrManager for this overlay
+        val manager = ZarrManager(coroutineScope = viewModelScope)
+        overlayZarrManagers[type] = manager
+
+        // Create and set shader host
+        val shaderHost = ZarrVisualLayer()
+        manager.setShaderHost(shaderHost)
+        manager.repaint = repaint
+
+        // Resolve rendering config
+        val variable = config.selectedVariable(dataset)
+        val rc = type.renderingConfig(variable)
+
+        // Build TimeEntry list for Zarr
+        val entries = (dataset.entries ?: emptyList()).map { e ->
+            ZarrTimeEntry(
+                id = e.id,
+                timestamp = parseTimestamp(e.timestamp),
+                depth = e.depth
+            )
+        }
+
+        val variableName = type.zarrVariable
+        val rangeKey = type.rangeKey
+        val rangeData = entry.ranges?.get(rangeKey)
+        val dataRange = if (rangeData?.min != null && rangeData.max != null) {
+            rangeData.min.toFloat()..rangeData.max.toFloat()
+        } else {
+            0f..100f
+        }
+
+        manager.load(
+            zarrUrl = zarrUrl,
+            variableName = variableName,
+            entries = entries,
+            depths = dataset.availableDepths ?: listOf(0),
+            dataRange = dataRange,
+            initialEntryId = entry.id,
+            colorscale = rc.colorscale,
+            scaleMode = rc.scaleMode
+        )
+
+        // Update visual source on main thread once shader host is ready
+        viewModelScope.launch(Dispatchers.Main) {
+            overlayVisualSources = overlayVisualSources + (type.rawValue to VisualLayerSource.Zarr(shaderHost))
+
+            // Apply overlay config (opacity, filter mode)
+            syncOverlayConfigToShader(type, config)
+        }
+
+        Log.d(TAG, "Started Zarr load for overlay ${type.shortName}")
+    }
+
+    /**
+     * Sync overlay config to its dedicated Zarr shader.
+     */
+    private fun syncOverlayConfigToShader(type: DatasetType, config: DatasetRenderConfig) {
+        val manager = overlayZarrManagers[type] ?: return
+        val dataset = overlayDatasets[type] ?: return
+
+        val variable = config.selectedVariable(dataset)
+        val rc = type.renderingConfig(variable)
+
+        val colorscale = config.colorscale ?: rc.colorscale
+        val distribution = if (config.colorscale == null) rc.colormapDistribution
+            else ColormapTextureFactory.StopDistribution.Uniform
+        manager.setColorscale(colorscale, distribution)
+
+        val filterMin: Float
+        val filterMax: Float
+        if (config.customRange != null) {
+            filterMin = config.customRange.start.toFloat()
+            filterMax = config.customRange.endInclusive.toFloat()
+        } else {
+            filterMin = 0f
+            filterMax = 0f
+        }
+
+        manager.setUniforms(
+            opacity = config.visualOpacity.toFloat(),
+            filterMin = filterMin,
+            filterMax = filterMax,
+            filterMode = config.filterMode.ordinal,
+            scaleMode = rc.scaleMode.rawValue,
+            blendFactor = 1.0f
+        )
+
+        repaint?.invoke()
+    }
+
+    /**
+     * Sync overlay frames when primary timeline scrubs.
+     * iOS ref: DatasetStore.showOverlayFrames()
+     */
+    fun showOverlayFrames(primaryEntry: TimeEntry) {
+        for ((type, config) in overlays) {
+            val dataset = overlayDatasets[type] ?: continue
+            val manager = overlayZarrManagers[type] ?: continue
+
+            val overlayEntry = OverlayEntryResolver.resolve(
+                overlayDataset = dataset,
+                primaryEntry = primaryEntry,
+                override = config.entryOverride
+            ) ?: continue
+
+            overlayEntries = overlayEntries + (type to overlayEntry)
+            manager.showFrame(overlayEntry.id)
         }
     }
 

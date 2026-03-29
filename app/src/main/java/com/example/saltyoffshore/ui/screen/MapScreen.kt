@@ -77,6 +77,8 @@ import com.example.saltyoffshore.ui.waypoint.WaypointFormSheet
 import com.example.saltyoffshore.ui.waypoint.WaypointManagementSheet
 import com.example.saltyoffshore.ui.measurement.MeasurementMapEffect
 import com.example.saltyoffshore.ui.measurement.MeasureModeOverlay
+import com.example.saltyoffshore.ui.controls.overlay.OverlayChipBar
+import com.example.saltyoffshore.ui.controls.overlay.OverlayPickerSheet
 import com.example.saltyoffshore.ui.map.RegionBoundsEffect
 import com.example.saltyoffshore.ui.map.layers.DatasetLayers
 import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
@@ -129,6 +131,10 @@ fun MapScreen(
 
     // Tools menu sheet state
     var showToolsSheet by remember { mutableStateOf(false) }
+
+    // Overlay picker sheet state
+    var showOverlayPickerSheet by remember { mutableStateOf(false) }
+    val overlayPickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Dataset guide sheet state
     var showDatasetGuideSheet by remember { mutableStateOf(false) }
@@ -304,7 +310,13 @@ fun MapScreen(
                 entry = viewModel.selectedEntry,
                 region = viewModel.selectedRegion,
                 snapshot = viewModel.renderingSnapshot,
-                visualSource = viewModel.visualSource
+                visualSource = viewModel.visualSource,
+                // Overlay props
+                overlayOrder = viewModel.overlayOrder,
+                overlaySnapshots = viewModel.overlaySnapshots,
+                overlayVisualSources = viewModel.overlayVisualSources,
+                overlayDatasets = viewModel.overlayDatasets,
+                overlayEntries = viewModel.overlayEntries
             )
 
             // Load stations when layer is enabled (deferred — matches iOS)
@@ -514,6 +526,18 @@ fun MapScreen(
                     )
                 }
 
+                // Overlay chip bar (add/view/remove overlays)
+                if (!viewModel.measurementState.isActive) {
+                    Spacer(Modifier.height(Spacing.small))
+                    OverlayChipBar(
+                        overlayOrder = viewModel.overlayOrder,
+                        onAddOverlay = { showOverlayPickerSheet = true },
+                        onRemoveOverlay = { viewModel.deactivateOverlay(it) },
+                        onOverlayTap = { /* TODO: open overlay settings sheet */ }
+                    )
+                    Spacer(Modifier.height(Spacing.small))
+                }
+
                 // Bottom panel
                 if (!viewModel.measurementState.isActive) SaltyDatasetControl(
                     dataset = viewModel.selectedDataset!!,
@@ -553,6 +577,25 @@ fun MapScreen(
                 // Sheet props
                 sheetState = layersSheetState,
                 onDismiss = { showLayersSheet = false }
+            )
+        }
+
+        // Overlay picker sheet
+        if (showOverlayPickerSheet && viewModel.selectedDataset != null) {
+            val primaryType = viewModel.selectedDataset?.let { DatasetType.fromRawValue(it.type) }
+            val availableTypes = DatasetType.entries.filter { it != primaryType }
+            OverlayPickerSheet(
+                availableTypes = availableTypes,
+                activeOverlays = viewModel.activeOverlayTypes,
+                onToggle = { type ->
+                    if (viewModel.isOverlayActive(type)) {
+                        viewModel.deactivateOverlay(type)
+                    } else {
+                        viewModel.activateOverlay(type)
+                    }
+                },
+                sheetState = overlayPickerSheetState,
+                onDismiss = { showOverlayPickerSheet = false }
             )
         }
 
@@ -818,7 +861,13 @@ private fun DatasetLayersEffect(
     entry: TimeEntry?,
     region: RegionMetadata?,
     snapshot: DatasetRenderingSnapshot,
-    visualSource: VisualLayerSource
+    visualSource: VisualLayerSource,
+    // Overlay props
+    overlayOrder: List<DatasetType>,
+    overlaySnapshots: Map<DatasetType, DatasetRenderingSnapshot>,
+    overlayVisualSources: Map<String, VisualLayerSource>,
+    overlayDatasets: Map<DatasetType, Dataset>,
+    overlayEntries: Map<DatasetType, TimeEntry>
 ) {
     // Remember layer manager - recreate only when region changes
     val regionId = region?.id
@@ -832,8 +881,8 @@ private fun DatasetLayersEffect(
         }
     }
 
-    // Render layers when any input changes
-    MapEffect(regionId, entry?.id, snapshot, visualSource) { mapView ->
+    // Render primary + overlay layers when any input changes
+    MapEffect(regionId, entry?.id, snapshot, visualSource, overlayOrder, overlaySnapshots, overlayVisualSources) { mapView ->
         val mapboxMap = mapView.mapboxMap
 
         // Create layer manager if needed (first render or region changed)
@@ -841,13 +890,22 @@ private fun DatasetLayersEffect(
             datasetLayers = DatasetLayers(mapboxMap)
         }
 
-        // Render layers
+        // Render primary layers
         datasetLayers?.render(
             dataset = dataset,
             entry = entry,
             region = region,
             snapshot = snapshot,
             visualSource = visualSource
+        )
+
+        // Render overlay layers (stacked above primary in activation order)
+        datasetLayers?.renderOverlays(
+            overlayOrder = overlayOrder,
+            overlaySnapshots = overlaySnapshots,
+            overlayVisualSources = overlayVisualSources,
+            overlayDatasets = overlayDatasets,
+            overlayEntries = overlayEntries
         )
     }
 }

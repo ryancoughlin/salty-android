@@ -17,6 +17,21 @@ enum class DatasetType(val rawValue: String) {
     DISSOLVED_OXYGEN("dissolved_oxygen"),
     PHYTOPLANKTON("phytoplankton");
 
+    val displayName: String
+        get() = when (this) {
+            SST -> "Sea Surface Temperature"
+            CURRENTS -> "Currents"
+            CHLOROPHYLL -> "Chlorophyll"
+            SEA_SURFACE_HEIGHT -> "Sea Surface Height"
+            WATER_CLARITY -> "Water Clarity"
+            SALINITY -> "Salinity"
+            WATER_TYPE -> "Water Type"
+            MLD -> "Mixed Layer Depth"
+            FSLE -> "FSLE"
+            DISSOLVED_OXYGEN -> "Dissolved Oxygen"
+            PHYTOPLANKTON -> "Phytoplankton"
+        }
+
     val shortName: String
         get() = when (this) {
             SST -> "SST"

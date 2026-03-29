@@ -40,6 +40,23 @@ class DatasetLayers(
     private var currentBreaksPmtilesUrl: String? = null
     private var currentNumbersPmtilesUrl: String? = null
 
+    // MARK: - Overlay Layer State
+
+    /** Active overlay Zarr layer IDs in activation order (for z-ordering). */
+    private val overlayZarrLayerIds = mutableListOf<String>()
+
+    /** Per-overlay layer instances keyed by DatasetType.rawValue. */
+    private val overlayContourLayers = mutableMapOf<String, ContourLayer>()
+    private val overlayCurrentsLayers = mutableMapOf<String, CurrentsLayer>()
+    private val overlayBreaksLayers = mutableMapOf<String, BreaksVectorLayer>()
+    private val overlayNumbersLayers = mutableMapOf<String, NumbersLayer>()
+
+    // Track overlay PMTiles URLs per overlay key
+    private val overlayContourUrls = mutableMapOf<String, String>()
+    private val overlayCurrentsUrls = mutableMapOf<String, String>()
+    private val overlayBreaksUrls = mutableMapOf<String, String>()
+    private val overlayNumbersUrls = mutableMapOf<String, String>()
+
     /**
      * Render all dataset layers for current selection.
      */
@@ -95,6 +112,341 @@ class DatasetLayers(
 
         // 6. Numbers Layer
         renderNumbersLayer(regionId, datasetType, entry, snapshot)
+    }
+
+    // MARK: - Overlay Rendering
+
+    /**
+     * Render overlay datasets as additional Mapbox layers stacked above the primary.
+     * Each overlay is added above the previous one, maintaining activation order.
+     *
+     * @param overlayOrder Ordered list of overlay types (activation order = z-order)
+     * @param overlaySnapshots Per-overlay rendering snapshots
+     * @param overlayVisualSources Per-overlay visual layer sources keyed by rawValue
+     * @param overlayDatasets Per-overlay datasets with populated entries
+     * @param overlayEntries Per-overlay resolved entries
+     */
+    fun renderOverlays(
+        overlayOrder: List<DatasetType>,
+        overlaySnapshots: Map<DatasetType, DatasetRenderingSnapshot>,
+        overlayVisualSources: Map<String, VisualLayerSource>,
+        overlayDatasets: Map<DatasetType, Dataset>,
+        overlayEntries: Map<DatasetType, TimeEntry>
+    ) {
+        // Remove layers for overlays that are no longer active
+        val activeKeys = overlayOrder.map { it.rawValue }.toSet()
+        removeStaleOverlayLayers(activeKeys)
+
+        // Track previous layer ID for z-ordering (stack above primary or previous overlay)
+        var previousLayerId = zarrLayerId
+
+        for (type in overlayOrder) {
+            val key = type.rawValue
+            val snapshot = overlaySnapshots[type] ?: continue
+            val source = overlayVisualSources[key]
+            val dataset = overlayDatasets[type]
+            val entry = overlayEntries[type]
+
+            // 1. Overlay Visual Layer (Zarr GPU)
+            renderOverlayVisualLayer(key, snapshot, source, previousLayerId)
+
+            val overlayZarrId = "zarr-overlay-$key"
+            previousLayerId = overlayZarrId
+
+            // 2. Overlay supporting layers (contours, arrows, breaks, numbers)
+            if (entry != null && dataset != null) {
+                val datasetType = DatasetType.fromRawValue(dataset.type)
+
+                // Contours
+                renderOverlayContourLayer(key, datasetType, entry, snapshot)
+
+                // Arrows (currents only)
+                if (datasetType == DatasetType.CURRENTS) {
+                    renderOverlayCurrentsLayer(key, entry, snapshot)
+                } else {
+                    overlayCurrentsLayers.remove(key)?.removeFromMap()
+                    overlayCurrentsUrls.remove(key)
+                }
+
+                // Breaks
+                if (datasetType?.supportsFronts == true) {
+                    renderOverlayBreaksLayer(key, entry, snapshot)
+                } else {
+                    overlayBreaksLayers.remove(key)?.removeFromMap()
+                    overlayBreaksUrls.remove(key)
+                }
+
+                // Numbers
+                renderOverlayNumbersLayer(key, datasetType, entry, snapshot)
+            }
+        }
+    }
+
+    /**
+     * Render an overlay's Zarr visual layer, positioned above previousLayerId.
+     */
+    private fun renderOverlayVisualLayer(
+        key: String,
+        snapshot: DatasetRenderingSnapshot,
+        source: VisualLayerSource?,
+        previousLayerId: String?
+    ) {
+        val layerId = "zarr-overlay-$key"
+
+        if (!snapshot.visualEnabled || source == null) {
+            removeOverlayZarrLayer(layerId)
+            return
+        }
+
+        when (source) {
+            is VisualLayerSource.Zarr -> {
+                val renderer = source.renderer
+                renderer.setVisible(snapshot.visualEnabled)
+
+                mapboxMap.style?.let { style ->
+                    if (!style.styleLayerExists(layerId)) {
+                        // Position above the previous layer (primary or previous overlay)
+                        val position = if (previousLayerId != null) {
+                            LayerPosition(previousLayerId, null, null)
+                        } else {
+                            LayerPosition(null, null, null)
+                        }
+
+                        style.addStyleCustomLayer(
+                            layerId = layerId,
+                            layerHost = renderer,
+                            layerPosition = position
+                        )
+                        overlayZarrLayerIds.add(layerId)
+                        Log.d(TAG, "Added overlay Zarr layer: $layerId above $previousLayerId")
+                    }
+                }
+            }
+            is VisualLayerSource.None -> {
+                removeOverlayZarrLayer(layerId)
+            }
+        }
+    }
+
+    private fun removeOverlayZarrLayer(layerId: String) {
+        mapboxMap.style?.let { style ->
+            if (style.styleLayerExists(layerId)) {
+                style.removeStyleLayer(layerId)
+                Log.d(TAG, "Removed overlay Zarr layer: $layerId")
+            }
+        }
+        overlayZarrLayerIds.remove(layerId)
+    }
+
+    /**
+     * Remove overlay layers for types no longer active.
+     */
+    private fun removeStaleOverlayLayers(activeKeys: Set<String>) {
+        // Remove stale Zarr layers
+        val staleZarrIds = overlayZarrLayerIds.filter { id ->
+            val key = id.removePrefix("zarr-overlay-")
+            key !in activeKeys
+        }
+        for (id in staleZarrIds) {
+            removeOverlayZarrLayer(id)
+        }
+
+        // Remove stale supporting layers
+        for (key in overlayContourLayers.keys.toList()) {
+            if (key !in activeKeys) {
+                overlayContourLayers.remove(key)?.removeFromMap()
+                overlayContourUrls.remove(key)
+            }
+        }
+        for (key in overlayCurrentsLayers.keys.toList()) {
+            if (key !in activeKeys) {
+                overlayCurrentsLayers.remove(key)?.removeFromMap()
+                overlayCurrentsUrls.remove(key)
+            }
+        }
+        for (key in overlayBreaksLayers.keys.toList()) {
+            if (key !in activeKeys) {
+                overlayBreaksLayers.remove(key)?.removeFromMap()
+                overlayBreaksUrls.remove(key)
+            }
+        }
+        for (key in overlayNumbersLayers.keys.toList()) {
+            if (key !in activeKeys) {
+                overlayNumbersLayers.remove(key)?.removeFromMap()
+                overlayNumbersUrls.remove(key)
+            }
+        }
+    }
+
+    // MARK: - Overlay Supporting Layers
+
+    private fun renderOverlayContourLayer(
+        key: String,
+        datasetType: DatasetType?,
+        entry: TimeEntry,
+        snapshot: DatasetRenderingSnapshot
+    ) {
+        val pmtiles = entry.layers.pmtiles
+        if (pmtiles == null || !pmtiles.layers.contains("contours") || !snapshot.contourEnabled) {
+            overlayContourLayers.remove(key)?.removeFromMap()
+            overlayContourUrls.remove(key)
+            return
+        }
+
+        val type = datasetType ?: DatasetType.SST
+        val tileUrl = buildPMTilesTileURL(pmtiles.url)
+        val sourceId = "contour-overlay-source-$key"
+        val layerId = "contour-overlay-$key"
+
+        val prevUrl = overlayContourUrls[key]
+        if (prevUrl != null && prevUrl != tileUrl) {
+            overlayContourLayers.remove(key)?.removeFromMap()
+        }
+        overlayContourUrls[key] = tileUrl
+
+        mapboxMap.style?.let { style ->
+            if (!style.styleSourceExists(sourceId)) {
+                style.addSource(
+                    vectorSource(sourceId) {
+                        tiles(listOf(tileUrl))
+                        maxzoom(8)
+                    }
+                )
+            }
+        }
+
+        val state = ContourLayerState(
+            color = android.graphics.Color.BLACK,
+            opacity = snapshot.contourOpacity,
+            valueRange = snapshot.contourFilterRange,
+            datasetType = type,
+            dynamicColoring = false,
+            sourceLayer = "contours",
+            sourceId = sourceId,
+            layerId = layerId
+        )
+
+        if (overlayContourLayers[key] == null) {
+            val layer = ContourLayer(mapboxMap, state)
+            layer.addToMap()
+            overlayContourLayers[key] = layer
+        } else {
+            overlayContourLayers[key]?.updateOpacity(snapshot.contourOpacity)
+        }
+    }
+
+    private fun renderOverlayCurrentsLayer(
+        key: String,
+        entry: TimeEntry,
+        snapshot: DatasetRenderingSnapshot
+    ) {
+        val pmtiles = entry.layers.pmtiles
+        if (pmtiles == null || !pmtiles.layers.contains("data") || !snapshot.arrowsEnabled) {
+            overlayCurrentsLayers.remove(key)?.removeFromMap()
+            overlayCurrentsUrls.remove(key)
+            return
+        }
+
+        val tileUrl = buildPMTilesTileURL(pmtiles.url)
+        val prevUrl = overlayCurrentsUrls[key]
+        if (prevUrl != null && prevUrl != tileUrl) {
+            overlayCurrentsLayers.remove(key)?.removeFromMap()
+        }
+        overlayCurrentsUrls[key] = tileUrl
+
+        if (overlayCurrentsLayers[key] == null) {
+            val layer = CurrentsLayer(
+                mapboxMap = mapboxMap,
+                pmtilesURL = tileUrl,
+                sourceLayer = "data",
+                opacity = snapshot.arrowsOpacity,
+                regionId = "overlay-$key",
+                speedRange = snapshot.renderRange
+            )
+            layer.addToMap()
+            overlayCurrentsLayers[key] = layer
+        } else {
+            overlayCurrentsLayers[key]?.updateOpacity(snapshot.arrowsOpacity)
+        }
+    }
+
+    private fun renderOverlayBreaksLayer(
+        key: String,
+        entry: TimeEntry,
+        snapshot: DatasetRenderingSnapshot
+    ) {
+        val pmtiles = entry.layers.pmtiles
+        if (pmtiles == null || !pmtiles.layers.contains("breaks") || !snapshot.breaksEnabled) {
+            overlayBreaksLayers.remove(key)?.removeFromMap()
+            overlayBreaksUrls.remove(key)
+            return
+        }
+
+        val tileUrl = buildPMTilesTileURL(pmtiles.url)
+        val sourceId = "breaks-overlay-source-$key"
+        val layerId = "breaks-overlay-$key"
+
+        val prevUrl = overlayBreaksUrls[key]
+        if (prevUrl != null && prevUrl != tileUrl) {
+            overlayBreaksLayers.remove(key)?.removeFromMap()
+        }
+        overlayBreaksUrls[key] = tileUrl
+
+        if (overlayBreaksLayers[key] == null) {
+            val layer = BreaksVectorLayer(
+                mapboxMap = mapboxMap,
+                sourceId = sourceId,
+                layerId = layerId,
+                pmtilesURL = tileUrl,
+                sourceLayer = "breaks",
+                opacity = snapshot.breaksOpacity,
+                selectedBreakId = snapshot.selectedBreakId
+            )
+            layer.addToMap()
+            overlayBreaksLayers[key] = layer
+        } else {
+            overlayBreaksLayers[key]?.updateOpacity(snapshot.breaksOpacity)
+        }
+    }
+
+    private fun renderOverlayNumbersLayer(
+        key: String,
+        datasetType: DatasetType?,
+        entry: TimeEntry,
+        snapshot: DatasetRenderingSnapshot
+    ) {
+        val pmtiles = entry.layers.pmtiles
+        if (pmtiles == null || !pmtiles.layers.contains("data") || !snapshot.numbersEnabled || datasetType == null) {
+            overlayNumbersLayers.remove(key)?.removeFromMap()
+            overlayNumbersUrls.remove(key)
+            return
+        }
+
+        val tileUrl = buildPMTilesTileURL(pmtiles.url)
+        val sourceId = "numbers-overlay-source-$key"
+        val layerId = "numbers-overlay-$key"
+
+        val prevUrl = overlayNumbersUrls[key]
+        if (prevUrl != null && prevUrl != tileUrl) {
+            overlayNumbersLayers.remove(key)?.removeFromMap()
+        }
+        overlayNumbersUrls[key] = tileUrl
+
+        if (overlayNumbersLayers[key] == null) {
+            val layer = NumbersLayer(
+                mapboxMap = mapboxMap,
+                sourceId = sourceId,
+                layerId = layerId,
+                datasetType = datasetType,
+                pmtilesURL = tileUrl,
+                sourceLayer = "data",
+                opacity = snapshot.numbersOpacity
+            )
+            layer.addToMap()
+            overlayNumbersLayers[key] = layer
+        } else {
+            overlayNumbersLayers[key]?.updateOpacity(snapshot.numbersOpacity)
+        }
     }
 
     // MARK: - Visual Layer (Zarr only)
@@ -429,11 +781,35 @@ class DatasetLayers(
         numbersLayer?.removeFromMap()
         numbersLayer = null
 
+        // Remove all overlay layers
+        removeAllOverlayLayers()
+
         currentRegionId = null
         currentDataQueryPmtilesUrl = null
         currentCurrentsPmtilesUrl = null
         currentBreaksPmtilesUrl = null
         currentNumbersPmtilesUrl = null
+    }
+
+    /**
+     * Remove all overlay layers from the map.
+     */
+    fun removeAllOverlayLayers() {
+        for (id in overlayZarrLayerIds.toList()) {
+            removeOverlayZarrLayer(id)
+        }
+        overlayContourLayers.values.forEach { it.removeFromMap() }
+        overlayContourLayers.clear()
+        overlayContourUrls.clear()
+        overlayCurrentsLayers.values.forEach { it.removeFromMap() }
+        overlayCurrentsLayers.clear()
+        overlayCurrentsUrls.clear()
+        overlayBreaksLayers.values.forEach { it.removeFromMap() }
+        overlayBreaksLayers.clear()
+        overlayBreaksUrls.clear()
+        overlayNumbersLayers.values.forEach { it.removeFromMap() }
+        overlayNumbersLayers.clear()
+        overlayNumbersUrls.clear()
     }
 
     /**
