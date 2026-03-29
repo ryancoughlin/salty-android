@@ -137,7 +137,9 @@ class DatasetLayers(
         val activeKeys = overlayOrder.map { it.rawValue }.toSet()
         removeStaleOverlayLayers(activeKeys)
 
-        // Track previous layer ID for z-ordering (stack above primary or previous overlay)
+        // Track previous layer ID for z-ordering (stack above primary or previous overlay).
+        // Only advance previousLayerId when the layer actually exists on the map,
+        // so the next overlay positions itself above a real layer — not a phantom ID.
         var previousLayerId = zarrLayerId
 
         for (type in overlayOrder) {
@@ -150,8 +152,15 @@ class DatasetLayers(
             // 1. Overlay Visual Layer (Zarr GPU)
             renderOverlayVisualLayer(key, snapshot, source, previousLayerId)
 
+            // Only advance the chain if this overlay's layer is actually on the map.
+            // If it hasn't been added yet (source still loading), keep previousLayerId
+            // pointing at the last layer that DOES exist so the next overlay stacks correctly.
             val overlayZarrId = "zarr-overlay-$key"
-            previousLayerId = overlayZarrId
+            mapboxMap.style?.let { style ->
+                if (style.styleLayerExists(overlayZarrId)) {
+                    previousLayerId = overlayZarrId
+                }
+            }
 
             // 2. Overlay supporting layers (contours, arrows, breaks, numbers)
             if (entry != null && dataset != null) {
@@ -184,6 +193,11 @@ class DatasetLayers(
 
     /**
      * Render an overlay's Zarr visual layer, positioned above previousLayerId.
+     *
+     * Uses Mapbox moveStyleLayer() to reposition already-added layers when the
+     * z-order chain changes (e.g. overlay 1 loads after overlay 2).
+     *
+     * Docs: https://docs.mapbox.com/android/maps/guides/styles/work-with-layers/
      */
     private fun renderOverlayVisualLayer(
         key: String,
@@ -204,8 +218,27 @@ class DatasetLayers(
                 renderer.setVisible(snapshot.visualEnabled)
 
                 mapboxMap.style?.let { style ->
-                    if (!style.styleLayerExists(layerId)) {
-                        // Position above the previous layer (primary or previous overlay)
+                    val alreadyExists = style.styleLayerExists(layerId)
+
+                    if (alreadyExists) {
+                        // Layer exists — ensure it's in the correct position.
+                        // moveStyleLayer repositions without re-creating the GL resources.
+                        val position = if (previousLayerId != null) {
+                            LayerPosition(previousLayerId, null, null)
+                        } else {
+                            LayerPosition(null, null, null)
+                        }
+                        style.moveStyleLayer(layerId, position)
+                    } else {
+                        // Layer doesn't exist yet — only add it if the anchor layer
+                        // we want to stack above actually exists on the map.
+                        // If the anchor is missing (still loading), skip this pass;
+                        // the next render cycle will pick it up once the anchor is ready.
+                        if (previousLayerId != null && !style.styleLayerExists(previousLayerId)) {
+                            Log.d(TAG, "Deferring overlay $layerId — anchor $previousLayerId not on map yet")
+                            return
+                        }
+
                         val position = if (previousLayerId != null) {
                             LayerPosition(previousLayerId, null, null)
                         } else {

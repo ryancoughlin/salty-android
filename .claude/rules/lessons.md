@@ -65,6 +65,32 @@ style.addImage(iconName, drawable.toBitmap())
 | `RedCircle` | `redcircle` |
 | `Marker-Bluefin` | `marker_bluefintuna` |
 
+### Layer Z-Ordering for Multiple Custom Layers
+
+**Problem:** When stacking multiple `CustomLayer`s (e.g. overlay datasets), using `addStyleCustomLayer` with `LayerPosition(above=anchorId)` silently fails if the anchor layer doesn't exist on the map yet. The layer gets added at the default position (bottom of custom layers), making overlays invisible behind earlier layers. Additionally, once a layer is added at the wrong position, it stays there — `addStyleCustomLayer` with `styleLayerExists` guard never repositions it.
+
+**Solution:** Two-part fix:
+
+1. **Guard against phantom anchors:** Before adding a new layer, verify the anchor layer actually exists with `style.styleLayerExists(anchorId)`. If it doesn't, defer to the next render cycle.
+2. **Use `moveStyleLayer` for repositioning:** On every render pass, call `style.moveStyleLayer(layerId, LayerPosition(above, null, null))` for already-existing layers to ensure correct z-order even if layers loaded out of activation order.
+3. **Only advance the `previousLayerId` chain** when the layer actually exists on the map, not just because it was iterated.
+
+```kotlin
+// WRONG — references layer that may not exist yet
+style.addStyleCustomLayer(layerId, renderer, LayerPosition("nonexistent-layer", null, null))
+
+// CORRECT — verify anchor exists, use moveStyleLayer for existing layers
+if (style.styleLayerExists(layerId)) {
+    style.moveStyleLayer(layerId, LayerPosition(anchorId, null, null))
+} else if (anchorId == null || style.styleLayerExists(anchorId)) {
+    style.addStyleCustomLayer(layerId, renderer, LayerPosition(anchorId, null, null))
+} else {
+    // Defer — anchor not on map yet, next render pass will pick this up
+}
+```
+
+Docs: https://docs.mapbox.com/android/maps/guides/styles/work-with-layers/
+
 ---
 
 ## Style Callbacks and Threading
