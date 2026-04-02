@@ -74,6 +74,12 @@ import com.example.saltyoffshore.data.waypoint.WaypointSharingService
 import com.example.saltyoffshore.data.waypoint.PendingWaypointQueue
 import com.example.saltyoffshore.data.waypoint.RealtimeWaypointService
 import com.example.saltyoffshore.data.waypoint.OfflineShareQueue
+import com.example.saltyoffshore.data.waypoint.Crew
+import com.example.saltyoffshore.data.waypoint.CrewMember
+import com.example.saltyoffshore.data.waypoint.CrewService
+import com.example.saltyoffshore.data.SavedMap
+import com.example.saltyoffshore.data.SavedMapService
+import com.example.saltyoffshore.data.MapConfiguration
 import com.example.saltyoffshore.data.network.NetworkMonitor
 import com.example.saltyoffshore.preferences.AppPreferencesDataStore
 import com.example.saltyoffshore.repository.UserPreferencesRepository
@@ -239,6 +245,47 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     private var hasLoadedWaypointsFromDisk = false
+
+    // MARK: - Crew State
+
+    var crews by mutableStateOf<List<Crew>>(emptyList())
+        private set
+
+    var selectedCrew by mutableStateOf<Crew?>(null)
+        private set
+
+    var selectedCrewMembers by mutableStateOf<List<CrewMember>>(emptyList())
+        private set
+
+    var activeCrewId by mutableStateOf<String?>(null)
+
+    var isLoadingCrews by mutableStateOf(false)
+        private set
+
+    private var hasLoadedCrews = false
+
+    val crewIds: List<String> get() = crews.map { it.id }
+
+    val activeCrew: Crew? get() = activeCrewId?.let { id -> crews.firstOrNull { it.id == id } }
+
+    fun isCreator(crew: Crew): Boolean = crew.createdBy == AuthManager.currentUserId
+
+    // MARK: - Saved Maps State
+
+    var savedMaps by mutableStateOf<List<SavedMap>>(emptyList())
+        private set
+
+    var isLoadingSavedMaps by mutableStateOf(false)
+        private set
+
+    var isSavingMap by mutableStateOf(false)
+        private set
+
+    val personalMaps: List<SavedMap>
+        get() = savedMaps.filter { it.crewId == null }.sortedByDescending { it.updatedAt }
+
+    fun mapsForCrew(crewId: String): List<SavedMap> =
+        savedMaps.filter { it.crewId == crewId }.sortedByDescending { it.updatedAt }
 
     // MARK: - Announcement State
 
@@ -1418,6 +1465,203 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // MARK: - Crew Operations
+
+    fun loadCrews() {
+        if (hasLoadedCrews) return
+        viewModelScope.launch {
+            isLoadingCrews = true
+            try {
+                crews = CrewService.fetchUserCrews()
+                hasLoadedCrews = true
+                // Now that we have crew IDs, load crew waypoints
+                loadCrewWaypoints()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load crews: ${e.message}")
+            } finally {
+                isLoadingCrews = false
+            }
+        }
+    }
+
+    fun selectCrew(crew: Crew?) {
+        if (crew?.id == selectedCrew?.id) return
+        selectedCrew = crew
+        selectedCrewMembers = emptyList()
+        if (crew != null) loadCrewDetails(crew.id)
+    }
+
+    private fun loadCrewDetails(crewId: String) {
+        viewModelScope.launch {
+            try {
+                selectedCrewMembers = CrewService.fetchCrewMembers(crewId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load crew members: ${e.message}")
+            }
+        }
+    }
+
+    fun createCrew(name: String, onSuccess: (Crew) -> Unit) {
+        viewModelScope.launch {
+            isLoadingCrews = true
+            try {
+                val crew = CrewService.createCrew(name)
+                crews = listOf(crew) + crews
+                onSuccess(crew)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create crew: ${e.message}")
+                throw e
+            } finally {
+                isLoadingCrews = false
+            }
+        }
+    }
+
+    fun joinCrew(code: String, onSuccess: (Crew) -> Unit, onError: (Exception) -> Unit) {
+        viewModelScope.launch {
+            isLoadingCrews = true
+            try {
+                val crew = CrewService.joinCrewByCode(code)
+                crews = listOf(crew) + crews
+                // Reload crew waypoints now that we have a new crew
+                loadCrewWaypoints()
+                onSuccess(crew)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to join crew: ${e.message}")
+                onError(e)
+            } finally {
+                isLoadingCrews = false
+            }
+        }
+    }
+
+    fun leaveCrew(crew: Crew, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                CrewService.leaveCrew(crew.id)
+                crews = crews.filter { it.id != crew.id }
+                if (activeCrewId == crew.id) activeCrewId = null
+                if (selectedCrew?.id == crew.id) selectedCrew = null
+                loadCrewWaypoints()
+                onComplete()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to leave crew: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteCrew(crew: Crew, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                CrewService.deleteCrew(crew.id)
+                crews = crews.filter { it.id != crew.id }
+                if (activeCrewId == crew.id) activeCrewId = null
+                if (selectedCrew?.id == crew.id) selectedCrew = null
+                loadCrewWaypoints()
+                onComplete()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete crew: ${e.message}")
+            }
+        }
+    }
+
+    fun removeMember(crewId: String, memberId: String) {
+        viewModelScope.launch {
+            try {
+                CrewService.removeMember(crewId, memberId)
+                selectedCrewMembers = selectedCrewMembers.filter { it.userId != memberId }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to remove member: ${e.message}")
+            }
+        }
+    }
+
+    fun updateCrewName(crewId: String, newName: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val updated = CrewService.updateCrewName(crewId, newName)
+                crews = crews.map { if (it.id == crewId) updated else it }
+                if (selectedCrew?.id == crewId) selectedCrew = updated
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update crew name: ${e.message}")
+                throw e
+            }
+        }
+    }
+
+    // activeCrewId is a public var — set directly via viewModel.activeCrewId = id
+
+    // MARK: - Saved Maps Operations
+
+    fun loadSavedMaps() {
+        viewModelScope.launch {
+            isLoadingSavedMaps = true
+            try {
+                savedMaps = SavedMapService.fetchAllVisibleMaps()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load saved maps: ${e.message}")
+            } finally {
+                isLoadingSavedMaps = false
+            }
+        }
+    }
+
+    fun saveCurrentMap(
+        name: String,
+        mapConfig: MapConfiguration,
+        regionName: String?,
+        datasetName: String?,
+        onSuccess: (SavedMap) -> Unit,
+    ) {
+        viewModelScope.launch {
+            isSavingMap = true
+            try {
+                val map = SavedMapService.createSavedMap(name, mapConfig, regionName, datasetName)
+                savedMaps = listOf(map) + savedMaps
+                onSuccess(map)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save map: ${e.message}")
+                throw e
+            } finally {
+                isSavingMap = false
+            }
+        }
+    }
+
+    fun deleteSavedMap(mapId: String) {
+        viewModelScope.launch {
+            try {
+                SavedMapService.deleteSavedMap(mapId)
+                savedMaps = savedMaps.filter { it.id != mapId }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete saved map: ${e.message}")
+            }
+        }
+    }
+
+    fun shareMapWithCrew(mapId: String, crewId: String, sharedByName: String?) {
+        viewModelScope.launch {
+            try {
+                val updated = SavedMapService.shareMapWithCrew(mapId, crewId, sharedByName)
+                savedMaps = savedMaps.map { if (it.id == mapId) updated else it }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to share map with crew: ${e.message}")
+            }
+        }
+    }
+
+    fun unshareMap(mapId: String) {
+        viewModelScope.launch {
+            try {
+                val updated = SavedMapService.unshareMap(mapId)
+                savedMaps = savedMaps.map { if (it.id == mapId) updated else it }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to unshare map: ${e.message}")
+            }
+        }
+    }
+
     // MARK: - Auth Lifecycle (matches iOS handleAuthReady / handleSignOut)
 
     /**
@@ -1426,7 +1670,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun handleAuthReady() {
         syncPendingChanges()
-        loadCrewWaypoints()
+        loadCrews()
+        loadSavedMaps()
+        // loadCrewWaypoints is called after crews load — see loadCrews
     }
 
     /**
@@ -1438,6 +1684,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             RealtimeWaypointService.stopListening()
         }
         crewWaypoints = emptyList()
+        crews = emptyList()
+        selectedCrew = null
+        selectedCrewMembers = emptyList()
+        activeCrewId = null
+        hasLoadedCrews = false
+        savedMaps = emptyList()
     }
 
     // MARK: - Crew Waypoint Operations
@@ -1447,9 +1699,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val userId = AuthManager.currentUserId ?: return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // TODO: Load crew IDs from CrewService when crews are implemented
-                // For now, this is a placeholder — crews will be loaded from Supabase
-                val crewIds = emptyList<String>() // Will be populated when crew feature is active
+                val crewIds = this@AppViewModel.crewIds
 
                 if (crewIds.isEmpty()) {
                     Log.d(TAG, "No crews found, skipping crew waypoint load")
