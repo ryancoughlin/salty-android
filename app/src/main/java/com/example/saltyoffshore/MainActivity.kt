@@ -22,6 +22,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.auth.AuthManager
 import com.example.saltyoffshore.auth.SupabaseClientProvider
+import com.example.saltyoffshore.ui.crew.CrewListSheet
+import com.example.saltyoffshore.ui.savedmaps.SavedMapsListSheet
 import com.example.saltyoffshore.ui.screen.AccountHubSheet
 import com.example.saltyoffshore.ui.screen.EditProfileSheet
 import com.example.saltyoffshore.ui.screen.FTUXRegionSelectionScreen
@@ -130,7 +132,7 @@ private fun SaltyApp() {
  * Only one sheet at a time — Material Design "dismiss then navigate" pattern.
  */
 private enum class SettingsSheet {
-    None, Settings, EditProfile, RegionSelection
+    None, Settings, EditProfile, RegionSelection, Crews, SavedMaps
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,6 +175,8 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
             onMapThemeChanged = viewModel::updateMapTheme,
             onEditProfile = { activeSheet = SettingsSheet.EditProfile },
             onPreferredRegion = { activeSheet = SettingsSheet.RegionSelection },
+            onManageCrews = { activeSheet = SettingsSheet.Crews },
+            onManageSavedMaps = { activeSheet = SettingsSheet.SavedMaps },
             onSignOut = { viewModel.signOut() },
             onDeleteAccount = { viewModel.deleteAccount() },
             onDismiss = { activeSheet = SettingsSheet.None }
@@ -201,6 +205,45 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
             selectedRegionId = viewModel.preferredRegionId,
             onRegionSelected = viewModel::updatePreferredRegion,
             onDismiss = { activeSheet = SettingsSheet.Settings }
+        )
+    }
+
+    // Crews sheet
+    if (activeSheet == SettingsSheet.Crews) {
+        CrewListSheet(
+            crews = viewModel.crews,
+            crewWaypoints = viewModel.crewWaypoints,
+            savedMaps = viewModel.savedMaps,
+            selectedCrew = viewModel.selectedCrew,
+            selectedCrewMembers = viewModel.selectedCrewMembers,
+            isCreator = viewModel.selectedCrew?.let { viewModel.isCreator(it) } ?: false,
+            hasDisplayName = viewModel.hasDisplayName,
+            onSelectCrew = viewModel::selectCrew,
+            onCreateCrew = { name, onSuccess -> viewModel.createCrew(name, onSuccess) },
+            onJoinCrew = { code, onSuccess, onError -> viewModel.joinCrew(code, onSuccess, onError) },
+            onLeaveCrew = { crew, onComplete -> viewModel.leaveCrew(crew, onComplete) },
+            onDeleteCrew = { crew, onComplete -> viewModel.deleteCrew(crew, onComplete) },
+            onRemoveMember = { crewId, memberId -> viewModel.removeMember(crewId, memberId) },
+            onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.updateCrewName(crewId, newName, onSuccess) },
+            onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
+            onWaypointTap = { /* TODO: navigate to waypoint on map */ },
+            onLoadMap = { /* TODO: load saved map configuration */ },
+            onDismiss = { activeSheet = SettingsSheet.Settings },
+        )
+    }
+
+    // Saved Maps sheet
+    if (activeSheet == SettingsSheet.SavedMaps) {
+        SavedMapsListSheet(
+            savedMaps = viewModel.savedMaps,
+            crews = viewModel.crews,
+            currentUserId = AuthManager.currentUserId,
+            isLoading = viewModel.isLoadingSavedMaps,
+            onLoadMap = { /* TODO: load saved map configuration */ },
+            onDeleteMap = { viewModel.deleteSavedMap(it) },
+            onShareToCrew = { mapId, crewId, name -> viewModel.shareMapWithCrew(mapId, crewId, name) },
+            onUnshare = { viewModel.unshareMap(it) },
+            onDismiss = { activeSheet = SettingsSheet.Settings },
         )
     }
 

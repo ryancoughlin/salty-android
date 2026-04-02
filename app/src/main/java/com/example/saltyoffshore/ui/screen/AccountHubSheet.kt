@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Notifications
@@ -97,6 +98,8 @@ fun AccountHubSheet(
     onPreferredRegion: () -> Unit,
     onManageWaypoints: () -> Unit = {},
     onImportGPX: () -> Unit = {},
+    onManageCrews: () -> Unit = {},
+    onManageSavedMaps: () -> Unit = {},
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
     onDismiss: () -> Unit
@@ -130,6 +133,8 @@ fun AccountHubSheet(
             onPreferredRegion = onPreferredRegion,
             onManageWaypoints = onManageWaypoints,
             onImportGPX = onImportGPX,
+            onManageCrews = onManageCrews,
+            onManageSavedMaps = onManageSavedMaps,
             onDeleteAccount = onDeleteAccount,
             onSignOut = {
                 scope.launch {
@@ -161,6 +166,8 @@ private fun AccountHubContent(
     onPreferredRegion: () -> Unit,
     onManageWaypoints: () -> Unit,
     onImportGPX: () -> Unit,
+    onManageCrews: () -> Unit,
+    onManageSavedMaps: () -> Unit,
     onDeleteAccount: () -> Unit,
     onSignOut: () -> Unit,
     onDone: () -> Unit
@@ -232,6 +239,30 @@ private fun AccountHubContent(
             onManageWaypoints = onManageWaypoints,
             onImportGPX = onImportGPX
         )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // My Crews section
+        SectionHeader(title = "MY CREWS")
+        Spacer(modifier = Modifier.height(8.dp))
+        SunkenCard {
+            NavigationRow(
+                icon = Icons.Default.Group,
+                title = "Manage Crews",
+                onClick = onManageCrews
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Saved Maps section
+        SectionHeader(title = "MY MAPS")
+        Spacer(modifier = Modifier.height(8.dp))
+        SunkenCard {
+            NavigationRow(
+                icon = Icons.Default.Map,
+                title = "Saved Maps",
+                onClick = onManageSavedMaps
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
         DatasetInfoSection(onDatasetGuide = { showingDatasetGuide = true })

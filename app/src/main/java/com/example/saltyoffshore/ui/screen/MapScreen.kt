@@ -104,6 +104,14 @@ import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.viewannotation.geometry
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.mapbox.maps.viewannotation.viewAnnotationOptions
+import com.example.saltyoffshore.ui.crew.CrewListSheet
+import com.example.saltyoffshore.ui.crew.CreateCrewSheet
+import com.example.saltyoffshore.ui.crew.JoinCrewSheet
+import com.example.saltyoffshore.ui.crew.ShareWaypointSheet
+import com.example.saltyoffshore.ui.crew.CrewChipsOverlay
+import com.example.saltyoffshore.ui.savedmaps.SavedMapsListSheet
+import com.example.saltyoffshore.ui.savedmaps.SaveMapSheet
+import com.example.saltyoffshore.auth.AuthManager
 
 private const val TAG = "MapScreen"
 
@@ -132,6 +140,15 @@ fun MapScreen(
 
     // Dataset guide sheet state
     var showDatasetGuideSheet by remember { mutableStateOf(false) }
+
+    // Crew & saved maps sheet state
+    var showCrewListSheet by remember { mutableStateOf(false) }
+    var showCreateCrewSheet by remember { mutableStateOf(false) }
+    var showJoinCrewSheet by remember { mutableStateOf(false) }
+    var showSaveMapSheet by remember { mutableStateOf(false) }
+    var showSavedMapsSheet by remember { mutableStateOf(false) }
+    var showShareWaypointSheet by remember { mutableStateOf(false) }
+    var waypointToShare by remember { mutableStateOf<Waypoint?>(null) }
 
     // Special mode: hides normal controls when in satellite, measurement, etc.
     val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
@@ -419,6 +436,19 @@ fun MapScreen(
                 .padding(top = 48.dp)
         )
 
+        // Crew filter chips
+        if (viewModel.crews.isNotEmpty()) {
+            CrewChipsOverlay(
+                crews = viewModel.crews,
+                activeCrewId = viewModel.activeCrewId,
+                unreadCounts = emptyMap(),
+                onSelectCrew = { viewModel.activeCrewId = it },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 16.dp, top = 100.dp)
+            )
+        }
+
         // Snackbar host (import feedback)
         SnackbarHost(
             hostState = snackbarHostState,
@@ -614,7 +644,10 @@ fun MapScreen(
                             onDismiss = { viewModel.dismissWaypointSheet() },
                             onEdit = { viewModel.openWaypointForm(it) },
                             onDelete = { viewModel.deleteWaypoint(it) },
-                            onShareToCrew = { /* TODO: wire sharing */ },
+                            onShareToCrew = { waypoint ->
+                                waypointToShare = waypoint
+                                showShareWaypointSheet = true
+                            },
                             onShareGPX = { /* TODO: wire GPX export */ },
                             onNotesChanged = { notes ->
                                 val updated = waypoint.copy(notes = notes.ifEmpty { null })
@@ -703,6 +736,26 @@ fun MapScreen(
                     onWaypoints = {
                         showToolsSheet = false
                         showWaypointSheet = true
+                    },
+                    onCrews = {
+                        showToolsSheet = false
+                        showCrewListSheet = true
+                    },
+                    onSavedMaps = {
+                        showToolsSheet = false
+                        showSavedMapsSheet = true
+                    },
+                    onSaveMap = {
+                        showToolsSheet = false
+                        showSaveMapSheet = true
+                    },
+                    onCreateCrew = {
+                        showToolsSheet = false
+                        showCreateCrewSheet = true
+                    },
+                    onJoinCrew = {
+                        showToolsSheet = false
+                        showJoinCrewSheet = true
                     },
                     onDatasetGuide = {
                         showToolsSheet = false
@@ -801,6 +854,114 @@ fun MapScreen(
                 store = viewModel.satelliteStore,
                 onDismiss = { viewModel.satelliteTrackingMode.exit() }
             )
+        }
+
+        // Crew list sheet
+        if (showCrewListSheet) {
+            CrewListSheet(
+                crews = viewModel.crews,
+                crewWaypoints = viewModel.crewWaypoints,
+                savedMaps = viewModel.savedMaps,
+                selectedCrew = viewModel.selectedCrew,
+                selectedCrewMembers = viewModel.selectedCrewMembers,
+                isCreator = viewModel.selectedCrew?.let { viewModel.isCreator(it) } ?: false,
+                hasDisplayName = viewModel.hasDisplayName,
+                onSelectCrew = viewModel::selectCrew,
+                onCreateCrew = { name, onSuccess -> viewModel.createCrew(name, onSuccess) },
+                onJoinCrew = { code, onSuccess, onError -> viewModel.joinCrew(code, onSuccess, onError) },
+                onLeaveCrew = { crew, onComplete -> viewModel.leaveCrew(crew, onComplete) },
+                onDeleteCrew = { crew, onComplete -> viewModel.deleteCrew(crew, onComplete) },
+                onRemoveMember = { crewId, memberId -> viewModel.removeMember(crewId, memberId) },
+                onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.updateCrewName(crewId, newName, onSuccess) },
+                onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
+                onWaypointTap = { sharedWaypoint ->
+                    showCrewListSheet = false
+                    viewModel.selectWaypoint(sharedWaypoint.waypoint.id)
+                },
+                onLoadMap = { savedMap ->
+                    showCrewListSheet = false
+                    // TODO: apply saved map configuration
+                },
+                onDismiss = { showCrewListSheet = false },
+            )
+        }
+
+        // Create crew sheet
+        if (showCreateCrewSheet) {
+            CreateCrewSheet(
+                onDismiss = { showCreateCrewSheet = false },
+                onCrewCreated = { crew ->
+                    showCreateCrewSheet = false
+                    viewModel.loadCrews()
+                },
+                onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
+                hasDisplayName = viewModel.hasDisplayName,
+            )
+        }
+
+        // Join crew sheet
+        if (showJoinCrewSheet) {
+            JoinCrewSheet(
+                onDismiss = { showJoinCrewSheet = false },
+                onCrewJoined = { crew ->
+                    showJoinCrewSheet = false
+                    viewModel.loadCrews()
+                },
+                onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
+                hasDisplayName = viewModel.hasDisplayName,
+            )
+        }
+
+        // Save map sheet
+        if (showSaveMapSheet) {
+            SaveMapSheet(
+                crews = viewModel.crews,
+                regionName = viewModel.selectedRegion?.name,
+                datasetName = viewModel.selectedDataset?.type,
+                isSaving = viewModel.isSavingMap,
+                onSave = { name, crewId ->
+                    // TODO: build MapConfiguration from current state
+                    showSaveMapSheet = false
+                },
+                onDismiss = { showSaveMapSheet = false },
+            )
+        }
+
+        // Saved maps list sheet
+        if (showSavedMapsSheet) {
+            SavedMapsListSheet(
+                savedMaps = viewModel.savedMaps,
+                crews = viewModel.crews,
+                currentUserId = AuthManager.currentUserId,
+                isLoading = viewModel.isLoadingSavedMaps,
+                onLoadMap = { savedMap ->
+                    showSavedMapsSheet = false
+                    // TODO: apply saved map configuration
+                },
+                onDeleteMap = { viewModel.deleteSavedMap(it) },
+                onShareToCrew = { mapId, crewId, name -> viewModel.shareMapWithCrew(mapId, crewId, name) },
+                onUnshare = { viewModel.unshareMap(it) },
+                onDismiss = { showSavedMapsSheet = false },
+            )
+        }
+
+        // Share waypoint to crew sheet
+        if (showShareWaypointSheet) {
+            waypointToShare?.let { waypoint ->
+                ShareWaypointSheet(
+                    waypoint = waypoint,
+                    crews = viewModel.crews,
+                    onShare = { crewIds ->
+                        viewModel.shareWaypointToCrews(waypoint, crewIds)
+                        showShareWaypointSheet = false
+                        waypointToShare = null
+                    },
+                    onDismiss = {
+                        showShareWaypointSheet = false
+                        waypointToShare = null
+                    },
+                )
+            }
         }
     }
 }

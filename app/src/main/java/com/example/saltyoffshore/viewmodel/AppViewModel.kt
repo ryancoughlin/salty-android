@@ -1662,6 +1662,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun shareWaypointToCrews(waypoint: Waypoint, crewIds: List<String>) {
+        val userId = AuthManager.currentUserId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            crewIds.forEach { crewId ->
+                try {
+                    WaypointSharingService.shareWaypoint(
+                        SupabaseClientProvider.client, waypoint, crewId, userId
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to share waypoint to crew $crewId: ${e.message}")
+                }
+            }
+        }
+    }
+
+    val hasDisplayName: Boolean
+        get() = userPreferences?.hasName == true
+
+    suspend fun saveName(firstName: String, lastName: String) {
+        val userId = AuthManager.currentUserId ?: return
+        try {
+            preferencesRepository.updateField(userId, "first_name", firstName)
+            preferencesRepository.updateField(userId, "last_name", lastName)
+            // Refresh local preferences state
+            val updated = preferencesRepository.fetchPreferences(userId)
+            if (updated != null) userPreferences = updated
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save name: ${e.message}")
+        }
+    }
+
     // MARK: - Auth Lifecycle (matches iOS handleAuthReady / handleSignOut)
 
     /**

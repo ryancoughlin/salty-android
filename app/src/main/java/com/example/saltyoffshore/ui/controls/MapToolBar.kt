@@ -10,8 +10,13 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Share
@@ -44,6 +49,11 @@ fun MapToolBar(
     onMyLocation: () -> Unit,
     onShare: () -> Unit,
     onWaypoints: () -> Unit,
+    onCrews: () -> Unit,
+    onSavedMaps: () -> Unit,
+    onSaveMap: () -> Unit,
+    onCreateCrew: () -> Unit,
+    onJoinCrew: () -> Unit,
     onDatasetGuide: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -107,6 +117,13 @@ fun MapToolBar(
                     onClick = onShare
                 )
             }
+            item {
+                MapToolButton(
+                    icon = Icons.Default.BookmarkAdd,
+                    label = "Save Map",
+                    onClick = onSaveMap
+                )
+            }
 
             // -- My Stuff Section --
             item(span = { GridItemSpan(3) }) {
@@ -123,6 +140,22 @@ fun MapToolBar(
                     onClick = onWaypoints
                 )
             }
+            item(span = { GridItemSpan(3) }) {
+                SecondaryToolButton(
+                    icon = Icons.Default.Group,
+                    title = "Crews",
+                    subtitle = "Share waypoints in real-time",
+                    onClick = onCrews
+                )
+            }
+            item(span = { GridItemSpan(3) }) {
+                SecondaryToolButton(
+                    icon = Icons.Default.Map,
+                    title = "Saved Maps",
+                    subtitle = "Browse your saved views",
+                    onClick = onSavedMaps
+                )
+            }
             // -- More Section --
             item(span = { GridItemSpan(3) }) {
                 Spacer(Modifier.height(8.dp))
@@ -136,6 +169,22 @@ fun MapToolBar(
                     title = "Dataset Guide",
                     subtitle = "Learn about ocean data layers",
                     onClick = onDatasetGuide
+                )
+            }
+            item(span = { GridItemSpan(3) }) {
+                SecondaryToolButton(
+                    icon = Icons.Default.GroupAdd,
+                    title = "Create Crew",
+                    subtitle = "Start a new crew",
+                    onClick = onCreateCrew
+                )
+            }
+            item(span = { GridItemSpan(3) }) {
+                SecondaryToolButton(
+                    icon = Icons.Default.PersonAdd,
+                    title = "Join Crew",
+                    subtitle = "Enter an invite code",
+                    onClick = onJoinCrew
                 )
             }
 
