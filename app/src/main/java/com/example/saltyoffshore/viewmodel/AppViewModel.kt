@@ -2,6 +2,7 @@ package com.example.saltyoffshore.viewmodel
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -195,24 +196,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     /** All presets for current dataset: static + dynamic merged */
-    val allPresets: List<DatasetPreset>
-        get() {
-            val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return emptyList()
-            val config = PresetConfiguration.configuration(datasetType) ?: return emptyList()
-            return config.staticPresets + dynamicPresets
-        }
+    /** derivedStateOf: only recomputes when selectedDataset or dynamicPresets changes,
+     * not on every recomposition that reads this property. */
+    val allPresets: List<DatasetPreset> by derivedStateOf {
+        val datasetType = selectedDataset?.let { DatasetType.fromRawValue(it.type) } ?: return@derivedStateOf emptyList()
+        val config = PresetConfiguration.configuration(datasetType) ?: return@derivedStateOf emptyList()
+        config.staticPresets + dynamicPresets
+    }
 
     // Crosshair state
     var primaryValue by mutableStateOf(CurrentValue())
         private set
 
-    var currentZoom by mutableStateOf(4.0)
+    // Camera state — NOT mutableStateOf. These change every frame during pan/zoom.
+    // Making them observable would recompose MapScreen 60x/sec.
+    // Only CrosshairOverlay needs reactive access (via lambda providers in MapScreen).
+    var currentZoom: Double = 4.0
         private set
 
-    var currentLatitude by mutableStateOf(30.0)
+    var currentLatitude: Double = 30.0
         private set
 
-    var currentLongitude by mutableStateOf(-60.0)
+    var currentLongitude: Double = -60.0
         private set
 
     // Dataset control state (matches iOS DatasetControlState)
@@ -425,6 +430,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Capture map snapshot before creating link
         captureMapSnapshot?.invoke()
 
+        // Snapshot camera values on main thread — they're plain Doubles (not atomic),
+        // so reading them on Dispatchers.IO would be a data race.
+        val snapLon = currentLongitude
+        val snapLat = currentLatitude
+        val snapZoom = currentZoom
+
         isCreatingShareLink = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -432,9 +443,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     entryId = entry.id,
                     regionId = region.id,
                     view = ShareLinkCameraView.from(
-                        longitude = currentLongitude,
-                        latitude = currentLatitude,
-                        zoom = currentZoom
+                        longitude = snapLon,
+                        latitude = snapLat,
+                        zoom = snapZoom
                     ),
                     primaryConfig = config?.let { cfg ->
                         ShareLinkDatasetConfig(

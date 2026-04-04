@@ -168,17 +168,18 @@ class GlobalLayerManager(
         GlobalLayerVisibility(enabled, opacities)
     }
 
-    /** Get layers grouped by category for UI */
-    val layersByCategory: List<Pair<OverlayCategory, List<LayerState>>>
-        get() {
-            val filteredLayers = _layers.filter { it.type != GlobalLayerType.WIND }
-            val grouped = filteredLayers.groupBy { it.type.category }
+    /** Get layers grouped by category for UI.
+     * derivedStateOf: only recomputes when _layers actually changes,
+     * not on every recomposition that reads this. */
+    val layersByCategory: List<Pair<OverlayCategory, List<LayerState>>> by derivedStateOf {
+        val filteredLayers = _layers.filter { it.type != GlobalLayerType.WIND }
+        val grouped = filteredLayers.groupBy { it.type.category }
 
-            return OverlayCategory.entries.mapNotNull { category ->
-                val items = grouped[category]
-                if (items.isNullOrEmpty()) null else category to items
-            }
+        OverlayCategory.entries.mapNotNull { category ->
+            val items = grouped[category]
+            if (items.isNullOrEmpty()) null else category to items
         }
+    }
 
     // MARK: - LORAN Region
 

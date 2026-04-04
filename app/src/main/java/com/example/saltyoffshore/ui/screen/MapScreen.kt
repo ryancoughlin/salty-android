@@ -1,8 +1,5 @@
 package com.example.saltyoffshore.ui.screen
 
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -10,12 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -24,7 +19,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,40 +29,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.saltyoffshore.ui.controls.LayersControlSheet
 import com.example.saltyoffshore.ui.controls.MapToolBar
 import com.example.saltyoffshore.ui.sharelink.ShareLinkSheet
-import com.example.saltyoffshore.ui.controls.RightSideToolbar
-import com.example.saltyoffshore.config.AppConstants
-import com.example.saltyoffshore.data.RegionStatus
 import com.example.saltyoffshore.ui.components.AnnouncementSheetView
 import com.example.saltyoffshore.ui.components.CrosshairOverlay
 import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
 import com.example.saltyoffshore.ui.components.DatasetFilterSheet
-import com.example.saltyoffshore.ui.components.QuickActionsBar
-import com.example.saltyoffshore.ui.components.RegionAnnotationView
-import com.example.saltyoffshore.ui.components.SaltyDatasetControl
 import com.example.saltyoffshore.data.Dataset
-import com.example.saltyoffshore.data.GlobalLayerVisibility
-import com.example.saltyoffshore.data.LoranRegionConfig
-import com.example.saltyoffshore.data.RegionMetadata
-import com.example.saltyoffshore.data.Station
-import com.example.saltyoffshore.data.TimeEntry
-import com.example.saltyoffshore.data.Tournament
-import com.example.saltyoffshore.data.VisualLayerSource
-import com.example.saltyoffshore.config.CrosshairConstants
-import com.example.saltyoffshore.managers.CrosshairFeatureQueryManager
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import com.example.saltyoffshore.data.CurrentValue
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
-import com.example.saltyoffshore.data.displayVariables
-import com.example.saltyoffshore.data.hasMultipleVariables
-import com.example.saltyoffshore.data.primaryVariable
 import com.example.saltyoffshore.data.TemperatureUnits
 import com.example.saltyoffshore.data.waypoint.Waypoint
 import com.example.saltyoffshore.data.waypoint.WaypointSheet
@@ -75,35 +47,15 @@ import com.example.saltyoffshore.data.coordinate.GPSFormat
 import com.example.saltyoffshore.ui.waypoint.WaypointDetailSheet
 import com.example.saltyoffshore.ui.waypoint.WaypointFormSheet
 import com.example.saltyoffshore.ui.waypoint.WaypointManagementSheet
-import com.example.saltyoffshore.ui.measurement.MeasurementMapEffect
-import com.example.saltyoffshore.ui.measurement.MeasureModeOverlay
-import com.example.saltyoffshore.ui.map.RegionBoundsEffect
-import com.example.saltyoffshore.ui.map.layers.DatasetLayers
-import com.example.saltyoffshore.ui.map.globallayers.GlobalLayers
-import com.example.saltyoffshore.ui.map.waypoint.WaypointAnnotationLayer
 import androidx.compose.material3.MaterialTheme
 import com.example.saltyoffshore.ui.theme.Spacing
 import com.example.saltyoffshore.ui.station.StationDetailsView
 import com.example.saltyoffshore.ui.satellite.SatelliteModeView
-import com.example.saltyoffshore.ui.map.satellite.SatelliteLayersEffect
+import com.example.saltyoffshore.ui.map.MapContent
+import com.example.saltyoffshore.ui.map.MapControlsOverlay
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.example.saltyoffshore.viewmodel.StationDetailViewModel
-import com.mapbox.maps.MapView
-import com.mapbox.maps.extension.compose.MapEffect
-import com.mapbox.maps.plugin.gestures.gestures
-import com.mapbox.maps.ScreenCoordinate
-import com.mapbox.geojson.Point
-import com.mapbox.maps.CameraOptions
-import com.mapbox.maps.extension.compose.MapboxMap
-import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
-import com.mapbox.maps.extension.compose.annotation.ViewAnnotation
-import com.mapbox.maps.extension.compose.style.MapStyle
-import com.example.saltyoffshore.data.DatasetRenderingSnapshot
-import com.mapbox.maps.extension.compose.style.projection.generated.Projection
-import com.mapbox.maps.plugin.animation.MapAnimationOptions
-import com.mapbox.maps.viewannotation.geometry
 import androidx.compose.material3.ExperimentalMaterial3Api
-import com.mapbox.maps.viewannotation.viewAnnotationOptions
 import com.example.saltyoffshore.ui.crew.CrewListSheet
 import com.example.saltyoffshore.ui.crew.CreateCrewSheet
 import com.example.saltyoffshore.ui.crew.JoinCrewSheet
@@ -112,6 +64,8 @@ import com.example.saltyoffshore.ui.crew.CrewChipsOverlay
 import com.example.saltyoffshore.ui.savedmaps.SavedMapsListSheet
 import com.example.saltyoffshore.ui.savedmaps.SaveMapSheet
 import com.example.saltyoffshore.auth.AuthManager
+import com.example.saltyoffshore.ui.map.MapSheet
+import com.example.saltyoffshore.ui.map.MapSheetCoordinator
 
 private const val TAG = "MapScreen"
 
@@ -121,34 +75,16 @@ fun MapScreen(
     viewModel: AppViewModel = viewModel(),
     onSettingsClick: () -> Unit = {}
 ) {
-    // Sheet state for layers control
-    var showLayersSheet by remember { mutableStateOf(false) }
-    val layersSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Single coordinator for all map sheets (replaces per-sheet booleans)
+    val coordinator = remember { MapSheetCoordinator() }
 
-    // Sheet state for dataset selector
-    var showDatasetSheet by remember { mutableStateOf(false) }
-    val datasetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // Filter sheet state (fixed-position panel, not ModalBottomSheet)
-    var showFilterSheet by remember { mutableStateOf(false) }
-
-    // Waypoint management sheet state
-    var showWaypointSheet by remember { mutableStateOf(false) }
-
-    // Tools menu sheet state
-    var showToolsSheet by remember { mutableStateOf(false) }
-
-    // Dataset guide sheet state
-    var showDatasetGuideSheet by remember { mutableStateOf(false) }
-
-    // Crew & saved maps sheet state
-    var showCrewListSheet by remember { mutableStateOf(false) }
-    var showCreateCrewSheet by remember { mutableStateOf(false) }
-    var showJoinCrewSheet by remember { mutableStateOf(false) }
-    var showSaveMapSheet by remember { mutableStateOf(false) }
-    var showSavedMapsSheet by remember { mutableStateOf(false) }
-    var showShareWaypointSheet by remember { mutableStateOf(false) }
-    var waypointToShare by remember { mutableStateOf<Waypoint?>(null) }
+    // Camera state — local to MapScreen, NOT in ViewModel.
+    // Only CrosshairOverlay reads these (via lambdas), so camera moves at 60fps
+    // only recompose the overlay, not the entire MapScreen.
+    // iOS equivalent: CrosshairFeatureQueryManager owns camera state privately.
+    var cameraZoom by remember { mutableDoubleStateOf(4.0) }
+    var cameraLatitude by remember { mutableDoubleStateOf(30.0) }
+    var cameraLongitude by remember { mutableDoubleStateOf(-60.0) }
 
     // Special mode: hides normal controls when in satellite, measurement, etc.
     val isInSpecialMode = viewModel.satelliteTrackingMode.isActive || viewModel.measurementState.isActive
@@ -170,257 +106,69 @@ fun MapScreen(
         }
     }
 
-    val mapViewportState = rememberMapViewportState {
-        setCameraOptions {
-            center(Point.fromLngLat(-60.0, 30.0))
-            zoom(AppConstants.mapInitialWorldZoom)
-            bearing(0.0)
-            pitch(0.0)
-        }
-    }
-
-    // Fly to region when selected — key on ID only, not full object
-    LaunchedEffect(viewModel.selectedRegion?.id) {
-        viewModel.selectedRegion?.let { region ->
-            val bounds = region.bounds
-            val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
-            val centerLat = (bounds[0][1] + bounds[1][1]) / 2.0
-
-            mapViewportState.flyTo(
-                cameraOptions = CameraOptions.Builder()
-                    .center(Point.fromLngLat(centerLon, centerLat))
-                    .zoom(AppConstants.mapDefaultZoom)
-                    .bearing(0.0)
-                    .pitch(0.0)
-                    .build(),
-                animationOptions = MapAnimationOptions.Builder()
-                    .duration(AppConstants.mapDefaultAnimationDuration)
-                    .build()
-            )
-        }
-    }
-
     // Load waypoints from disk on first composition
     LaunchedEffect(Unit) {
         viewModel.loadWaypoints()
     }
 
-    // ── Satellite mode viewport animations (iOS: MapModeModifier.swift) ──
-
-    // Fly to globe on enter, back to region on exit
-    LaunchedEffect(viewModel.satelliteTrackingMode.isActive) {
-        if (viewModel.satelliteTrackingMode.isActive) {
-            mapViewportState.flyTo(
-                cameraOptions = CameraOptions.Builder()
-                    .center(Point.fromLngLat(-40.0, 20.0))  // Atlantic midpoint
-                    .zoom(0.0)
-                    .bearing(0.0)
-                    .pitch(0.0)
-                    .build(),
-                animationOptions = MapAnimationOptions.Builder().duration(1500L).build()
-            )
-        } else {
-            // Fly back to region on exit
-            viewModel.selectedRegion?.let { region ->
-                val bounds = region.bounds
-                val centerLon = (bounds[0][0] + bounds[1][0]) / 2.0
-                val centerLat = (bounds[0][1] + bounds[1][1]) / 2.0
-                mapViewportState.flyTo(
-                    cameraOptions = CameraOptions.Builder()
-                        .center(Point.fromLngLat(centerLon, centerLat))
-                        .zoom(AppConstants.mapDefaultZoom)
-                        .bearing(0.0)
-                        .pitch(0.0)
-                        .build(),
-                    animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
-                )
-            }
-        }
-    }
-
-    // Fly to selected track (zoom 2.0)
-    LaunchedEffect(viewModel.satelliteTrackingMode.selectedTrackId) {
-        val id = viewModel.satelliteTrackingMode.selectedTrackId ?: return@LaunchedEffect
-        val track = viewModel.satelliteStore.tracks.firstOrNull { it.id == id } ?: return@LaunchedEffect
-        val (lat, lon) = track.center
-        mapViewportState.flyTo(
-            cameraOptions = CameraOptions.Builder()
-                .center(Point.fromLngLat(lon, lat))
-                .zoom(2.0)
-                .bearing(0.0)
-                .pitch(0.0)
-                .build(),
-            animationOptions = MapAnimationOptions.Builder().duration(1000L).build()
-        )
-    }
-
-    // Fly to selected pass (zoom 3.0)
-    LaunchedEffect(viewModel.satelliteTrackingMode.selectedPassId) {
-        val id = viewModel.satelliteTrackingMode.selectedPassId ?: return@LaunchedEffect
-        val pass = viewModel.satelliteStore.passes.firstOrNull { it.id == id } ?: return@LaunchedEffect
-        val (lat, lon) = pass.center
-        mapViewportState.flyTo(
-            cameraOptions = CameraOptions.Builder()
-                .center(Point.fromLngLat(lon, lat))
-                .zoom(3.0)
-                .bearing(0.0)
-                .pitch(0.0)
-                .build(),
-            animationOptions = MapAnimationOptions.Builder().duration(800L).build()
-        )
-    }
-
-    // ── Map style: switch projection & theme for satellite mode ──
-    val mapStyleUri = if (viewModel.satelliteTrackingMode.isActive) {
-        AppConstants.darkMapStyleURI
-    } else {
-        AppConstants.lightMapStyleURI
-    }
-    val mapProjection = if (viewModel.satelliteTrackingMode.isActive) {
-        Projection.GLOBE
-    } else {
-        Projection.MERCATOR
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        MapboxMap(
-            modifier = Modifier.fillMaxSize(),
-            mapViewportState = mapViewportState,
-            style = { MapStyle(style = mapStyleUri, projection = mapProjection) }
-        ) {
-            // Wire up repaint callback for Zarr frame updates
-            ZarrRepaintEffect(viewModel = viewModel)
-
-            // Wire map snapshot capture for share links
-            MapEffect(Unit) { mapView ->
-                viewModel.captureMapSnapshot = {
-                    mapView.snapshot { bitmap ->
-                        viewModel.setMapSnapshot(bitmap)
-                    }
-                }
-            }
-
-            // Zoom constraints: cap at 4.0 in satellite mode (iOS: cameraBounds)
-            MapEffect(viewModel.satelliteTrackingMode.isActive) { mapView ->
-                val bounds = if (viewModel.satelliteTrackingMode.isActive) {
-                    com.mapbox.maps.CameraBoundsOptions.Builder()
-                        .minZoom(0.0).maxZoom(4.0).build()
-                } else {
-                    com.mapbox.maps.CameraBoundsOptions.Builder()
-                        .minZoom(1.0).maxZoom(24.0).build()
-                }
-                mapView.mapboxMap.setBounds(bounds)
-            }
-
-            // Region bounds outline
-            RegionBoundsEffect(region = viewModel.selectedRegion)
-
-            // Dataset visualization layers (Zarr GPU, Contours, Currents, etc.)
-            DatasetLayersEffect(
-                dataset = viewModel.selectedDataset,
-                entry = viewModel.selectedEntry,
-                region = viewModel.selectedRegion,
-                snapshot = viewModel.renderingSnapshot,
-                visualSource = viewModel.visualSource
-            )
-
-            // Load stations when layer is enabled (deferred — matches iOS)
-            val stationsEnabled = viewModel.globalLayerManager.isEnabled(
+        // ── Map (isolated composable — matches iOS MapView.swift / MapboxMapView_V2) ──
+        // MapContent takes explicit params only. Sheet state changes in MapScreen
+        // do NOT recompose MapContent — this is the key performance boundary.
+        MapContent(
+            selectedRegion = viewModel.selectedRegion,
+            regions = viewModel.regions,
+            selectedDataset = viewModel.selectedDataset,
+            selectedEntry = viewModel.selectedEntry,
+            renderingSnapshot = viewModel.renderingSnapshot,
+            visualSource = viewModel.visualSource,
+            isDataLayerActive = viewModel.isDataLayerActive,
+            currentDatasetType = viewModel.currentDatasetType,
+            globalLayerVisibility = viewModel.globalLayerManager.visibility,
+            loranConfig = viewModel.globalLayerManager.selectedLoranConfig,
+            selectedTournament = viewModel.globalLayerManager.selectedTournament,
+            stations = viewModel.stations,
+            isStationsEnabled = viewModel.globalLayerManager.isEnabled(
                 com.example.saltyoffshore.data.GlobalLayerType.STATIONS
-            )
-            LaunchedEffect(stationsEnabled) {
-                if (stationsEnabled) viewModel.loadStationsIfNeeded()
-            }
-
-            // Global overlay layers (bathymetry, shipping lanes, etc.)
-            GlobalLayersEffect(
-                visibility = viewModel.globalLayerManager.visibility,
-                loranConfig = viewModel.globalLayerManager.selectedLoranConfig,
-                selectedTournament = viewModel.globalLayerManager.selectedTournament,
-                stations = viewModel.stations,
-                onStationTap = { stationId ->
-                    Log.d(TAG, "Station tapped: $stationId")
-                    viewModel.openStationDetail(stationId)
-                }
-            )
-
-            // Crosshair feature query on camera changes
-            CrosshairQueryEffect(
-                isDataLayerActive = viewModel.isDataLayerActive,
-                datasetType = viewModel.currentDatasetType,
-                onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
-                onCameraChanged = { zoom, lat, lon -> viewModel.updateCameraState(zoom, lat, lon) }
-            )
-
-            // Region annotations — hide during satellite mode + hide the active region
-            if (!viewModel.satelliteTrackingMode.isActive) viewModel.regions
-                .filter { it.id != viewModel.selectedRegion?.id }
-                .forEach { region ->
-                ViewAnnotation(
-                    options = viewAnnotationOptions {
-                        geometry(Point.fromLngLat(region.centerLon, region.centerLat))
-                        allowOverlap(true)
-                    }
-                ) {
-                    RegionAnnotationView(
-                        region = region,
-                        isComingSoon = region.status == RegionStatus.COMING_SOON,
-                        onClick = { viewModel.onRegionSelected(region.id) }
-                    )
-                }
-            }
-
-            // Waypoint annotation layer with tap handling
-            WaypointLayersEffect(
-                waypoints = viewModel.waypoints,
-                onWaypointTap = { id -> viewModel.openWaypointDetails(id) }
-            )
-
-            // Long-press to create waypoint + open form
-            MapEffect(Unit) { mapView ->
-                mapView.gestures.addOnMapLongClickListener { point ->
-                    val waypoint = viewModel.createWaypoint(
-                        latitude = point.latitude(),
-                        longitude = point.longitude()
-                    )
-                    viewModel.openWaypointForm(waypoint)
-                    true
-                }
-            }
-
-            // Measurement layers (lines, points, distance labels)
-            MeasurementMapEffect(
-                measurements = viewModel.measurementState.allMeasurements,
-                distanceUnits = viewModel.currentDistanceUnits
-            )
-
-            // Tap-to-measure: intercept map clicks when measure mode active
-            // Registered once (Unit key) — isActive check gates behavior at runtime
-            MapEffect(Unit) { mapView ->
-                mapView.gestures.addOnMapClickListener { point ->
-                    if (viewModel.measurementState.isActive) {
-                        viewModel.measurementState.addPoint(point)
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-
-            // Satellite tracking layers — uses MapEffect internally for style reload survival
-            SatelliteLayersEffect(
-                trackingMode = viewModel.satelliteTrackingMode,
-                store = viewModel.satelliteStore
-            )
-        }
+            ),
+            waypoints = viewModel.waypoints,
+            measurements = viewModel.measurementState.allMeasurements,
+            measurementIsActive = viewModel.measurementState.isActive,
+            distanceUnits = viewModel.currentDistanceUnits,
+            satelliteTrackingMode = viewModel.satelliteTrackingMode,
+            satelliteStore = viewModel.satelliteStore,
+            onCameraChanged = { zoom, lat, lon ->
+                cameraZoom = zoom
+                cameraLatitude = lat
+                cameraLongitude = lon
+                viewModel.updateCameraState(zoom, lat, lon)
+            },
+            onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
+            onRegionSelected = { viewModel.onRegionSelected(it) },
+            onStationTap = { viewModel.openStationDetail(it) },
+            onWaypointTap = { viewModel.openWaypointDetails(it) },
+            onWaypointLongPress = { point ->
+                val waypoint = viewModel.createWaypoint(
+                    latitude = point.latitude(),
+                    longitude = point.longitude()
+                )
+                viewModel.openWaypointForm(waypoint)
+            },
+            onMeasurementTap = { viewModel.measurementState.addPoint(it) },
+            onStationsNeedLoad = { viewModel.loadStationsIfNeeded() },
+            onCaptureMapSnapshotReady = { capture -> viewModel.captureMapSnapshot = capture },
+            onMapSnapshotTaken = { viewModel.setMapSnapshot(it) },
+            onRepaintReady = { repaint -> viewModel.repaint = repaint },
+            modifier = Modifier.fillMaxSize(),
+        )
 
         // Crosshair overlay
         CrosshairOverlay(
             primaryValue = viewModel.primaryValue,
             temperatureUnits = TemperatureUnits.fromRawValue(viewModel.userPreferences?.temperatureUnits)
                 ?: TemperatureUnits.FAHRENHEIT,
-            zoom = viewModel.currentZoom,
-            latitude = viewModel.currentLatitude,
+            zoomProvider = { cameraZoom },
+            latitudeProvider = { cameraLatitude },
             isDataLayerActive = viewModel.isDataLayerActive
         )
 
@@ -468,102 +216,21 @@ fun MapScreen(
             )
         }
 
-        // Bottom controls column — matches iOS MapControlsContainer VStack
-        // Hidden in special modes (satellite, measurement replaces with its own overlay)
+        // Bottom controls — extracted composable (matches iOS MapControlsOverlay)
+        // Own recomposition scope: sheet state changes don't touch this.
         if (viewModel.selectedDataset != null && !viewModel.satelliteTrackingMode.isActive) {
-            Column(
+            MapControlsOverlay(
+                viewModel = viewModel,
+                coordinator = coordinator,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(bottom = 32.dp)
-            ) {
-                // Right toolbar (right-aligned, above quick actions + bottom panel)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(end = Spacing.large),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    RightSideToolbar(
-                        onFilterClick = { showFilterSheet = true },
-                        onLayersClick = { showLayersSheet = true },
-                        onToolsClick = { showToolsSheet = true },
-                        onMeasureClick = {
-                            if (viewModel.measurementState.isActive) {
-                                viewModel.measurementState.exit()
-                            } else {
-                                viewModel.measurementState.enter()
-                            }
-                        }
-                    )
-                }
-
-                Spacer(Modifier.height(Spacing.medium))
-
-                // Measurement mode overlay (replaces dataset control when active)
-                if (viewModel.measurementState.isActive) {
-                    MeasureModeOverlay(
-                        totalDistanceMeters = viewModel.measurementState.totalDistanceMeters,
-                        hasMeasurements = viewModel.measurementState.hasMeasurements,
-                        canUndo = viewModel.measurementState.canUndo,
-                        distanceUnits = viewModel.currentDistanceUnits,
-                        onUndo = { viewModel.measurementState.undoLastPoint() },
-                        onClear = { viewModel.measurementState.clearAll() },
-                        onDone = { viewModel.measurementState.exit() }
-                    )
-                }
-
-                // Quick actions bar (presets, variables, depth)
-                if (!viewModel.measurementState.isActive) {
-                    val dataset = viewModel.selectedDataset!!
-                    val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
-                    val entry = viewModel.selectedEntry
-                    val rangeKey = datasetType.rangeKey
-                    val rangeData = entry?.ranges?.get(rangeKey)
-                    val valueRange = if (rangeData?.min != null && rangeData.max != null) {
-                        rangeData.min..rangeData.max
-                    } else {
-                        0.0..1.0
-                    }
-                    val config = viewModel.primaryConfig
-
-                    QuickActionsBar(
-                        datasetType = datasetType,
-                        variables = datasetType.displayVariables,
-                        selectedVariable = config?.selectedVariable(dataset) ?: datasetType.primaryVariable,
-                        onVariableSelected = { viewModel.selectVariable(it) },
-                        availableDepths = dataset.availableDepths ?: listOf(0),
-                        selectedDepth = viewModel.depthFilterState.selectedDepth,
-                        onDepthSelected = { viewModel.onDepthSelected(it) },
-                        allPresets = viewModel.allPresets,
-                        selectedPreset = config?.selectedPreset,
-                        currentValue = viewModel.primaryValue.value,
-                        valueRange = valueRange,
-                        isLoadingPresets = viewModel.isLoadingPresets,
-                        onPresetSelected = { viewModel.applyPreset(it) }
-                    )
-                }
-
-                // Bottom panel
-                if (!viewModel.measurementState.isActive) SaltyDatasetControl(
-                    dataset = viewModel.selectedDataset!!,
-                    entry = viewModel.selectedEntry,
-                    snapshot = viewModel.renderingSnapshot,
-                    primaryValue = viewModel.primaryValue,
-                    isExpanded = viewModel.isDatasetControlCollapsed,
-                    primaryConfig = viewModel.primaryConfig,
-                    onConfigChanged = { viewModel.updatePrimaryConfig(it) },
-                    onEntrySelected = { viewModel.selectEntry(it) },
-                    onExpandToggle = {
-                        viewModel.isDatasetControlCollapsed = !viewModel.isDatasetControlCollapsed
-                    },
-                    onChange = { showDatasetSheet = true }
-                )
-            }
+            )
         }
 
         // Layers control sheet
-        if (showLayersSheet && viewModel.selectedDataset != null && viewModel.primaryConfig != null) {
+        if (coordinator.activeSheet is MapSheet.Layers && viewModel.selectedDataset != null && viewModel.primaryConfig != null) {
             LayersControlSheet(
                 // Dataset layer props
                 dataset = viewModel.selectedDataset!!,
@@ -581,28 +248,28 @@ fun MapScreen(
                 onTournamentSelect = { viewModel.globalLayerManager.selectTournament(it) },
                 onTournamentDeselect = { viewModel.globalLayerManager.deselectTournament() },
                 // Sheet props
-                sheetState = layersSheetState,
-                onDismiss = { showLayersSheet = false }
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                onDismiss = { coordinator.dismissSheet() }
             )
         }
 
         // Dataset selector sheet
-        if (showDatasetSheet && viewModel.selectedRegion != null) {
+        if (coordinator.activeSheet is MapSheet.DatasetSelector && viewModel.selectedRegion != null) {
             DatasetSelectorSheet(
                 datasets = viewModel.selectedRegion!!.activeDatasets,
                 selectedDataset = viewModel.selectedDataset,
                 selectedEntry = viewModel.selectedEntry,
                 isPremium = true, // TODO: Wire up subscription status
-                sheetState = datasetSheetState,
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 onDatasetSelected = { dataset ->
                     viewModel.selectDataset(dataset)
                 },
-                onDismiss = { showDatasetSheet = false }
+                onDismiss = { coordinator.dismissSheet() }
             )
         }
 
         // Dataset filter sheet
-        if (showFilterSheet && viewModel.primaryConfig != null && viewModel.selectedDataset != null) {
+        if (coordinator.activeSheet is MapSheet.DatasetFilter && viewModel.primaryConfig != null && viewModel.selectedDataset != null) {
             val config = viewModel.primaryConfig!!
             val dataset = viewModel.selectedDataset!!
             val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
@@ -627,7 +294,7 @@ fun MapScreen(
                 onDragRangeChanged = { min, max ->
                     viewModel.setFilterRangeDirect(min, max)
                 },
-                onDismiss = { showFilterSheet = false }
+                onDismiss = { coordinator.dismissSheet() }
             )
         }
 
@@ -645,8 +312,7 @@ fun MapScreen(
                             onEdit = { viewModel.openWaypointForm(it) },
                             onDelete = { viewModel.deleteWaypoint(it) },
                             onShareToCrew = { waypoint ->
-                                waypointToShare = waypoint
-                                showShareWaypointSheet = true
+                                coordinator.openSheet(MapSheet.ShareWaypoint(waypoint))
                             },
                             onShareGPX = { /* TODO: wire GPX export */ },
                             onNotesChanged = { notes ->
@@ -681,19 +347,19 @@ fun MapScreen(
         }
 
         // Waypoint management sheet
-        if (showWaypointSheet) {
+        if (coordinator.activeSheet is MapSheet.WaypointManagement) {
             WaypointManagementSheet(
                 sections = viewModel.groupedWaypoints,
                 sortOption = viewModel.waypointSortOption,
                 selectedWaypointId = viewModel.selectedWaypointId,
                 onSortOptionChanged = { viewModel.updateWaypointSortOption(it) },
                 onWaypointTap = { id ->
-                    showWaypointSheet = false
+                    coordinator.dismissSheet()
                     viewModel.openWaypointDetails(id)
                 },
                 onWaypointDelete = { viewModel.deleteWaypoint(it) },
                 onImportGPX = { gpxPickerLauncher.launch(arrayOf("*/*")) },
-                onDismiss = { showWaypointSheet = false }
+                onDismiss = { coordinator.dismissSheet() }
             )
         }
 
@@ -708,68 +374,59 @@ fun MapScreen(
         }
 
         // Tools menu sheet
-        if (showToolsSheet) {
+        if (coordinator.activeSheet is MapSheet.Tools) {
             androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { showToolsSheet = false },
+                onDismissRequest = { coordinator.dismissSheet() },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 MapToolBar(
                     onAddWaypoint = {
-                        showToolsSheet = false
+                        coordinator.dismissSheet()
                         // TODO: Open waypoint creation at map center
                     },
                     onSatellites = {
-                        showToolsSheet = false
-                        showLayersSheet = false
-                        showDatasetSheet = false
+                        coordinator.dismissSheet()
                         viewModel.satelliteTrackingMode.enter()
                     },
                     onMyLocation = {
-                        showToolsSheet = false
+                        coordinator.dismissSheet()
                         // TODO: Fly to user location
                     },
                     onShare = {
-                        showToolsSheet = false
+                        coordinator.dismissSheet()
                         viewModel.createShareLink()
                     },
                     onWaypoints = {
-                        showToolsSheet = false
-                        showWaypointSheet = true
+                        coordinator.openSheet(MapSheet.WaypointManagement)
                     },
                     onCrews = {
-                        showToolsSheet = false
-                        showCrewListSheet = true
+                        coordinator.openSheet(MapSheet.CrewList)
                     },
                     onSavedMaps = {
-                        showToolsSheet = false
-                        showSavedMapsSheet = true
+                        coordinator.openSheet(MapSheet.SavedMaps)
                     },
                     onSaveMap = {
-                        showToolsSheet = false
-                        showSaveMapSheet = true
+                        coordinator.openSheet(MapSheet.SaveMap)
                     },
                     onCreateCrew = {
-                        showToolsSheet = false
-                        showCreateCrewSheet = true
+                        coordinator.openSheet(MapSheet.CreateCrew)
                     },
                     onJoinCrew = {
-                        showToolsSheet = false
-                        showJoinCrewSheet = true
+                        coordinator.openSheet(MapSheet.JoinCrew)
                     },
                     onDatasetGuide = {
-                        showToolsSheet = false
-                        showDatasetGuideSheet = true
+                        coordinator.openSheet(MapSheet.DatasetGuide)
                     },
-                    onDismiss = { showToolsSheet = false }
+                    onDismiss = { coordinator.dismissSheet() }
                 )
             }
         }
 
         // Dataset guide sheet
-        if (showDatasetGuideSheet) {
+        if (coordinator.activeSheet is MapSheet.DatasetGuide) {
             androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { showDatasetGuideSheet = false },
+                onDismissRequest = { coordinator.dismissSheet() },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 containerColor = MaterialTheme.colorScheme.background
             ) {
@@ -792,7 +449,7 @@ fun MapScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         androidx.compose.material3.TextButton(
-                            onClick = { showDatasetGuideSheet = false }
+                            onClick = { coordinator.dismissSheet() }
                         ) {
                             Text("Done", color = MaterialTheme.colorScheme.onSurface)
                         }
@@ -822,8 +479,8 @@ fun MapScreen(
                         DatasetType.fromRawValue(it.type)?.shortName ?: it.type
                     } ?: "Unknown",
                     timestamp = viewModel.selectedEntry?.timestamp ?: "",
-                    latitude = viewModel.currentLatitude,
-                    longitude = viewModel.currentLongitude,
+                    latitude = cameraLatitude,
+                    longitude = cameraLongitude,
                     onDismiss = { viewModel.dismissShareLink() }
                 )
             }
@@ -857,7 +514,7 @@ fun MapScreen(
         }
 
         // Crew list sheet
-        if (showCrewListSheet) {
+        if (coordinator.activeSheet is MapSheet.CrewList) {
             CrewListSheet(
                 crews = viewModel.crews,
                 crewWaypoints = viewModel.crewWaypoints,
@@ -875,23 +532,23 @@ fun MapScreen(
                 onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.updateCrewName(crewId, newName, onSuccess) },
                 onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
                 onWaypointTap = { sharedWaypoint ->
-                    showCrewListSheet = false
+                    coordinator.dismissSheet()
                     viewModel.selectWaypoint(sharedWaypoint.waypoint.id)
                 },
                 onLoadMap = { savedMap ->
-                    showCrewListSheet = false
+                    coordinator.dismissSheet()
                     // TODO: apply saved map configuration
                 },
-                onDismiss = { showCrewListSheet = false },
+                onDismiss = { coordinator.dismissSheet() },
             )
         }
 
         // Create crew sheet
-        if (showCreateCrewSheet) {
+        if (coordinator.activeSheet is MapSheet.CreateCrew) {
             CreateCrewSheet(
-                onDismiss = { showCreateCrewSheet = false },
+                onDismiss = { coordinator.dismissSheet() },
                 onCrewCreated = { crew ->
-                    showCreateCrewSheet = false
+                    coordinator.dismissSheet()
                     viewModel.loadCrews()
                 },
                 onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
@@ -900,11 +557,11 @@ fun MapScreen(
         }
 
         // Join crew sheet
-        if (showJoinCrewSheet) {
+        if (coordinator.activeSheet is MapSheet.JoinCrew) {
             JoinCrewSheet(
-                onDismiss = { showJoinCrewSheet = false },
+                onDismiss = { coordinator.dismissSheet() },
                 onCrewJoined = { crew ->
-                    showJoinCrewSheet = false
+                    coordinator.dismissSheet()
                     viewModel.loadCrews()
                 },
                 onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
@@ -913,7 +570,7 @@ fun MapScreen(
         }
 
         // Save map sheet
-        if (showSaveMapSheet) {
+        if (coordinator.activeSheet is MapSheet.SaveMap) {
             SaveMapSheet(
                 crews = viewModel.crews,
                 regionName = viewModel.selectedRegion?.name,
@@ -921,318 +578,44 @@ fun MapScreen(
                 isSaving = viewModel.isSavingMap,
                 onSave = { name, crewId ->
                     // TODO: build MapConfiguration from current state
-                    showSaveMapSheet = false
+                    coordinator.dismissSheet()
                 },
-                onDismiss = { showSaveMapSheet = false },
+                onDismiss = { coordinator.dismissSheet() },
             )
         }
 
         // Saved maps list sheet
-        if (showSavedMapsSheet) {
+        if (coordinator.activeSheet is MapSheet.SavedMaps) {
             SavedMapsListSheet(
                 savedMaps = viewModel.savedMaps,
                 crews = viewModel.crews,
                 currentUserId = AuthManager.currentUserId,
                 isLoading = viewModel.isLoadingSavedMaps,
                 onLoadMap = { savedMap ->
-                    showSavedMapsSheet = false
+                    coordinator.dismissSheet()
                     // TODO: apply saved map configuration
                 },
                 onDeleteMap = { viewModel.deleteSavedMap(it) },
                 onShareToCrew = { mapId, crewId, name -> viewModel.shareMapWithCrew(mapId, crewId, name) },
                 onUnshare = { viewModel.unshareMap(it) },
-                onDismiss = { showSavedMapsSheet = false },
+                onDismiss = { coordinator.dismissSheet() },
             )
         }
 
         // Share waypoint to crew sheet
-        if (showShareWaypointSheet) {
-            waypointToShare?.let { waypoint ->
-                ShareWaypointSheet(
-                    waypoint = waypoint,
-                    crews = viewModel.crews,
-                    onShare = { crewIds ->
-                        viewModel.shareWaypointToCrews(waypoint, crewIds)
-                        showShareWaypointSheet = false
-                        waypointToShare = null
-                    },
-                    onDismiss = {
-                        showShareWaypointSheet = false
-                        waypointToShare = null
-                    },
-                )
-            }
-        }
-    }
-}
-
-/**
- * Effect that manages dataset visualization layers.
- * Uses MapEffect to get MapboxMap reference and renders layers via DatasetLayers.
- *
- * IMPORTANT: DatasetLayers must be remembered to persist layer state across renders.
- * Otherwise toggling layers won't work (fresh instance has null layer references).
- */
-@Composable
-private fun DatasetLayersEffect(
-    dataset: Dataset?,
-    entry: TimeEntry?,
-    region: RegionMetadata?,
-    snapshot: DatasetRenderingSnapshot,
-    visualSource: VisualLayerSource
-) {
-    // Remember layer manager - recreate only when region changes
-    val regionId = region?.id
-    var datasetLayers by remember { mutableStateOf<DatasetLayers?>(null) }
-
-    // Clean up old layers when region changes
-    DisposableEffect(regionId) {
-        onDispose {
-            datasetLayers?.removeAllLayers()
-            datasetLayers = null
-        }
-    }
-
-    // Render layers when any input changes
-    MapEffect(regionId, entry?.id, snapshot, visualSource) { mapView ->
-        val mapboxMap = mapView.mapboxMap
-
-        // Create layer manager if needed (first render or region changed)
-        if (datasetLayers == null) {
-            datasetLayers = DatasetLayers(mapboxMap)
-        }
-
-        // Render layers
-        datasetLayers?.render(
-            dataset = dataset,
-            entry = entry,
-            region = region,
-            snapshot = snapshot,
-            visualSource = visualSource
-        )
-    }
-}
-
-/**
- * Effect that wires up the repaint callback for Zarr frame updates.
- * Must be called once when map is ready.
- */
-@Composable
-private fun ZarrRepaintEffect(viewModel: AppViewModel) {
-    MapEffect(Unit) { mapView ->
-        viewModel.repaint = {
-            mapView.mapboxMap.triggerRepaint()
-        }
-    }
-}
-
-/**
- * Effect that queries features at crosshair position when camera changes.
- * Manager owns primaryValue state and notifies via callback.
- */
-@Composable
-private fun CrosshairQueryEffect(
-    isDataLayerActive: Boolean,
-    datasetType: DatasetType?,
-    onPrimaryValueChanged: (CurrentValue) -> Unit,
-    onCameraChanged: (zoom: Double, latitude: Double, longitude: Double) -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    val yOffsetPx = with(density) { CrosshairConstants.yOffset.toPx() }
-
-    MapEffect(key1 = isDataLayerActive, key2 = datasetType) { mapView ->
-        val mapboxMap = mapView.mapboxMap
-
-        val queryManager = CrosshairFeatureQueryManager(mapboxMap, scope)
-        queryManager.configure(datasetType)
-        queryManager.onPrimaryValueChanged = { onPrimaryValueChanged(it) }
-
-        val cancelable = mapboxMap.subscribeCameraChanged { _ ->
-            val cameraState = mapboxMap.cameraState
-            val zoom = cameraState.zoom
-            val center = cameraState.center
-            val latitude = center.latitude()
-            val longitude = center.longitude()
-
-            onCameraChanged(zoom, latitude, longitude)
-
-            if (isDataLayerActive) {
-                val screenCenterX = mapView.width / 2.0
-                val screenCenterY = mapView.height / 2.0 + yOffsetPx
-                val screenPoint = ScreenCoordinate(screenCenterX, screenCenterY)
-                queryManager.queryCenterFeatures(screenPoint, zoom)
-            }
-        }
-
-        try {
-            kotlinx.coroutines.awaitCancellation()
-        } finally {
-            queryManager.reset()
-            cancelable.cancel()
-        }
-    }
-}
-
-/**
- * Effect that manages global overlay layers.
- * Uses MapEffect to get MapboxMap reference and renders layers via GlobalLayers.
- *
- * Important: Uses getStyle callback to ensure style is loaded before adding layers.
- * Uses rememberUpdatedState to avoid stale closure captures in callbacks.
- */
-@Composable
-private fun GlobalLayersEffect(
-    visibility: GlobalLayerVisibility,
-    loranConfig: LoranRegionConfig?,
-    selectedTournament: Tournament?,
-    stations: List<Station>,
-    onStationTap: (String) -> Unit = {}
-) {
-    var globalLayers by remember { mutableStateOf<GlobalLayers?>(null) }
-    var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
-
-    // Use rememberUpdatedState to always have latest values in callbacks
-    val currentVisibility by androidx.compose.runtime.rememberUpdatedState(visibility)
-    val currentLoranConfig by androidx.compose.runtime.rememberUpdatedState(loranConfig)
-    val currentTournament by androidx.compose.runtime.rememberUpdatedState(selectedTournament)
-    val currentStations by androidx.compose.runtime.rememberUpdatedState(stations)
-    val currentOnStationTap by androidx.compose.runtime.rememberUpdatedState(onStationTap)
-
-    // Clean up on dispose
-    DisposableEffect(Unit) {
-        onDispose {
-            globalLayers?.removeAll()
-            globalLayers = null
-        }
-    }
-
-    // Get map reference once and subscribe to style loaded
-    MapEffect(Unit) { mapView ->
-        Log.d(TAG, "GlobalLayersEffect: MapEffect triggered")
-        mapboxMapRef = mapView.mapboxMap
-
-        // Station marker tap detection via queryRenderedFeatures
-        mapView.mapboxMap.let { map ->
-            mapView.gestures.addOnMapClickListener { point ->
-                val screenPoint = map.pixelForCoordinate(point)
-                val geometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
-                val options = com.mapbox.maps.RenderedQueryOptions(
-                    listOf(com.example.saltyoffshore.config.MapLayers.Global.STATIONS_LAYER),
-                    null
-                )
-                map.queryRenderedFeatures(geometry, options) { expected ->
-                    expected.value?.firstOrNull()?.let { feature ->
-                        val stationId = feature.queriedFeature.feature.getStringProperty("id")
-                        if (stationId != null) {
-                            currentOnStationTap(stationId)
-                        }
-                    }
-                }
-                false // Don't consume — let other listeners also handle
-            }
-        }
-
-        // Subscribe to style loaded events for initial render
-        mapView.mapboxMap.subscribeStyleLoaded { _ ->
-            Log.d(TAG, "GlobalLayersEffect: Style loaded event received")
-            if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.context, mapView.mapboxMap)
-            }
-            globalLayers?.update(
-                visibility = currentVisibility,
-                loranConfig = currentLoranConfig,
-                selectedTournament = currentTournament,
-                stations = currentStations
-            )
-        }
-
-        // Also try immediately if style is already loaded
-        mapView.mapboxMap.getStyle { _ ->
-            Log.d(TAG, "GlobalLayersEffect: getStyle callback - style available")
-            if (globalLayers == null) {
-                globalLayers = GlobalLayers(mapView.context, mapView.mapboxMap)
-            }
-            globalLayers?.update(
-                visibility = currentVisibility,
-                loranConfig = currentLoranConfig,
-                selectedTournament = currentTournament,
-                stations = currentStations
-            )
-        }
-    }
-
-    // Update layers when visibility or stations change (after initial setup)
-    LaunchedEffect(visibility, loranConfig, selectedTournament, stations) {
-        val map = mapboxMapRef ?: return@LaunchedEffect
-        map.getStyle { _ ->
-            globalLayers?.update(
-                visibility = currentVisibility,
-                loranConfig = currentLoranConfig,
-                selectedTournament = currentTournament,
-                stations = currentStations
+        (coordinator.activeSheet as? MapSheet.ShareWaypoint)?.let { sheet ->
+            ShareWaypointSheet(
+                waypoint = sheet.waypoint,
+                crews = viewModel.crews,
+                onShare = { crewIds ->
+                    viewModel.shareWaypointToCrews(sheet.waypoint, crewIds)
+                    coordinator.dismissSheet()
+                },
+                onDismiss = { coordinator.dismissSheet() },
             )
         }
     }
 }
 
-/**
- * Simple waypoint layer effect: icons + text + tap handling.
- */
-@Composable
-private fun WaypointLayersEffect(
-    waypoints: List<Waypoint>,
-    onWaypointTap: (String) -> Unit
-) {
-    val context = LocalContext.current
-    var layer by remember { mutableStateOf<WaypointAnnotationLayer?>(null) }
-    var mapboxMapRef by remember { mutableStateOf<com.mapbox.maps.MapboxMap?>(null) }
-    val currentWaypoints by androidx.compose.runtime.rememberUpdatedState(waypoints)
-    val currentOnWaypointTap by androidx.compose.runtime.rememberUpdatedState(onWaypointTap)
-    val mainHandler = remember { Handler(Looper.getMainLooper()) }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            layer?.removeFromMap()
-            layer = null
-        }
-    }
-
-    fun render(mapboxMap: com.mapbox.maps.MapboxMap) {
-        if (layer == null) layer = WaypointAnnotationLayer(mapboxMap, context)
-        layer?.update(currentWaypoints)
-    }
-
-    MapEffect(Unit) { mapView ->
-        mapboxMapRef = mapView.mapboxMap
-
-        // Tap detection via queryRenderedFeatures
-        mapView.gestures.addOnMapClickListener { point ->
-            val screenPoint = mapView.mapboxMap.pixelForCoordinate(point)
-            val geometry = com.mapbox.maps.RenderedQueryGeometry(screenPoint)
-            val options = com.mapbox.maps.RenderedQueryOptions(
-                listOf(com.example.saltyoffshore.config.MapLayers.Waypoint.OWN_LAYER),
-                null
-            )
-            mapView.mapboxMap.queryRenderedFeatures(geometry, options) { expected ->
-                expected.value?.firstOrNull()?.let { feature ->
-                    feature.queriedFeature.feature.getStringProperty("id")?.let { id ->
-                        currentOnWaypointTap(id)
-                    }
-                }
-            }
-            false
-        }
-
-        mapView.mapboxMap.subscribeStyleLoaded { _ ->
-            mainHandler.post { render(mapView.mapboxMap) }
-        }
-
-        mapView.mapboxMap.getStyle { _ -> render(mapView.mapboxMap) }
-    }
-
-    LaunchedEffect(waypoints) {
-        val map = mapboxMapRef ?: return@LaunchedEffect
-        map.getStyle { _ -> render(map) }
-    }
-}
+// Private helper composables (DatasetLayersEffect, ZarrRepaintEffect, CrosshairQueryEffect,
+// GlobalLayersEffect, WaypointLayersEffect) have been moved to MapContent.kt.

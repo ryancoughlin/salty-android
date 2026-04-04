@@ -16,16 +16,28 @@ import com.example.saltyoffshore.data.TemperatureUnits
  * Positions crosshair above screen center, scale bar at bottom.
  * Matches iOS CrosshairOverlay.
  */
+/**
+ * Lambda provider pattern: zoom and latitude change every frame during pan/zoom.
+ * By accepting lambdas instead of raw values, the "read" happens inside THIS composable's
+ * scope — so only CrosshairOverlay recomposes on camera moves, not the parent MapScreen.
+ *
+ * iOS equivalent: Only CrosshairOverlay observes CrosshairFeatureQueryManager.value.
+ * MapboxMapView_V2 never rebuilds for camera changes.
+ */
 @Composable
 fun CrosshairOverlay(
     primaryValue: CurrentValue,
     temperatureUnits: TemperatureUnits,
-    zoom: Double,
-    latitude: Double,
+    zoomProvider: () -> Double,
+    latitudeProvider: () -> Double,
     isDataLayerActive: Boolean,
     modifier: Modifier = Modifier
 ) {
     if (!isDataLayerActive) return
+
+    // Read the lambdas HERE — this scopes the recomposition to CrosshairOverlay only
+    val zoom = zoomProvider()
+    val latitude = latitudeProvider()
 
     Box(
         modifier = modifier.fillMaxSize()

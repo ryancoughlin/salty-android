@@ -158,3 +158,80 @@ json.encodeToString(set.toList())
 // and decode:
 json.decodeFromString<Set<String>>(raw)
 ```
+
+---
+
+## Compose Performance Patterns
+
+### Lambda State Providers for High-Frequency State
+
+**Problem:** `mutableStateOf` properties that change every frame (camera zoom/lat/lng) cause full recomposition of the composable that reads them.
+
+**Solution:** Pass lambdas instead of values. The child composable reads the lambda inside its own scope — recomposition is limited to that child.
+
+```kotlin
+// WRONG — parent recomposes every frame
+CrosshairOverlay(zoom = viewModel.currentZoom)
+
+// CORRECT — parent never recomposes for camera moves
+CrosshairOverlay(zoomProvider = { cameraZoom })
+
+// Inside CrosshairOverlay:
+val zoom = zoomProvider()  // read HERE, in child scope
+```
+
+### MapContent Isolation (matches iOS MapView.swift)
+
+**Pattern:** The map composable must be isolated from sheet state. Extract it into a standalone `@Composable` that takes explicit params — no ViewModel reference.
+
+- `MapContent.kt` = iOS `MapboxMapView_V2.swift`
+- Takes explicit params only (region, dataset, waypoints, callbacks)
+- Sheet state changes in `MapScreen` do NOT recompose `MapContent`
+
+### MapEffect Keys — Don't Use Full Objects
+
+**Problem:** Using a data class as a MapEffect key tears down/restarts the effect on every property change (e.g., opacity slider drag creates new snapshot).
+
+**Solution:** Key on identifiers only. Use `rememberUpdatedState` for the changing data.
+
+```kotlin
+// WRONG — tears down MapEffect on every opacity change
+MapEffect(regionId, entry?.id, snapshot, visualSource) { ... }
+
+// CORRECT — only tears down on region/entry change
+val currentSnapshot by rememberUpdatedState(snapshot)
+MapEffect(regionId, entry?.id) { mapView ->
+    datasetLayers?.render(snapshot = currentSnapshot)
+}
+// Separate LaunchedEffect for incremental updates
+LaunchedEffect(snapshot) { datasetLayers?.render(snapshot = currentSnapshot) }
+```
+
+### derivedStateOf for Computed Properties
+
+**Problem:** Plain `get()` recomputes on every recomposition, even when inputs haven't changed.
+
+**Solution:** Use `derivedStateOf` — it caches the result and only recomputes when observed inputs change.
+
+```kotlin
+// WRONG — recomputes filter/groupBy on every recompose
+val layersByCategory: List<...>
+    get() { _layers.filter { ... }.groupBy { ... } }
+
+// CORRECT — only recomputes when _layers changes
+val layersByCategory by derivedStateOf { _layers.filter { ... }.groupBy { ... } }
+```
+
+### key() for ForEach in Compose
+
+**Problem:** `forEach` in composable scope without `key {}` means Compose can't track identity — all items get torn down and recreated on recompose.
+
+**Solution:** Wrap each item in `key(stableId)`.
+
+```kotlin
+regions.forEach { region ->
+    key(region.id) {
+        ViewAnnotation(...) { RegionAnnotationView(region = region) }
+    }
+}
+```
