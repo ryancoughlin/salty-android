@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import com.example.saltyoffshore.ui.screen.RegionSelectionSheet
 import com.example.saltyoffshore.ui.screen.LoginScreen
 import com.example.saltyoffshore.ui.screen.MapScreen
 import com.example.saltyoffshore.ui.screen.ResetPasswordScreen
+import com.example.saltyoffshore.ui.screen.LaunchView
 import com.example.saltyoffshore.ui.screen.SignUpScreen
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.example.saltyoffshore.viewmodel.AppViewModel
@@ -50,6 +52,7 @@ private const val TAG = "MainActivity"
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -61,6 +64,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun SaltyApp() {
     val viewModel: AppViewModel = viewModel()
+
+    // Launch animation — matches iOS LaunchView overlay
+    var showLaunch by remember { mutableStateOf(true) }
 
     // Auth state machine
     var isAuthenticated by remember { mutableStateOf(AuthManager.hasStoredSession) }
@@ -124,6 +130,11 @@ private fun SaltyApp() {
                 onBack = { showResetPasswordSheet = false }
             )
         }
+    }
+
+    // Launch animation overlay — renders on top, self-dismisses
+    if (showLaunch) {
+        LaunchView(onFinished = { showLaunch = false })
     }
 }
 

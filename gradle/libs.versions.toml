@@ -17,6 +17,7 @@ datastore = "1.1.1"
 supabase = "3.1.4"
 coil = "3.1.0"
 vico = "3.0.3"
+splashscreen = "1.0.1"
 
 [libraries]
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
@@ -52,6 +53,7 @@ supabase-realtime = { group = "io.github.jan-tennert.supabase", name = "realtime
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
