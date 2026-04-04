@@ -7,9 +7,11 @@ package com.example.saltyoffshore.data
  *
  * Two paths:
  * - Fixed: hardcoded range, ignores data values (chlorophyll)
- * - PercentileClipped: aggregate from API entry ranges, clip outliers (everything else)
+ * - Aggregated: absolute min/max from API entry ranges (everything else)
  *
  * Result is always a ClosedFloatingPointRange<Float> stored on every frame's metadata.
+ *
+ * iOS ref: RenderingConfig.swift — DomainStrategy enum
  */
 sealed class DomainStrategy {
 
@@ -20,16 +22,10 @@ sealed class DomainStrategy {
     data class Fixed(val range: ClosedFloatingPointRange<Float>) : DomainStrategy()
 
     /**
-     * Aggregate entry-level min/max across all frames at a depth,
-     * then clip to percentiles to reduce outlier influence.
-     *
-     * @param minPercentile Floor percentile for entry minimums (e.g. 10 = P10)
-     * @param maxPercentile Ceiling percentile for entry maximums (e.g. 75 = P75)
+     * Aggregate entry-level min/max across all frames at a depth.
+     * Uses the absolute min and max — no percentile clipping.
      */
-    data class PercentileClipped(
-        val minPercentile: Int,
-        val maxPercentile: Int
-    ) : DomainStrategy()
+    data object Aggregated : DomainStrategy()
 
     /**
      * Compute the aggregate domain from entry-level min/max arrays.
@@ -39,36 +35,15 @@ sealed class DomainStrategy {
         return when (this) {
             is Fixed -> range
 
-            is PercentileClipped -> {
-                if (entryMins.size < 2) {
-                    // Single entry — use its range directly (no clipping possible)
-                    val first = entryMins.firstOrNull()
-                    val last = entryMaxes.firstOrNull()
-                    if (first != null && last != null && first < last) {
-                        first..last
-                    } else {
-                        null
-                    }
-                } else {
-                    val sortedMins = entryMins.sorted()
-                    val sortedMaxes = entryMaxes.sorted()
-                    val n = sortedMins.size
-
-                    val clippedMin = sortedMins[minOf(n * minPercentile / 100, n - 1)]
-                    val clippedMax = sortedMaxes[minOf(n * maxPercentile / 100, n - 1)]
-
-                    if (clippedMin < clippedMax) clippedMin..clippedMax else null
-                }
+            is Aggregated -> {
+                val min = entryMins.minOrNull()
+                val max = entryMaxes.maxOrNull()
+                if (min != null && max != null && min < max) min..max else null
             }
         }
     }
 
     companion object {
-        /**
-         * Default strategy: P10 floor / P75 ceiling.
-         * Tightens the domain so warm water reaches the red zone instead of
-         * compressing into orange from afternoon solar heating outliers.
-         */
-        val Default = PercentileClipped(minPercentile = 10, maxPercentile = 75)
+        val Default = Aggregated
     }
 }

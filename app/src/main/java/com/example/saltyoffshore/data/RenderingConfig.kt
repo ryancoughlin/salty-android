@@ -22,7 +22,7 @@ data class RenderingConfig(
     val snapIncrement: Double? = null,
     /**
      * How the color scale domain is determined. Either a fixed range
-     * or percentile-clipped aggregate from API entry ranges.
+     * or aggregated min/max from API entry ranges.
      */
     val domainStrategy: DomainStrategy = DomainStrategy.Default,
     /**
@@ -77,9 +77,9 @@ val DatasetType.renderingConfig: RenderingConfig
         )
 
         DatasetType.PHYTOPLANKTON -> RenderingConfig(
+            // Log10: similar to chlorophyll, no snap (scale compression)
             scaleMode = ScaleMode.LOGARITHMIC,
-            colorscale = Colorscale.BLOOM,
-            domainStrategy = DomainStrategy.Fixed(0.01f..8.0f)
+            colorscale = Colorscale.BLOOM
         )
 
         DatasetType.WATER_CLARITY -> RenderingConfig(

@@ -544,14 +544,16 @@ class DatasetStore(
 
         val variableName = datasetType?.zarrVariable ?: "sea_surface_temperature"
 
+        // Aggregate data range across ALL entries using DomainStrategy.
+        // iOS ref: ZarrManager uses DomainStrategy.aggregateRange(entryMins, entryMaxes)
+        // to produce a stable color domain across all time steps.
         val rangeKey = datasetType?.rangeKey ?: "value"
+        val allEntries = dataset.entries ?: emptyList()
+        val entryMins = allEntries.mapNotNull { it.ranges?.get(rangeKey)?.min?.toFloat() }
+        val entryMaxes = allEntries.mapNotNull { it.ranges?.get(rangeKey)?.max?.toFloat() }
+        val dataRange = rc.domainStrategy.aggregateRange(entryMins, entryMaxes)
+            ?: 0f..100f
         val selectedEntry = _state.value.selectedEntry
-        val rangeData = selectedEntry?.ranges?.get(rangeKey)
-        val dataRange = if (rangeData?.min != null && rangeData.max != null) {
-            rangeData.min.toFloat()..rangeData.max.toFloat()
-        } else {
-            0f..100f
-        }
 
         zarrManager.load(
             zarrUrl = zarrUrl,
@@ -627,16 +629,26 @@ class DatasetStore(
 
     /**
      * Compute rendering snapshot for a given entry + dataset.
-     * Pure function — no side effects.
+     * Aggregates data range across ALL entries using DomainStrategy.
+     * iOS ref: DatasetStore — uses DomainStrategy to compute stable color domain.
      */
     private fun computeSnapshot(entry: TimeEntry, dataset: Dataset): DatasetRenderingSnapshot {
         val datasetType = DatasetType.fromRawValue(dataset.type)
         val rangeKey = datasetType?.rangeKey ?: "value"
-        val rangeData = entry.ranges?.get(rangeKey)
+        val rc = datasetType?.renderingConfig ?: DatasetType.SST.renderingConfig
 
-        return if (rangeData?.min != null && rangeData.max != null) {
-            Log.d(TAG, "Updated data range: ${rangeData.min} - ${rangeData.max}")
-            _state.value.renderingSnapshot.copy(dataMin = rangeData.min, dataMax = rangeData.max)
+        // Aggregate range across all entries using DomainStrategy
+        val allEntries = dataset.entries ?: emptyList()
+        val entryMins = allEntries.mapNotNull { it.ranges?.get(rangeKey)?.min?.toFloat() }
+        val entryMaxes = allEntries.mapNotNull { it.ranges?.get(rangeKey)?.max?.toFloat() }
+        val aggregatedRange = rc.domainStrategy.aggregateRange(entryMins, entryMaxes)
+
+        return if (aggregatedRange != null) {
+            Log.d(TAG, "Aggregated data range: ${aggregatedRange.start} - ${aggregatedRange.endInclusive}")
+            _state.value.renderingSnapshot.copy(
+                dataMin = aggregatedRange.start.toDouble(),
+                dataMax = aggregatedRange.endInclusive.toDouble()
+            )
         } else {
             _state.value.renderingSnapshot
         }

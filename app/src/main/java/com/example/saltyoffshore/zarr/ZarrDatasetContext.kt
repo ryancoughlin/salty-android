@@ -9,7 +9,7 @@ data class ZarrFrameMetadata(
     val zarrIndex: Int?,  // null when API entry has no Zarr match
     /**
      * Color scale domain for this frame. Computed by DomainStrategy at load time —
-     * either fixed (chlorophyll) or percentile-clipped aggregate (everything else).
+     * either fixed (chlorophyll) or aggregated min/max (everything else).
      */
     val dataRange: ClosedFloatingPointRange<Float>,
     /** Entry timestamp (Unix seconds). Used for manifest retry when zarrIndex is null. */

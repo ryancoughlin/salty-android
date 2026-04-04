@@ -7,14 +7,24 @@ package com.example.saltyoffshore.ui.theme
 object ColorScales {
 
     /**
-     * SST High Contrast - Standard high-contrast SST visualization (12 colors)
-     * Temperature Range: Typically 65°F - 85°F
-     * iOS ref: ColorScales.swift — exact 12-stop array
+     * SST High Contrast - 24-stop high-contrast SST visualization
+     * EXACT MATCH to Python backend SST_COLORS for consistent rendering
+     * Deep navy (coldest) → blue → cyan → green → yellow → orange → red → brown (hottest)
+     * iOS ref: ColorScales.swift — exact 24-stop array
      */
     val sst = listOf(
-        "#081d58", "#21449b", "#3883f6", "#34d1db",
-        "#0effc5", "#7ff000", "#ebf600", "#fec44f",
-        "#fa802f", "#e6420e", "#b3360b", "#5e2206"
+        // Deep blue to blue (coldest)
+        "#081d58", "#16306e", "#21449b", "#2c5fcf",
+        // Cyan to green
+        "#3883f6", "#34d1db", "#0effc5", "#7ff000",
+        // Yellow to orange (thermal breaks)
+        "#ebf600", "#fec44f", "#fca23f", "#fb9137",
+        // Orange-red to red
+        "#fa802f", "#f96f27", "#f85e1f", "#f74d17",
+        // Red-brown to brown
+        "#e6420e", "#d53e0d", "#c43a0c", "#b3360b",
+        // Brown to dark brown (warmest)
+        "#a2320a", "#912e09", "#802a08", "#5e2206"
     )
 
     /**
