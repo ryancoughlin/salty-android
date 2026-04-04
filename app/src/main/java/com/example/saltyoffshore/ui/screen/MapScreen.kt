@@ -2,7 +2,6 @@ package com.example.saltyoffshore.ui.screen
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +17,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
@@ -35,12 +35,9 @@ import com.example.saltyoffshore.ui.components.TopBar
 import com.example.saltyoffshore.ui.components.DatasetSelectorSheet
 import com.example.saltyoffshore.ui.components.DepthSelector
 import com.example.saltyoffshore.ui.components.DatasetFilterSheet
-import com.example.saltyoffshore.data.Dataset
-import androidx.compose.ui.platform.LocalContext
 import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.TemperatureUnits
-import com.example.saltyoffshore.data.waypoint.Waypoint
 import com.example.saltyoffshore.data.waypoint.WaypointSheet
 import com.example.saltyoffshore.data.waypoint.WaypointSource
 import com.example.saltyoffshore.data.coordinate.GPSFormat
@@ -56,6 +53,7 @@ import com.example.saltyoffshore.ui.map.MapControlsOverlay
 import com.example.saltyoffshore.viewmodel.AppViewModel
 import com.example.saltyoffshore.viewmodel.StationDetailViewModel
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.platform.LocalContext
 import com.example.saltyoffshore.ui.crew.CrewListSheet
 import com.example.saltyoffshore.ui.crew.CreateCrewSheet
 import com.example.saltyoffshore.ui.crew.JoinCrewSheet
@@ -78,6 +76,25 @@ fun MapScreen(
     // Single coordinator for all map sheets (replaces per-sheet booleans)
     val coordinator = remember { MapSheetCoordinator() }
 
+    // Hoisted sheet states — live above conditional blocks so they survive
+    // show/hide transitions. One shared state for all coordinator-managed sheets
+    // (only one is active at a time), separate states for viewModel-driven sheets.
+    val coordinatorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val shareLinkSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val stationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val waypointSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val announcementSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+
+    // ── Collect per-store state (replaces monolithic AppState) ──
+    val appState by viewModel.state.collectAsState()
+    val regionState by viewModel.regionStore.state.collectAsState()
+    val datasetState by viewModel.datasetStore.state.collectAsState()
+    val waypointState by viewModel.waypointStore.state.collectAsState()
+    val crewState by viewModel.crewStore.state.collectAsState()
+    val prefsState by viewModel.userPreferencesStore.state.collectAsState()
+    val savedMapsState by viewModel.savedMapsStore.state.collectAsState()
+    val stationState by viewModel.stationStore.state.collectAsState()
+
     // Camera state — local to MapScreen, NOT in ViewModel.
     // Only CrosshairOverlay reads these (via lambdas), so camera moves at 60fps
     // only recompose the overlay, not the entire MapScreen.
@@ -94,21 +111,21 @@ fun MapScreen(
     val gpxPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let { viewModel.importGPX(it, context) }
+        uri?.let { viewModel.waypointStore.importGPX(it, context) }
     }
 
     // Snackbar for import feedback
     val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(viewModel.importResult) {
-        viewModel.importResult?.let { message ->
+    LaunchedEffect(waypointState.importResult) {
+        waypointState.importResult?.let { message ->
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
-            viewModel.clearImportResult()
+            viewModel.waypointStore.clearImportResult()
         }
     }
 
     // Load waypoints from disk on first composition
     LaunchedEffect(Unit) {
-        viewModel.loadWaypoints()
+        viewModel.waypointStore.loadWaypoints()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -116,68 +133,68 @@ fun MapScreen(
         // MapContent takes explicit params only. Sheet state changes in MapScreen
         // do NOT recompose MapContent — this is the key performance boundary.
         MapContent(
-            selectedRegion = viewModel.selectedRegion,
-            regions = viewModel.regions,
-            selectedDataset = viewModel.selectedDataset,
-            selectedEntry = viewModel.selectedEntry,
-            renderingSnapshot = viewModel.renderingSnapshot,
-            visualSource = viewModel.visualSource,
-            isDataLayerActive = viewModel.isDataLayerActive,
-            currentDatasetType = viewModel.currentDatasetType,
+            selectedRegion = regionState.selectedRegion,
+            regions = regionState.regions,
+            selectedDataset = datasetState.selectedDataset,
+            selectedEntry = datasetState.selectedEntry,
+            renderingSnapshot = datasetState.renderingSnapshot,
+            visualSource = datasetState.visualSource,
+            isDataLayerActive = datasetState.isDataLayerActive,
+            currentDatasetType = datasetState.currentDatasetType,
             globalLayerVisibility = viewModel.globalLayerManager.visibility,
             loranConfig = viewModel.globalLayerManager.selectedLoranConfig,
             selectedTournament = viewModel.globalLayerManager.selectedTournament,
-            stations = viewModel.stations,
+            stations = stationState.stations,
             isStationsEnabled = viewModel.globalLayerManager.isEnabled(
                 com.example.saltyoffshore.data.GlobalLayerType.STATIONS
             ),
-            waypoints = viewModel.waypoints,
+            waypoints = waypointState.waypoints,
             measurements = viewModel.measurementState.allMeasurements,
             measurementIsActive = viewModel.measurementState.isActive,
-            distanceUnits = viewModel.currentDistanceUnits,
+            distanceUnits = prefsState.currentDistanceUnits,
             satelliteTrackingMode = viewModel.satelliteTrackingMode,
             satelliteStore = viewModel.satelliteStore,
             onCameraChanged = { zoom, lat, lon ->
                 cameraZoom = zoom
                 cameraLatitude = lat
                 cameraLongitude = lon
-                viewModel.updateCameraState(zoom, lat, lon)
+                viewModel.datasetStore.updateCameraState(zoom, lat, lon)
             },
-            onPrimaryValueChanged = { viewModel.updatePrimaryValue(it) },
-            onRegionSelected = { viewModel.onRegionSelected(it) },
-            onStationTap = { viewModel.openStationDetail(it) },
-            onWaypointTap = { viewModel.openWaypointDetails(it) },
+            onPrimaryValueChanged = { viewModel.datasetStore.updatePrimaryValue(it) },
+            onRegionSelected = { viewModel.regionStore.onRegionSelected(it) },
+            onStationTap = { viewModel.stationStore.openStationDetail(it) },
+            onWaypointTap = { viewModel.waypointStore.openWaypointDetails(it) },
             onWaypointLongPress = { point ->
-                val waypoint = viewModel.createWaypoint(
+                val waypoint = viewModel.waypointStore.createWaypoint(
                     latitude = point.latitude(),
                     longitude = point.longitude()
                 )
-                viewModel.openWaypointForm(waypoint)
+                viewModel.waypointStore.openWaypointForm(waypoint)
             },
             onMeasurementTap = { viewModel.measurementState.addPoint(it) },
-            onStationsNeedLoad = { viewModel.loadStationsIfNeeded() },
-            onCaptureMapSnapshotReady = { capture -> viewModel.captureMapSnapshot = capture },
-            onMapSnapshotTaken = { viewModel.setMapSnapshot(it) },
-            onRepaintReady = { repaint -> viewModel.repaint = repaint },
+            onStationsNeedLoad = { viewModel.stationStore.loadStationsIfNeeded() },
+            onCaptureMapSnapshotReady = { capture -> viewModel.datasetStore.captureMapSnapshot = capture },
+            onMapSnapshotTaken = { viewModel.savedMapsStore.setMapSnapshot(it) },
+            onRepaintReady = { repaint -> viewModel.datasetStore.repaint = repaint },
             modifier = Modifier.fillMaxSize(),
         )
 
         // Crosshair overlay
         CrosshairOverlay(
-            primaryValue = viewModel.primaryValue,
-            temperatureUnits = TemperatureUnits.fromRawValue(viewModel.userPreferences?.temperatureUnits)
+            primaryValue = datasetState.primaryValue,
+            temperatureUnits = TemperatureUnits.fromRawValue(prefsState.userPreferences?.temperatureUnits)
                 ?: TemperatureUnits.FAHRENHEIT,
             zoomProvider = { cameraZoom },
             latitudeProvider = { cameraLatitude },
-            isDataLayerActive = viewModel.isDataLayerActive
+            isDataLayerActive = datasetState.isDataLayerActive
         )
 
         // Top bar: left (crew/future) | center (loading/error capsules) | right (announcement + account)
         TopBar(
             isVisible = !isInSpecialMode,
             notifications = viewModel.notificationManager.notifications,
-            showAnnouncement = viewModel.isAnnouncementVisible,
-            onAnnouncementTap = { viewModel.showAnnouncementSheet = true },
+            showAnnouncement = appState.isAnnouncementVisible,
+            onAnnouncementTap = { viewModel.setShowAnnouncementSheet(true) },
             onAccountTap = onSettingsClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -185,12 +202,12 @@ fun MapScreen(
         )
 
         // Crew filter chips
-        if (viewModel.crews.isNotEmpty()) {
+        if (crewState.crews.isNotEmpty()) {
             CrewChipsOverlay(
-                crews = viewModel.crews,
-                activeCrewId = viewModel.activeCrewId,
+                crews = crewState.crews,
+                activeCrewId = crewState.activeCrewId,
                 unreadCounts = emptyMap(),
-                onSelectCrew = { viewModel.activeCrewId = it },
+                onSelectCrew = { viewModel.crewStore.setActiveCrewId(it) },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = 16.dp, top = 100.dp)
@@ -206,10 +223,10 @@ fun MapScreen(
         )
 
         // Depth selector (right side)
-        if (viewModel.depthFilterState.hasSelection) {
+        if (datasetState.depthFilterState.hasSelection) {
             DepthSelector(
-                depthFilter = viewModel.depthFilterState,
-                onDepthSelected = { viewModel.onDepthSelected(it) },
+                depthFilter = datasetState.depthFilterState,
+                onDepthSelected = { viewModel.datasetStore.onDepthSelected(it) },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = Spacing.large)
@@ -218,7 +235,7 @@ fun MapScreen(
 
         // Bottom controls — extracted composable (matches iOS MapControlsOverlay)
         // Own recomposition scope: sheet state changes don't touch this.
-        if (viewModel.selectedDataset != null && !viewModel.satelliteTrackingMode.isActive) {
+        if (datasetState.selectedDataset != null && !viewModel.satelliteTrackingMode.isActive) {
             MapControlsOverlay(
                 viewModel = viewModel,
                 coordinator = coordinator,
@@ -230,12 +247,12 @@ fun MapScreen(
         }
 
         // Layers control sheet
-        if (coordinator.activeSheet is MapSheet.Layers && viewModel.selectedDataset != null && viewModel.primaryConfig != null) {
+        if (coordinator.activeSheet is MapSheet.Layers && datasetState.selectedDataset != null && datasetState.primaryConfig != null) {
             LayersControlSheet(
                 // Dataset layer props
-                dataset = viewModel.selectedDataset!!,
-                config = viewModel.primaryConfig!!,
-                onConfigChanged = { viewModel.updatePrimaryConfig(it) },
+                dataset = datasetState.selectedDataset!!,
+                config = datasetState.primaryConfig!!,
+                onConfigChanged = { viewModel.datasetStore.updatePrimaryConfig(it) },
                 isPrimary = true,
                 // Overlay layer props
                 layersByCategory = viewModel.globalLayerManager.layersByCategory,
@@ -248,38 +265,38 @@ fun MapScreen(
                 onTournamentSelect = { viewModel.globalLayerManager.selectTournament(it) },
                 onTournamentDeselect = { viewModel.globalLayerManager.deselectTournament() },
                 // Sheet props
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                sheetState = coordinatorSheetState,
                 onDismiss = { coordinator.dismissSheet() }
             )
         }
 
         // Dataset selector sheet
-        if (coordinator.activeSheet is MapSheet.DatasetSelector && viewModel.selectedRegion != null) {
+        if (coordinator.activeSheet is MapSheet.DatasetSelector && regionState.selectedRegion != null) {
             DatasetSelectorSheet(
-                datasets = viewModel.selectedRegion!!.activeDatasets,
-                selectedDataset = viewModel.selectedDataset,
-                selectedEntry = viewModel.selectedEntry,
+                datasets = regionState.selectedRegion!!.activeDatasets,
+                selectedDataset = datasetState.selectedDataset,
+                selectedEntry = datasetState.selectedEntry,
                 isPremium = true, // TODO: Wire up subscription status
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                sheetState = coordinatorSheetState,
                 onDatasetSelected = { dataset ->
-                    viewModel.selectDataset(dataset)
+                    viewModel.datasetStore.selectDataset(dataset)
                 },
                 onDismiss = { coordinator.dismissSheet() }
             )
         }
 
         // Dataset filter sheet
-        if (coordinator.activeSheet is MapSheet.DatasetFilter && viewModel.primaryConfig != null && viewModel.selectedDataset != null) {
-            val config = viewModel.primaryConfig!!
-            val dataset = viewModel.selectedDataset!!
+        if (coordinator.activeSheet is MapSheet.DatasetFilter && datasetState.primaryConfig != null && datasetState.selectedDataset != null) {
+            val config = datasetState.primaryConfig!!
+            val dataset = datasetState.selectedDataset!!
             val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
-            val entry = viewModel.selectedEntry
+            val entry = datasetState.selectedEntry
             val rangeKey = datasetType.rangeKey
             val rangeData = entry?.ranges?.get(rangeKey)
             val dataRange = if (rangeData?.min != null && rangeData.max != null) {
                 rangeData.min..rangeData.max
             } else {
-                viewModel.renderingSnapshot.dataMin..viewModel.renderingSnapshot.dataMax
+                datasetState.renderingSnapshot.dataMin..datasetState.renderingSnapshot.dataMax
             }
 
             DatasetFilterSheet(
@@ -289,58 +306,60 @@ fun MapScreen(
                 apiUnit = DatasetConfiguration.forDatasetType(datasetType).unit,
                 decimalPlaces = DatasetConfiguration.forDatasetType(datasetType).decimalPlaces,
                 onConfigChanged = { newConfig ->
-                    viewModel.updatePrimaryConfig(newConfig)
+                    viewModel.datasetStore.updatePrimaryConfig(newConfig)
                 },
                 onDragRangeChanged = { min, max ->
-                    viewModel.setFilterRangeDirect(min, max)
+                    viewModel.datasetStore.setFilterRangeDirect(min, max)
                 },
                 onDismiss = { coordinator.dismissSheet() }
             )
         }
 
         // Waypoint detail sheet
-        viewModel.activeWaypointSheet?.let { sheet ->
+        waypointState.activeWaypointSheet?.let { sheet ->
             when (sheet) {
                 is WaypointSheet.Details -> {
-                    val waypoint = viewModel.allWaypoints.find { it.id == sheet.waypointId }
+                    val waypoint = waypointState.allWaypoints.find { it.id == sheet.waypointId }
                     if (waypoint != null) {
                         WaypointDetailSheet(
+                            sheetState = waypointSheetState,
                             waypoint = waypoint,
                             source = WaypointSource.Own,
                             gpsFormat = GPSFormat.DMM, // TODO: wire from user preferences
-                            onDismiss = { viewModel.dismissWaypointSheet() },
-                            onEdit = { viewModel.openWaypointForm(it) },
-                            onDelete = { viewModel.deleteWaypoint(it) },
+                            onDismiss = { viewModel.waypointStore.dismissWaypointSheet() },
+                            onEdit = { viewModel.waypointStore.openWaypointForm(it) },
+                            onDelete = { viewModel.waypointStore.deleteWaypoint(it) },
                             onShareToCrew = { waypoint ->
                                 coordinator.openSheet(MapSheet.ShareWaypoint(waypoint))
                             },
                             onShareGPX = { /* TODO: wire GPX export */ },
                             onNotesChanged = { notes ->
                                 val updated = waypoint.copy(notes = notes.ifEmpty { null })
-                                viewModel.saveWaypoint(updated)
+                                viewModel.waypointStore.saveWaypoint(updated)
                             }
                         )
                     }
                 }
                 is WaypointSheet.Form -> {
                     WaypointFormSheet(
+                        sheetState = waypointSheetState,
                         waypoint = sheet.waypoint,
                         isNewWaypoint = sheet.waypoint.name == null,
                         gpsFormat = GPSFormat.DMM, // TODO: wire from user preferences
-                        formState = viewModel.waypointFormState,
-                        onFormStateChange = { viewModel.waypointFormState = it },
+                        formState = waypointState.waypointFormState,
+                        onFormStateChange = { viewModel.waypointStore.updateWaypointFormState(it) },
                         onSave = {
-                            val updated = viewModel.waypointFormState.buildWaypoint(
+                            val updated = waypointState.waypointFormState.buildWaypoint(
                                 from = sheet.waypoint,
                                 format = GPSFormat.DMM
                             )
                             if (updated != null) {
-                                viewModel.saveWaypoint(updated)
-                                viewModel.dismissWaypointSheet()
+                                viewModel.waypointStore.saveWaypoint(updated)
+                                viewModel.waypointStore.dismissWaypointSheet()
                             }
                         },
-                        onCancel = { viewModel.dismissWaypointSheet() },
-                        onDismiss = { viewModel.dismissWaypointSheet() }
+                        onCancel = { viewModel.waypointStore.dismissWaypointSheet() },
+                        onDismiss = { viewModel.waypointStore.dismissWaypointSheet() }
                     )
                 }
             }
@@ -349,26 +368,28 @@ fun MapScreen(
         // Waypoint management sheet
         if (coordinator.activeSheet is MapSheet.WaypointManagement) {
             WaypointManagementSheet(
-                sections = viewModel.groupedWaypoints,
-                sortOption = viewModel.waypointSortOption,
-                selectedWaypointId = viewModel.selectedWaypointId,
-                onSortOptionChanged = { viewModel.updateWaypointSortOption(it) },
+                sheetState = coordinatorSheetState,
+                sections = waypointState.groupedWaypoints,
+                sortOption = waypointState.waypointSortOption,
+                selectedWaypointId = waypointState.selectedWaypointId,
+                onSortOptionChanged = { viewModel.waypointStore.updateWaypointSortOption(it) },
                 onWaypointTap = { id ->
                     coordinator.dismissSheet()
-                    viewModel.openWaypointDetails(id)
+                    viewModel.waypointStore.openWaypointDetails(id)
                 },
-                onWaypointDelete = { viewModel.deleteWaypoint(it) },
+                onWaypointDelete = { viewModel.waypointStore.deleteWaypoint(it) },
                 onImportGPX = { gpxPickerLauncher.launch(arrayOf("*/*")) },
                 onDismiss = { coordinator.dismissSheet() }
             )
         }
 
         // Announcement sheet
-        if (viewModel.showAnnouncementSheet) {
-            viewModel.announcement?.let { ann ->
+        if (appState.showAnnouncementSheet) {
+            appState.announcement?.let { ann ->
                 AnnouncementSheetView(
                     announcement = ann,
-                    onDismiss = { viewModel.markAnnouncementAsSeen() }
+                    onDismiss = { viewModel.markAnnouncementAsSeen() },
+                    sheetState = announcementSheetState,
                 )
             }
         }
@@ -377,7 +398,7 @@ fun MapScreen(
         if (coordinator.activeSheet is MapSheet.Tools) {
             androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = { coordinator.dismissSheet() },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                sheetState = coordinatorSheetState,
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 MapToolBar(
@@ -395,7 +416,23 @@ fun MapScreen(
                     },
                     onShare = {
                         coordinator.dismissSheet()
-                        viewModel.createShareLink()
+                        val rs = viewModel.regionStore.state.value
+                        val ds = viewModel.datasetStore.state.value
+                        val region = rs.selectedRegion ?: return@MapToolBar
+                        val dataset = ds.selectedDataset ?: return@MapToolBar
+                        val entry = ds.selectedEntry ?: return@MapToolBar
+                        viewModel.datasetStore.captureMapSnapshot?.invoke()
+                        viewModel.savedMapsStore.createShareLink(
+                            region = region,
+                            dataset = dataset,
+                            entry = entry,
+                            config = ds.primaryConfig,
+                            zoom = cameraZoom,
+                            latitude = cameraLatitude,
+                            longitude = cameraLongitude,
+                            selectedDepth = ds.depthFilterState.selectedDepth,
+                            onError = { viewModel.notificationManager.updateError(it) }
+                        )
                     },
                     onWaypoints = {
                         coordinator.openSheet(MapSheet.WaypointManagement)
@@ -427,7 +464,7 @@ fun MapScreen(
         if (coordinator.activeSheet is MapSheet.DatasetGuide) {
             androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = { coordinator.dismissSheet() },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                sheetState = coordinatorSheetState,
                 containerColor = MaterialTheme.colorScheme.background
             ) {
                 Column(
@@ -464,37 +501,37 @@ fun MapScreen(
         }
 
         // Share link preview sheet — full-screen style matching iOS
-        viewModel.shareLinkUrl?.let { url ->
+        savedMapsState.shareLinkUrl?.let { url ->
             androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { viewModel.dismissShareLink() },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                onDismissRequest = { viewModel.savedMapsStore.dismissShareLink() },
+                sheetState = shareLinkSheetState,
                 containerColor = MaterialTheme.colorScheme.surface,
                 dragHandle = null
             ) {
                 ShareLinkSheet(
                     url = url,
-                    mapSnapshot = viewModel.shareLinkSnapshot,
-                    regionName = viewModel.selectedRegion?.name ?: "Unknown",
-                    datasetName = viewModel.selectedDataset?.let {
+                    mapSnapshot = savedMapsState.shareLinkSnapshot,
+                    regionName = regionState.selectedRegion?.name ?: "Unknown",
+                    datasetName = datasetState.selectedDataset?.let {
                         DatasetType.fromRawValue(it.type)?.shortName ?: it.type
                     } ?: "Unknown",
-                    timestamp = viewModel.selectedEntry?.timestamp ?: "",
+                    timestamp = datasetState.selectedEntry?.timestamp ?: "",
                     latitude = cameraLatitude,
                     longitude = cameraLongitude,
-                    onDismiss = { viewModel.dismissShareLink() }
+                    onDismiss = { viewModel.savedMapsStore.dismissShareLink() }
                 )
             }
         }
 
         // Station detail sheet
-        viewModel.selectedStationId?.let { stationId ->
+        stationState.selectedStationId?.let { stationId ->
             val stationDetailViewModel: StationDetailViewModel = viewModel(
                 key = "stationDetail",
                 factory = androidx.lifecycle.ViewModelProvider.NewInstanceFactory()
             )
             androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { viewModel.dismissStationDetail() },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                onDismissRequest = { viewModel.stationStore.dismissStationDetail() },
+                sheetState = stationSheetState,
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 StationDetailsView(
@@ -516,24 +553,27 @@ fun MapScreen(
         // Crew list sheet
         if (coordinator.activeSheet is MapSheet.CrewList) {
             CrewListSheet(
-                crews = viewModel.crews,
-                crewWaypoints = viewModel.crewWaypoints,
-                savedMaps = viewModel.savedMaps,
-                selectedCrew = viewModel.selectedCrew,
-                selectedCrewMembers = viewModel.selectedCrewMembers,
-                isCreator = viewModel.selectedCrew?.let { viewModel.isCreator(it) } ?: false,
-                hasDisplayName = viewModel.hasDisplayName,
-                onSelectCrew = viewModel::selectCrew,
-                onCreateCrew = { name, onSuccess -> viewModel.createCrew(name, onSuccess) },
-                onJoinCrew = { code, onSuccess, onError -> viewModel.joinCrew(code, onSuccess, onError) },
-                onLeaveCrew = { crew, onComplete -> viewModel.leaveCrew(crew, onComplete) },
-                onDeleteCrew = { crew, onComplete -> viewModel.deleteCrew(crew, onComplete) },
-                onRemoveMember = { crewId, memberId -> viewModel.removeMember(crewId, memberId) },
-                onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.updateCrewName(crewId, newName, onSuccess) },
-                onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
+                sheetState = coordinatorSheetState,
+                crews = crewState.crews,
+                crewWaypoints = crewState.crewWaypoints,
+                savedMaps = savedMapsState.savedMaps,
+                selectedCrew = crewState.selectedCrew,
+                selectedCrewMembers = crewState.selectedCrewMembers,
+                isCreator = crewState.selectedCrew?.let { viewModel.crewStore.isCreator(it) } ?: false,
+                hasDisplayName = prefsState.hasDisplayName,
+                onSelectCrew = viewModel.crewStore::selectCrew,
+                onCreateCrew = { name, onSuccess -> viewModel.crewStore.createCrew(name, onSuccess) },
+                onJoinCrew = { code, onSuccess, onError -> viewModel.crewStore.joinCrew(code, onSuccess, onError) },
+                onLeaveCrew = { crew, onComplete -> viewModel.crewStore.leaveCrew(crew, onComplete) },
+                onDeleteCrew = { crew, onComplete -> viewModel.crewStore.deleteCrew(crew, onComplete) },
+                onRemoveMember = { crewId, memberId -> viewModel.crewStore.removeMember(crewId, memberId) },
+                onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.crewStore.updateCrewName(crewId, newName, onSuccess) },
+                onSaveName = { firstName, lastName ->
+                    viewModel.userPreferencesStore.saveName(firstName, lastName)
+                },
                 onWaypointTap = { sharedWaypoint ->
                     coordinator.dismissSheet()
-                    viewModel.selectWaypoint(sharedWaypoint.waypoint.id)
+                    viewModel.waypointStore.selectWaypoint(sharedWaypoint.waypoint.id)
                 },
                 onLoadMap = { savedMap ->
                     coordinator.dismissSheet()
@@ -546,36 +586,43 @@ fun MapScreen(
         // Create crew sheet
         if (coordinator.activeSheet is MapSheet.CreateCrew) {
             CreateCrewSheet(
+                sheetState = coordinatorSheetState,
                 onDismiss = { coordinator.dismissSheet() },
                 onCrewCreated = { crew ->
                     coordinator.dismissSheet()
-                    viewModel.loadCrews()
+                    viewModel.crewStore.loadCrews()
                 },
-                onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
-                hasDisplayName = viewModel.hasDisplayName,
+                onSaveName = { firstName, lastName ->
+                    viewModel.userPreferencesStore.saveName(firstName, lastName)
+                },
+                hasDisplayName = prefsState.hasDisplayName,
             )
         }
 
         // Join crew sheet
         if (coordinator.activeSheet is MapSheet.JoinCrew) {
             JoinCrewSheet(
+                sheetState = coordinatorSheetState,
                 onDismiss = { coordinator.dismissSheet() },
                 onCrewJoined = { crew ->
                     coordinator.dismissSheet()
-                    viewModel.loadCrews()
+                    viewModel.crewStore.loadCrews()
                 },
-                onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
-                hasDisplayName = viewModel.hasDisplayName,
+                onSaveName = { firstName, lastName ->
+                    viewModel.userPreferencesStore.saveName(firstName, lastName)
+                },
+                hasDisplayName = prefsState.hasDisplayName,
             )
         }
 
         // Save map sheet
         if (coordinator.activeSheet is MapSheet.SaveMap) {
             SaveMapSheet(
-                crews = viewModel.crews,
-                regionName = viewModel.selectedRegion?.name,
-                datasetName = viewModel.selectedDataset?.type,
-                isSaving = viewModel.isSavingMap,
+                sheetState = coordinatorSheetState,
+                crews = crewState.crews,
+                regionName = regionState.selectedRegion?.name,
+                datasetName = datasetState.selectedDataset?.type,
+                isSaving = savedMapsState.isSavingMap,
                 onSave = { name, crewId ->
                     // TODO: build MapConfiguration from current state
                     coordinator.dismissSheet()
@@ -587,17 +634,18 @@ fun MapScreen(
         // Saved maps list sheet
         if (coordinator.activeSheet is MapSheet.SavedMaps) {
             SavedMapsListSheet(
-                savedMaps = viewModel.savedMaps,
-                crews = viewModel.crews,
+                sheetState = coordinatorSheetState,
+                savedMaps = savedMapsState.savedMaps,
+                crews = crewState.crews,
                 currentUserId = AuthManager.currentUserId,
-                isLoading = viewModel.isLoadingSavedMaps,
+                isLoading = savedMapsState.isLoadingSavedMaps,
                 onLoadMap = { savedMap ->
                     coordinator.dismissSheet()
                     // TODO: apply saved map configuration
                 },
-                onDeleteMap = { viewModel.deleteSavedMap(it) },
-                onShareToCrew = { mapId, crewId, name -> viewModel.shareMapWithCrew(mapId, crewId, name) },
-                onUnshare = { viewModel.unshareMap(it) },
+                onDeleteMap = { viewModel.savedMapsStore.deleteSavedMap(it) },
+                onShareToCrew = { mapId, crewId, name -> viewModel.savedMapsStore.shareMapWithCrew(mapId, crewId, name) },
+                onUnshare = { viewModel.savedMapsStore.unshareMap(it) },
                 onDismiss = { coordinator.dismissSheet() },
             )
         }
@@ -605,10 +653,11 @@ fun MapScreen(
         // Share waypoint to crew sheet
         (coordinator.activeSheet as? MapSheet.ShareWaypoint)?.let { sheet ->
             ShareWaypointSheet(
+                sheetState = coordinatorSheetState,
                 waypoint = sheet.waypoint,
-                crews = viewModel.crews,
+                crews = crewState.crews,
                 onShare = { crewIds ->
-                    viewModel.shareWaypointToCrews(sheet.waypoint, crewIds)
+                    viewModel.crewStore.shareWaypointToCrews(sheet.waypoint, crewIds)
                     coordinator.dismissSheet()
                 },
                 onDismiss = { coordinator.dismissSheet() },

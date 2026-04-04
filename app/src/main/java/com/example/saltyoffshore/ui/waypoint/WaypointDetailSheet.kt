@@ -42,6 +42,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -99,7 +100,8 @@ fun WaypointDetailSheet(
     onDelete: (Waypoint) -> Unit,
     onShareToCrew: (Waypoint) -> Unit,
     onShareGPX: (Waypoint) -> Unit,
-    onNotesChanged: (String) -> Unit
+    onNotesChanged: (String) -> Unit,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -190,7 +192,7 @@ fun WaypointDetailSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background
     ) {
         Column(

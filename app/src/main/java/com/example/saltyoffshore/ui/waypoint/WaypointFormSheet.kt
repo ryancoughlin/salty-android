@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,15 +61,14 @@ fun WaypointFormSheet(
     onSave: () -> Unit,
     onCancel: () -> Unit,
     onDismiss: () -> Unit,
-    isSaving: Boolean = false
+    isSaving: Boolean = false,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
 ) {
     // Track the initial form state for dirty checking
     val initialFormState = remember(waypoint.id) { formState }
     val isDirty = formState != initialFormState
 
     var showCancelAlert by remember { mutableStateOf(false) }
-
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     ModalBottomSheet(
         onDismissRequest = {

@@ -13,6 +13,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,12 +44,6 @@ private const val TAG = "MainActivity"
 
 /**
  * MainActivity matching iOS SaltyOffshoreApp.swift auth state machine.
- *
- * Collects Supabase sessionStatus flow:
- * - Authenticated -> show authenticated content (MapScreen + TopBar + AccountHub)
- * - NotAuthenticated -> show LoginScreen
- *
- * Auth state changes (sign out, session expiry) automatically route UI.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,23 +79,19 @@ private fun SaltyApp() {
                 }
                 is SessionStatus.NotAuthenticated -> {
                     if (isAuthenticated) {
-                        // Was authenticated, now signed out -> clear state
                         viewModel.signOut()
                     }
                     isAuthenticated = false
                 }
-                is SessionStatus.Initializing -> {
-                    // Loading from storage, keep current state
-                }
+                is SessionStatus.Initializing -> { }
                 is SessionStatus.RefreshFailure -> {
                     Log.w(TAG, "Auth session refresh failed: ${status.cause}")
-                    // Keep current state -- may recover on next attempt
                 }
             }
         }
     }
 
-    // Network monitoring: sync pending changes when connectivity restores
+    // Network monitoring
     LaunchedEffect(Unit) {
         viewModel.observeNetworkState()
     }
@@ -116,7 +107,6 @@ private fun SaltyApp() {
             onNavigateToResetPassword = { showResetPasswordSheet = true }
         )
 
-        // Sign Up sheet
         if (showSignUpSheet) {
             SignUpScreen(
                 onSignUpSuccess = { showSignUpSheet = false },
@@ -124,7 +114,6 @@ private fun SaltyApp() {
             )
         }
 
-        // Reset Password sheet
         if (showResetPasswordSheet) {
             ResetPasswordScreen(
                 onBack = { showResetPasswordSheet = false }
@@ -132,16 +121,12 @@ private fun SaltyApp() {
         }
     }
 
-    // Launch animation overlay — renders on top, self-dismisses
+    // Launch animation overlay
     if (showLaunch) {
         LaunchView(onFinished = { showLaunch = false })
     }
 }
 
-/**
- * Tracks which sheet is currently visible.
- * Only one sheet at a time — Material Design "dismiss then navigate" pattern.
- */
 private enum class SettingsSheet {
     None, Settings, EditProfile, RegionSelection, Crews, SavedMaps
 }
@@ -150,23 +135,23 @@ private enum class SettingsSheet {
 @Composable
 private fun AuthenticatedContent(viewModel: AppViewModel) {
     var hasAppeared by remember { mutableStateOf(false) }
-
-    // Sheet navigation state — only one sheet visible at a time (Material Design pattern).
-    // Sub-pages dismiss the settings sheet first, then open their own sheet.
-    // On sub-page dismiss, settings re-opens.
     var activeSheet by remember { mutableStateOf<SettingsSheet>(SettingsSheet.None) }
 
     val accountSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val editProfileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val regionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Trigger appear animation
+    // Collect store states
+    val regionState by viewModel.regionStore.state.collectAsState()
+    val crewState by viewModel.crewStore.state.collectAsState()
+    val prefsState by viewModel.userPreferencesStore.state.collectAsState()
+    val savedMapsState by viewModel.savedMapsStore.state.collectAsState()
+
     LaunchedEffect(Unit) {
         hasAppeared = true
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Map screen (full-screen)
         MapScreen(
             viewModel = viewModel,
             onSettingsClick = { activeSheet = SettingsSheet.Settings }
@@ -177,13 +162,13 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
     if (activeSheet == SettingsSheet.Settings) {
         AccountHubSheet(
             sheetState = accountSheetState,
-            preferences = viewModel.userPreferences,
-            onDepthUnitsChanged = viewModel::updateDepthUnits,
-            onDistanceUnitsChanged = viewModel::updateDistanceUnits,
-            onSpeedUnitsChanged = viewModel::updateSpeedUnits,
-            onTemperatureUnitsChanged = viewModel::updateTemperatureUnits,
-            onGpsFormatChanged = viewModel::updateGpsFormat,
-            onMapThemeChanged = viewModel::updateMapTheme,
+            preferences = prefsState.userPreferences,
+            onDepthUnitsChanged = viewModel.userPreferencesStore::updateDepthUnits,
+            onDistanceUnitsChanged = viewModel.userPreferencesStore::updateDistanceUnits,
+            onSpeedUnitsChanged = viewModel.userPreferencesStore::updateSpeedUnits,
+            onTemperatureUnitsChanged = viewModel.userPreferencesStore::updateTemperatureUnits,
+            onGpsFormatChanged = viewModel.userPreferencesStore::updateGpsFormat,
+            onMapThemeChanged = viewModel.userPreferencesStore::updateMapTheme,
             onEditProfile = { activeSheet = SettingsSheet.EditProfile },
             onPreferredRegion = { activeSheet = SettingsSheet.RegionSelection },
             onManageCrews = { activeSheet = SettingsSheet.Crews },
@@ -194,27 +179,27 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
         )
     }
 
-    // Edit Profile — opens after settings dismisses, returns to settings on close
+    // Edit Profile
     if (activeSheet == SettingsSheet.EditProfile) {
         EditProfileSheet(
             sheetState = editProfileSheetState,
-            preferences = viewModel.userPreferences,
-            isSaving = viewModel.isSavingProfile,
+            preferences = prefsState.userPreferences,
+            isSaving = prefsState.isSavingProfile,
             onSave = { firstName, lastName, location ->
-                viewModel.updateProfile(firstName, lastName, location)
+                viewModel.userPreferencesStore.updateProfile(firstName, lastName, location)
                 activeSheet = SettingsSheet.Settings
             },
             onDismiss = { activeSheet = SettingsSheet.Settings }
         )
     }
 
-    // Region Selection — opens after settings dismisses, returns to settings on close
+    // Region Selection
     if (activeSheet == SettingsSheet.RegionSelection) {
         RegionSelectionSheet(
             sheetState = regionSheetState,
-            regionGroups = viewModel.regionGroups,
-            selectedRegionId = viewModel.preferredRegionId,
-            onRegionSelected = viewModel::updatePreferredRegion,
+            regionGroups = regionState.regionGroups,
+            selectedRegionId = regionState.preferredRegionId,
+            onRegionSelected = viewModel.userPreferencesStore::updatePreferredRegion,
             onDismiss = { activeSheet = SettingsSheet.Settings }
         )
     }
@@ -222,21 +207,21 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
     // Crews sheet
     if (activeSheet == SettingsSheet.Crews) {
         CrewListSheet(
-            crews = viewModel.crews,
-            crewWaypoints = viewModel.crewWaypoints,
-            savedMaps = viewModel.savedMaps,
-            selectedCrew = viewModel.selectedCrew,
-            selectedCrewMembers = viewModel.selectedCrewMembers,
-            isCreator = viewModel.selectedCrew?.let { viewModel.isCreator(it) } ?: false,
-            hasDisplayName = viewModel.hasDisplayName,
-            onSelectCrew = viewModel::selectCrew,
-            onCreateCrew = { name, onSuccess -> viewModel.createCrew(name, onSuccess) },
-            onJoinCrew = { code, onSuccess, onError -> viewModel.joinCrew(code, onSuccess, onError) },
-            onLeaveCrew = { crew, onComplete -> viewModel.leaveCrew(crew, onComplete) },
-            onDeleteCrew = { crew, onComplete -> viewModel.deleteCrew(crew, onComplete) },
-            onRemoveMember = { crewId, memberId -> viewModel.removeMember(crewId, memberId) },
-            onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.updateCrewName(crewId, newName, onSuccess) },
-            onSaveName = { firstName, lastName -> viewModel.saveName(firstName, lastName) },
+            crews = crewState.crews,
+            crewWaypoints = crewState.crewWaypoints,
+            savedMaps = savedMapsState.savedMaps,
+            selectedCrew = crewState.selectedCrew,
+            selectedCrewMembers = crewState.selectedCrewMembers,
+            isCreator = crewState.selectedCrew?.let { viewModel.crewStore.isCreator(it) } ?: false,
+            hasDisplayName = prefsState.hasDisplayName,
+            onSelectCrew = viewModel.crewStore::selectCrew,
+            onCreateCrew = { name, onSuccess -> viewModel.crewStore.createCrew(name, onSuccess) },
+            onJoinCrew = { code, onSuccess, onError -> viewModel.crewStore.joinCrew(code, onSuccess, onError) },
+            onLeaveCrew = { crew, onComplete -> viewModel.crewStore.leaveCrew(crew, onComplete) },
+            onDeleteCrew = { crew, onComplete -> viewModel.crewStore.deleteCrew(crew, onComplete) },
+            onRemoveMember = { crewId, memberId -> viewModel.crewStore.removeMember(crewId, memberId) },
+            onUpdateCrewName = { crewId, newName, onSuccess -> viewModel.crewStore.updateCrewName(crewId, newName, onSuccess) },
+            onSaveName = { firstName, lastName -> viewModel.userPreferencesStore.saveName(firstName, lastName) },
             onWaypointTap = { /* TODO: navigate to waypoint on map */ },
             onLoadMap = { /* TODO: load saved map configuration */ },
             onDismiss = { activeSheet = SettingsSheet.Settings },
@@ -246,31 +231,30 @@ private fun AuthenticatedContent(viewModel: AppViewModel) {
     // Saved Maps sheet
     if (activeSheet == SettingsSheet.SavedMaps) {
         SavedMapsListSheet(
-            savedMaps = viewModel.savedMaps,
-            crews = viewModel.crews,
+            savedMaps = savedMapsState.savedMaps,
+            crews = crewState.crews,
             currentUserId = AuthManager.currentUserId,
-            isLoading = viewModel.isLoadingSavedMaps,
+            isLoading = savedMapsState.isLoadingSavedMaps,
             onLoadMap = { /* TODO: load saved map configuration */ },
-            onDeleteMap = { viewModel.deleteSavedMap(it) },
-            onShareToCrew = { mapId, crewId, name -> viewModel.shareMapWithCrew(mapId, crewId, name) },
-            onUnshare = { viewModel.unshareMap(it) },
+            onDeleteMap = { viewModel.savedMapsStore.deleteSavedMap(it) },
+            onShareToCrew = { mapId, crewId, name -> viewModel.savedMapsStore.shareMapWithCrew(mapId, crewId, name) },
+            onUnshare = { viewModel.savedMapsStore.unshareMap(it) },
             onDismiss = { activeSheet = SettingsSheet.Settings },
         )
     }
 
     // FTUX: blocking full-screen dialog when no preferred region
-    if (viewModel.hasCompletedInitialLoad && viewModel.preferredRegionId == null) {
+    if (regionState.hasCompletedInitialLoad && regionState.preferredRegionId == null) {
         FTUXRegionSelectionScreen(
-            regionGroups = viewModel.regionGroups,
-            loadingRegionId = viewModel.ftuxLoadingRegionId,
-            onRegionSelected = viewModel::onFTUXRegionSelected
+            regionGroups = regionState.regionGroups,
+            loadingRegionId = regionState.ftuxLoadingRegionId,
+            onRegionSelected = viewModel.regionStore::onFTUXRegionSelected
         )
     }
 }
 
 /**
  * Refresh data when app returns to foreground.
- * Matches iOS: onChange(of: scenePhase) where newPhase == .active.
  */
 @Composable
 private fun ForegroundRefreshEffect(viewModel: AppViewModel, isAuthenticated: Boolean) {
@@ -284,9 +268,12 @@ private fun ForegroundRefreshEffect(viewModel: AppViewModel, isAuthenticated: Bo
                     isFirstResume = false
                     return@LifecycleEventObserver
                 }
-                if (isAuthenticated && viewModel.selectedRegion != null) {
-                    Log.d(TAG, "Foreground resume: refreshing region")
-                    viewModel.selectedRegion?.id?.let { viewModel.onRegionSelected(it) }
+                if (isAuthenticated) {
+                    val regionId = viewModel.regionStore.state.value.selectedRegion?.id
+                    if (regionId != null) {
+                        Log.d(TAG, "Foreground resume: refreshing region")
+                        viewModel.regionStore.onRegionSelected(regionId)
+                    }
                 }
             }
         }

@@ -8,8 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import com.example.saltyoffshore.data.DatasetConfiguration
 import com.example.saltyoffshore.data.DatasetType
 import com.example.saltyoffshore.data.displayVariables
 import com.example.saltyoffshore.data.primaryVariable
@@ -26,9 +27,6 @@ import com.example.saltyoffshore.viewmodel.AppViewModel
  * Extracted into its own composable so it has its own recomposition scope.
  * When sheet state changes in MapScreen, this composable does NOT recompose
  * because sheet state isn't read here.
- *
- * In iOS terms: MapControlsOverlay receives explicit params and only rebuilds
- * when the controls' own data changes (dataset, presets, measurement state).
  */
 @Composable
 fun MapControlsOverlay(
@@ -36,6 +34,9 @@ fun MapControlsOverlay(
     coordinator: MapSheetCoordinator,
     modifier: Modifier = Modifier,
 ) {
+    val datasetState by viewModel.datasetStore.state.collectAsState()
+    val prefsState by viewModel.userPreferencesStore.state.collectAsState()
+
     Column(modifier = modifier) {
         // Right toolbar (right-aligned, above quick actions + bottom panel)
         Row(
@@ -66,7 +67,7 @@ fun MapControlsOverlay(
                 totalDistanceMeters = viewModel.measurementState.totalDistanceMeters,
                 hasMeasurements = viewModel.measurementState.hasMeasurements,
                 canUndo = viewModel.measurementState.canUndo,
-                distanceUnits = viewModel.currentDistanceUnits,
+                distanceUnits = prefsState.currentDistanceUnits,
                 onUndo = { viewModel.measurementState.undoLastPoint() },
                 onClear = { viewModel.measurementState.clearAll() },
                 onDone = { viewModel.measurementState.exit() }
@@ -75,9 +76,9 @@ fun MapControlsOverlay(
 
         // Quick actions bar (presets, variables, depth)
         if (!viewModel.measurementState.isActive) {
-            val dataset = viewModel.selectedDataset!!
+            val dataset = datasetState.selectedDataset!!
             val datasetType = DatasetType.fromRawValue(dataset.type) ?: DatasetType.SST
-            val entry = viewModel.selectedEntry
+            val entry = datasetState.selectedEntry
             val rangeKey = datasetType.rangeKey
             val rangeData = entry?.ranges?.get(rangeKey)
             val valueRange = if (rangeData?.min != null && rangeData.max != null) {
@@ -85,37 +86,37 @@ fun MapControlsOverlay(
             } else {
                 0.0..1.0
             }
-            val config = viewModel.primaryConfig
+            val config = datasetState.primaryConfig
 
             QuickActionsBar(
                 datasetType = datasetType,
                 variables = datasetType.displayVariables,
                 selectedVariable = config?.selectedVariable(dataset) ?: datasetType.primaryVariable,
-                onVariableSelected = { viewModel.selectVariable(it) },
+                onVariableSelected = { viewModel.datasetStore.selectVariable(it) },
                 availableDepths = dataset.availableDepths ?: listOf(0),
-                selectedDepth = viewModel.depthFilterState.selectedDepth,
-                onDepthSelected = { viewModel.onDepthSelected(it) },
-                allPresets = viewModel.allPresets,
+                selectedDepth = datasetState.depthFilterState.selectedDepth,
+                onDepthSelected = { viewModel.datasetStore.onDepthSelected(it) },
+                allPresets = datasetState.allPresets,
                 selectedPreset = config?.selectedPreset,
-                currentValue = viewModel.primaryValue.value,
+                currentValue = datasetState.primaryValue.value,
                 valueRange = valueRange,
-                isLoadingPresets = viewModel.isLoadingPresets,
-                onPresetSelected = { viewModel.applyPreset(it) }
+                isLoadingPresets = datasetState.isLoadingPresets,
+                onPresetSelected = { viewModel.datasetStore.applyPreset(it) }
             )
         }
 
         // Bottom panel — dataset control
         if (!viewModel.measurementState.isActive) SaltyDatasetControl(
-            dataset = viewModel.selectedDataset!!,
-            entry = viewModel.selectedEntry,
-            snapshot = viewModel.renderingSnapshot,
-            primaryValue = viewModel.primaryValue,
-            isExpanded = viewModel.isDatasetControlCollapsed,
-            primaryConfig = viewModel.primaryConfig,
-            onConfigChanged = { viewModel.updatePrimaryConfig(it) },
-            onEntrySelected = { viewModel.selectEntry(it) },
+            dataset = datasetState.selectedDataset!!,
+            entry = datasetState.selectedEntry,
+            snapshot = datasetState.renderingSnapshot,
+            primaryValue = datasetState.primaryValue,
+            isExpanded = datasetState.isDatasetControlCollapsed,
+            primaryConfig = datasetState.primaryConfig,
+            onConfigChanged = { viewModel.datasetStore.updatePrimaryConfig(it) },
+            onEntrySelected = { viewModel.datasetStore.selectEntry(it) },
             onExpandToggle = {
-                viewModel.isDatasetControlCollapsed = !viewModel.isDatasetControlCollapsed
+                viewModel.datasetStore.toggleDatasetControl()
             },
             onChange = { coordinator.openSheet(MapSheet.DatasetSelector) }
         )
