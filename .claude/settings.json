@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '📍 Branch:' && git branch --show-current && echo '' && echo '📝 Recent commits:' && git log --oneline -5 && echo '' && echo '📂 Uncommitted changes:' && git status --short | head -10 || true"
+            "command": "echo '📍 Branch:' && git branch --show-current && echo '' && echo '📝 Recent commits:' && git log --oneline -5 && echo '' && echo '📂 Uncommitted changes:' && git status --short | head -10 && echo '' && echo '🎨 DESIGN SOURCE OF TRUTH: The iOS app defines all UX, UI, and product behavior.' && echo '   Before building any screen, flow, or interaction — read the iOS implementation first.' && echo '   Match the experience exactly. Do not invent, rearrange, or \"improve\" the design.' || true"
           }
         ]
       }
