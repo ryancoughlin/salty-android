@@ -30,6 +30,16 @@ After completing any implementation, self-review against these questions:
 
 If the answer to any of these is yes, fix it before presenting the work.
 
+## Material Design as the Translation Layer
+
+The iOS app defines *what* the experience is. Material Design 3 defines *how* to express it on Android.
+
+- Translate iOS interactions into their Material 3 equivalent — don't copy iOS visual patterns literally.
+- Use Material 3 components as-is: `TopAppBar`, `BottomSheetScaffold`, `NavigationBar`, `ModalBottomSheet`. Don't build custom versions of things Material already provides.
+- Use Material 3 tokens for color, typography, and spacing — `MaterialTheme.colorScheme`, `MaterialTheme.typography`. Never hardcode values.
+- Respect Android navigation idioms: bottom nav, back gestures, predictive back. Match the iOS *journey*, not the iOS *mechanism*.
+- Dynamic color and dark theme support through Material 3's color system, not manual color switching.
+
 ## What "Simple" Means Here
 
 - Fewer files > more files
