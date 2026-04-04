@@ -125,14 +125,15 @@ fun RegionSelectionSheet(
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Thumbnail
+                                    // Thumbnail (60x45, matching iOS)
                                     AsyncImage(
                                         model = region.thumbnail,
                                         contentDescription = region.name,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(MaterialTheme.shapes.medium)
+                                            .width(60.dp)
+                                            .height(45.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                     )
 
                                     Spacer(modifier = Modifier.width(12.dp))
@@ -160,7 +161,7 @@ fun RegionSelectionSheet(
                                 // Divider (not on last item)
                                 if (!isLast) {
                                     HorizontalDivider(
-                                        modifier = Modifier.padding(start = 64.dp),
+                                        modifier = Modifier.padding(start = 84.dp),
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                                     )
                                 }

@@ -1,5 +1,6 @@
 package com.example.saltyoffshore.ui.screen
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -26,9 +26,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
+import com.example.saltyoffshore.R
 import com.example.saltyoffshore.data.RegionGroup
 import com.example.saltyoffshore.data.RegionListItem
 
@@ -83,21 +87,11 @@ private fun LoadingView() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Logo placeholder (80x80)
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "S",
-                color = MaterialTheme.colorScheme.background,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.salty_mark),
+            contentDescription = "Salty Offshore",
+            modifier = Modifier.size(80.dp)
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -177,7 +171,7 @@ private fun RegionListView(
                         )
                         if (index < activeRegions.lastIndex) {
                             HorizontalDivider(
-                                modifier = Modifier.padding(start = 108.dp),
+                                modifier = Modifier.padding(start = 128.dp),
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                             )
                         }
@@ -202,21 +196,11 @@ private fun FTUXHeader() {
             .padding(top = 64.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Logo placeholder (72x72)
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "S",
-                color = MaterialTheme.colorScheme.background,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.salty_mark),
+            contentDescription = "Salty Offshore",
+            modifier = Modifier.size(64.dp)
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -263,23 +247,17 @@ private fun RegionRow(
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Thumbnail placeholder (80x60)
-        // TODO: Add Coil dependency for AsyncImage loading of region.thumbnail
-        Box(
+        // Thumbnail (100x72, matching iOS)
+        AsyncImage(
+            model = region.thumbnail,
+            contentDescription = region.name,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
-                .width(80.dp)
-                .height(60.dp)
-                .clip(MaterialTheme.shapes.large)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = region.name.take(2).uppercase(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
+                .width(100.dp)
+                .height(72.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+        )
 
         Spacer(modifier = Modifier.width(12.dp))
 
