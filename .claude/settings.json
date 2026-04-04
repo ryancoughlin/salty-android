@@ -11,11 +11,25 @@
       "Bash(git branch *)",
       "Bash(git checkout *)",
       "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
       "Bash(git fetch *)",
       "Bash(git pull *)",
+      "Bash(./gradlew *)",
       "Bash(which *)",
       "Bash(ls *)",
       "Bash(gh *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf *)",
+      "Edit(**/local.properties)",
+      "Edit(**/google-services.json)",
+      "Edit(**/*.keystore)",
+      "Write(**/local.properties)",
+      "Write(**/google-services.json)",
+      "Write(**/*.keystore)"
     ]
   },
   "hooks": {
@@ -25,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '📍 Branch:' && git branch --show-current && echo '' && echo '📝 Recent commits:' && git log --oneline -5 && echo '' && echo '📂 Uncommitted changes:' && git status --short | head -10 || true"
+            "command": "echo '📍 Branch:' && git branch --show-current && echo '' && echo '📝 Recent commits:' && git log --oneline -5 && echo '' && echo '📂 Uncommitted changes:' && git status --short | head -10 && echo '' && echo '🎨 DESIGN SOURCE OF TRUTH: The iOS app defines all UX, UI, and product behavior.' && echo '   Before building any screen, flow, or interaction — read the iOS implementation first.' && echo '   Match the experience exactly. Do not invent, rearrange, or \"improve\" the design.' || true"
           }
         ]
       }
@@ -36,7 +50,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then echo '⚠️  WARNING: You have uncommitted changes!' && git status --short; fi"
+            "command": "if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then echo '⚠️  You have uncommitted changes:' && git diff --name-only && git diff --cached --name-only; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git diff --name-only 2>/dev/null | grep -q '\\.kt$' && echo '' && echo '🧹 SIMPLICITY CHECK — Review before moving on:' && echo '  1. Can any class/wrapper be deleted and inlined?' && echo '  2. Using latest Android APIs, not deprecated patterns?' && echo '  3. Any unused imports, parameters, or properties?' && echo '  4. Any abstractions with only one implementation?' && echo '  5. Could a built-in Compose/Material component replace custom code?' || true"
           }
         ]
       }
@@ -47,7 +70,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file_path=$(echo \"$TOOL_INPUT\" | jq -r '.file_path // empty'); if [[ \"$file_path\" == *local.properties* ]] || [[ \"$file_path\" == *google-services.json* ]] || [[ \"$file_path\" == *.keystore* ]]; then echo 'BLOCKED: Cannot edit secrets/credentials file' && exit 1; fi"
+            "command": "file_path=$(echo \"$TOOL_INPUT\" | jq -r '.file_path // empty'); if [[ \"$file_path\" == *local.properties* ]] || [[ \"$file_path\" == *google-services.json* ]] || [[ \"$file_path\" == *.keystore* ]]; then echo '{\"decision\": \"block\", \"reason\": \"Cannot edit secrets/credentials\"}' && exit 0; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(echo \"$TOOL_INPUT\" | jq -r '.file_path // empty'); if echo \"$file_path\" | grep -q '\\.kt$'; then echo '🔍 Kotlin file edited — verify this matches the iOS implementation before moving on.'; fi"
           }
         ]
       }
