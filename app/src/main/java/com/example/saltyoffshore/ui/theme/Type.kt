@@ -72,7 +72,16 @@ object SaltyType {
     fun mono(size: Int = 14) = TextStyle(
         fontFamily = SplineSansMono,
         fontWeight = FontWeight.Normal,
-        fontSize = size.sp
+        fontSize = size.sp,
+    )
+
+    /** Chart axis labels — 10sp medium, tabular figures for numeric alignment.
+     *  Mirrors iOS Font.chartAxisLabel (SplineSans-Medium 10pt .monospacedDigit()) */
+    val chartAxisLabel = TextStyle(
+        fontFamily = SplineSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 10.sp,
+        fontFeatureSettings = "tnum", // tabular (monospaced) digits
     )
 }
 
